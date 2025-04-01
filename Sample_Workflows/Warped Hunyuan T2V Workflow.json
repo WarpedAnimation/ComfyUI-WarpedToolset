@@ -1,0 +1,1104 @@
+{
+  "last_node_id": 271,
+  "last_link_id": 867,
+  "nodes": [
+    {
+      "id": 152,
+      "type": "PreviewTextNode",
+      "pos": [
+        743.6790771484375,
+        -206.6033477783203
+      ],
+      "size": [
+        342.3085632324219,
+        114.48214721679688
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 860
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewTextNode"
+      },
+      "widgets_values": [
+        "",
+        "****** WarpedSamplerCustomAdv: Total Images Generated 137 ******",
+        true
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 16,
+      "type": "KSamplerSelect",
+      "pos": [
+        12.88206958770752,
+        989.7529296875
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "shape": 3,
+          "links": [
+            863
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "euler"
+      ]
+    },
+    {
+      "id": 81,
+      "type": "Reroute",
+      "pos": [
+        -193.63931274414062,
+        550.3953857421875
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 845
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "MODEL",
+          "links": [
+            526,
+            867
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 99,
+      "type": "Fast Groups Muter (rgthree)",
+      "pos": [
+        320.3949890136719,
+        -243.12155151367188
+      ],
+      "size": [
+        386.92010498046875,
+        138.19512939453125
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "OPT_CONNECTION",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "properties": {
+        "matchColors": "",
+        "matchTitle": "",
+        "showNav": true,
+        "sort": "position",
+        "customSortAlphabet": "",
+        "toggleRestriction": "default"
+      }
+    },
+    {
+      "id": 10,
+      "type": "VAELoader",
+      "pos": [
+        -428.6177062988281,
+        773.2269287109375
+      ],
+      "size": [
+        323.2068786621094,
+        65.77056884765625
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "shape": 3,
+          "links": [
+            569
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "hunyuan_video_vae_bf16.safetensors"
+      ]
+    },
+    {
+      "id": 177,
+      "type": "BasicScheduler",
+      "pos": [
+        7.450515270233154,
+        836.5254516601562
+      ],
+      "size": [
+        315,
+        106
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 526
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SIGMAS",
+          "type": "SIGMAS",
+          "links": [
+            864
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BasicScheduler"
+      },
+      "widgets_values": [
+        "beta",
+        12,
+        1
+      ]
+    },
+    {
+      "id": 144,
+      "type": "DualCLIPLoaderGGUF",
+      "pos": [
+        -439.9738464355469,
+        679.808837890625
+      ],
+      "size": [
+        386.0740051269531,
+        106
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            366
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DualCLIPLoaderGGUF"
+      },
+      "widgets_values": [
+        "clip_l.safetensors",
+        "Kijai\\llava-llama-3-8B-v1_1-Q4_K_M.gguf",
+        "hunyuan_video"
+      ]
+    },
+    {
+      "id": 145,
+      "type": "UnetLoaderGGUF",
+      "pos": [
+        -433.72052001953125,
+        725.4597778320312
+      ],
+      "size": [
+        383.6085510253906,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            844
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UnetLoaderGGUF"
+      },
+      "widgets_values": [
+        "hunyuan-video-t2v-720p-Q4_K_M.gguf"
+      ]
+    },
+    {
+      "id": 255,
+      "type": "PreviewImage",
+      "pos": [
+        -111.49641418457031,
+        1093.4322509765625
+      ],
+      "size": [
+        509.3954772949219,
+        493.7660217285156
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 852
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 268,
+      "type": "ImageResizeKJ",
+      "pos": [
+        -446.4056701660156,
+        909.1123657226562
+      ],
+      "size": [
+        315,
+        286
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 851
+        },
+        {
+          "name": "get_image_size",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "width_input",
+          "type": "INT",
+          "shape": 7,
+          "widget": {
+            "name": "width_input"
+          },
+          "link": null
+        },
+        {
+          "name": "height_input",
+          "type": "INT",
+          "shape": 7,
+          "widget": {
+            "name": "height_input"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            852,
+            858
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageResizeKJ"
+      },
+      "widgets_values": [
+        320,
+        512,
+        "lanczos",
+        false,
+        2,
+        0,
+        0,
+        "center"
+      ]
+    },
+    {
+      "id": 269,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        1048.58154296875,
+        -34.908714294433594
+      ],
+      "size": [
+        635.5128173828125,
+        1332.820556640625
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 859
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "meta_batch",
+          "type": "VHS_BatchManager",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "shape": 7,
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 15,
+        "loop_count": 0,
+        "filename_prefix": "Hunyuan/%date:yyyy_MM_dd%/lowres/vid",
+        "format": "video/nvenc_h264-mp4",
+        "pix_fmt": "yuv420p",
+        "bitrate": 10,
+        "megabit": true,
+        "save_metadata": true,
+        "pingpong": false,
+        "save_output": true,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "vid_00041.mp4",
+            "subfolder": "Hunyuan\\2025_03_19\\lowres",
+            "type": "output",
+            "format": "video/nvenc_h264-mp4",
+            "frame_rate": 15,
+            "workflow": "vid_00041.png",
+            "fullpath": "M:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\Hunyuan\\2025_03_19\\lowres\\vid_00041.mp4"
+          }
+        }
+      }
+    },
+    {
+      "id": 270,
+      "type": "WarpedSamplerCustomAdv",
+      "pos": [
+        416.94500732421875,
+        -34.908687591552734
+      ],
+      "size": [
+        623.0574340820312,
+        1428.891845703125
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 858
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 861
+        },
+        {
+          "name": "guider",
+          "type": "GUIDER",
+          "link": 862
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 863
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 864
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            859
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "latents",
+          "type": "LATENT",
+          "links": null
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "generation_status",
+          "type": "STRING",
+          "links": [
+            860
+          ],
+          "slot_index": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "WarpedSamplerCustomAdv"
+      },
+      "widgets_values": [
+        863363591792209,
+        "randomize",
+        256,
+        64,
+        64,
+        8,
+        256,
+        64,
+        64,
+        8,
+        0,
+        1,
+        1,
+        false,
+        ""
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 170,
+      "type": "StringConstantMultiline",
+      "pos": [
+        -20.935224533081055,
+        374.5787353515625
+      ],
+      "size": [
+        423.325927734375,
+        409.93310546875
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            448
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "StringConstantMultiline"
+      },
+      "widgets_values": [
+        "breast physics, dynamic (real life:1.15) video showing front view of a young woman with long flowing platinum blonde hair in the style of the 1980s and bright green eyes, she is wearing (a provocative revealing short front tied schoolgirl style sheer white top with a plunging neckline and with no bra:1.2) an extremely short black pleated plaid micro miniskirt low on the hips and she is braless, (she is showing her (large:1) ((natural heavy sagging:1.3)) naked breasts:1.15), (her nipples are erect:1.25), (she is also wearing a thin silver religious cross pendant necklace, she is in an abandonned nuclear facility, she was surprised by the viewer, so now she is walking toward the viewer to seduce him:1.25), (she is walking toward the viewer:1.2), (she is walking in a very sexy manner, smug facial expression with a slight smirk, sexy but dangerous attitude and seductive lips, normal speed, her heavy breasts (((are (bouncing:1.5) and (swaying:1.3) and (jiggling:1.7):1.7)) unrestrained with every step she takes and with ever move she makes:1.15), (((her breasts bounce into each other and recoil away from each other as she walks:1.8))), and you can see and almost feel the weight of her breasts with each step. Her hips move with a sexy sway as she walks. There is an elasticity to the way her breasts move one way and recoil back the opposite way. God rays show down through several holes in the ceiling. the viewer keeps her in view all the times, (extremely soft breasts:1.3), (extremely bouncing breasts:1.3), (breasts bouncing up and down side to side:1.5), tanned skin, tanlines, detailed face, detailed hands, detailed fingers, nail polish, glamour eye makeup, eyeliner, lipstick, mascara, busty very petite body, 4k ultra high quality video footage, (realisic jiggle, bouncing, wobble, swaying physics, her breasts jiggle and bounce with each stap she takes:1.2), dark atmosphere, post apocalyptic nuclear building interior, retro cyberpunk vibe",
+        true,
+        true
+      ]
+    },
+    {
+      "id": 264,
+      "type": "HunyuanMultiLoraLoader",
+      "pos": [
+        -407.8192443847656,
+        135.17367553710938
+      ],
+      "size": [
+        315,
+        322
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 844
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            845
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "HunyuanMultiLoraLoader"
+      },
+      "widgets_values": [
+        "Hunyuan\\RsmMadilyn3Hy.safetensors",
+        1,
+        "all",
+        "Hunyuan\\HYVrewardMPS_epoch40.safetensors",
+        1,
+        "double_blocks",
+        "None",
+        1,
+        "all",
+        "None",
+        1,
+        "all"
+      ]
+    },
+    {
+      "id": 267,
+      "type": "WarpedCreateEmptyImageBatch",
+      "pos": [
+        -458.2152099609375,
+        1238.8587646484375
+      ],
+      "size": [
+        340.6551513671875,
+        131.39944458007812
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            851
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "num_images",
+          "type": "INT",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "WarpedCreateEmptyImageBatch"
+      },
+      "widgets_values": [
+        137,
+        320,
+        512
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 22,
+      "type": "BasicGuider",
+      "pos": [
+        184.72763061523438,
+        -12.74213695526123
+      ],
+      "size": [
+        222.3482666015625,
+        46
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 195,
+          "slot_index": 0
+        },
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 129,
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "GUIDER",
+          "type": "GUIDER",
+          "shape": 3,
+          "links": [
+            862
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BasicGuider"
+      },
+      "widgets_values": [],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 26,
+      "type": "FluxGuidance",
+      "pos": [
+        4.191158294677734,
+        111.15277099609375
+      ],
+      "size": [
+        317.4000244140625,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 352
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "shape": 3,
+          "links": [
+            129
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FluxGuidance"
+      },
+      "widgets_values": [
+        7
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 195,
+      "type": "Reroute",
+      "pos": [
+        9.569547653198242,
+        137.88414001464844
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 569
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "VAE",
+          "links": [
+            861
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 146,
+      "type": "CLIPTextEncode",
+      "pos": [
+        3.3141751289367676,
+        228.25978088378906
+      ],
+      "size": [
+        288.2851257324219,
+        78.88789367675781
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 366
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 448
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            352
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "8itchW4lk, dynamic (real life:1.15) video showing front view of a beautiful stunning gorgeous woman with very long flowing brown hair with blonde highlights and exotic sexy grey eyes, she is wearing (a provocative revealing see-through scientist indiana jones style maroon satin top blouse:1.2) and see-through black thong underwear with an extremely short tight micro miniskirt low on the hips and she is braless, (she is showing her massive ((natural heavy sagging:1.3)) naked breasts:1.15), (her nipples are erect:1.25), (she is also wearing a thin silver military dogtags pendant necklace, she is in an abandonned nuclear facility, she was surprised by the viewer, so now she is walking toward the viewer to seduce him:1.25), (she is walking toward the viewer:1.2), (she is walking in a very sexy manner, smug facial expression with a slight smirk, sexy but dangerous attitude and seductive lips, normal speed, her heavy breasts (((are (bouncing:1.5) and (swaying:1.3) and (jiggling:1.7):1.7)) unrestrained with every step she takes and with ever move she makes:1.15), (((her breasts bounce into each other and recoil away from each other as she walks:1.8))), the viewer keeps her in view all the times, (extremely soft breasts:1.3), (extremely bouncing breasts:1.3), (breasts bouncing up and down side to side:1.5), detailed face, detailed hands, detailed fingers, nail polish, glamour eye makeup, eyeliner, lipstick, mascara, 4k ultra high quality video footage, (realisic jiggle, boucing, wobble, swaying physics, her breasts jiggle and bounce with each staps she take:1.2), dark atmosphere, post apocalyptic nuclear building interior, retro cyberpunk vibe",
+        true
+      ]
+    },
+    {
+      "id": 67,
+      "type": "ModelSamplingSD3",
+      "pos": [
+        -61.41642379760742,
+        -13.243263244628906
+      ],
+      "size": [
+        210,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 867
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            195
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ModelSamplingSD3"
+      },
+      "widgets_values": [
+        12
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    }
+  ],
+  "links": [
+    [
+      129,
+      26,
+      0,
+      22,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      195,
+      67,
+      0,
+      22,
+      0,
+      "MODEL"
+    ],
+    [
+      352,
+      146,
+      0,
+      26,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      366,
+      144,
+      0,
+      146,
+      0,
+      "CLIP"
+    ],
+    [
+      448,
+      170,
+      0,
+      146,
+      1,
+      "STRING"
+    ],
+    [
+      526,
+      81,
+      0,
+      177,
+      0,
+      "MODEL"
+    ],
+    [
+      569,
+      10,
+      0,
+      195,
+      0,
+      "*"
+    ],
+    [
+      844,
+      145,
+      0,
+      264,
+      0,
+      "MODEL"
+    ],
+    [
+      845,
+      264,
+      0,
+      81,
+      0,
+      "*"
+    ],
+    [
+      851,
+      267,
+      0,
+      268,
+      0,
+      "IMAGE"
+    ],
+    [
+      852,
+      268,
+      0,
+      255,
+      0,
+      "IMAGE"
+    ],
+    [
+      858,
+      268,
+      0,
+      270,
+      0,
+      "IMAGE"
+    ],
+    [
+      859,
+      270,
+      0,
+      269,
+      0,
+      "IMAGE"
+    ],
+    [
+      860,
+      270,
+      3,
+      152,
+      0,
+      "STRING"
+    ],
+    [
+      861,
+      195,
+      0,
+      270,
+      1,
+      "VAE"
+    ],
+    [
+      862,
+      22,
+      0,
+      270,
+      2,
+      "GUIDER"
+    ],
+    [
+      863,
+      16,
+      0,
+      270,
+      3,
+      "SAMPLER"
+    ],
+    [
+      864,
+      177,
+      0,
+      270,
+      4,
+      "SIGMAS"
+    ],
+    [
+      867,
+      81,
+      0,
+      67,
+      0,
+      "MODEL"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 2,
+      "title": "Hunyuan Low Resolution",
+      "bounding": [
+        -479.1864318847656,
+        -109.82951354980469,
+        2166.83837890625,
+        1501.39404296875
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.9090909090909091,
+      "offset": [
+        565.1999999999989,
+        134.79999999999833
+      ]
+    },
+    "groupNodes": {},
+    "ue_links": [],
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 0,
+    "node_versions": {
+      "ComfyUI_Custom_Nodes_AlekPet": "7b3d6f190aeca261422bdfb74b5af37937e5bf68",
+      "comfy-core": "0.3.26",
+      "ComfyUI-GGUF": "298192ed60f8ca821c6fe5f8030cae23424cada5",
+      "comfyui-kjnodes": "e3b4bcf21e03402a2b11927eb5a4e3df500795b7",
+      "comfyui-videohelpersuite": "1.5.2",
+      "Hunyuan-Multi-Lora-Loader": "dd009a9d44b47bfaf01a4ffa38d7098f523e2cce"
+    },
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
