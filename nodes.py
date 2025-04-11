@@ -45,7 +45,7 @@ from torch import Tensor
 from einops import repeat
 from unittest.mock import patch
 
-from comfy.ldm.flux.layers import timestep_embedding
+from comfy.ldm.flux.layers import timestep_embedding, apply_mod
 from comfy.ldm.lightricks.model import precompute_freqs_cis
 from comfy.ldm.lightricks.symmetric_patchifier import latent_to_pixel_coords
 from comfy.ldm.common_dit import rms_norm
@@ -279,294 +279,6 @@ def get_upscale_methods():
 def get_rescale_methods():
     return ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
 
-# class WarpedHunyuanLoraMergeExp:
-#     def __init__(self):
-#         self.base_output_dir = get_default_output_folder()
-#         os.makedirs(self.base_output_dir, exist_ok = True)
-#
-#     @classmethod
-#     def INPUT_TYPES(s):
-#         return {
-#             "required": {
-#                 "save_path": ("STRING", {"default": get_default_output_path()}),
-#                 "lora_1": (['None'] + get_lora_list(),),
-#                 "strength_1": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
-#                 "blocks_type_1": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
-#                 "lora_2": (['None'] + get_lora_list(),),
-#                 "strength_2": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
-#                 "blocks_type_2": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
-#             },
-#         }
-#
-#     RETURN_TYPES = ()
-#     OUTPUT_NODE = True
-#     OUTPUT_IS_LIST = (True,)
-#     FUNCTION = "merge_multiple_loras"
-#     CATEGORY = "Warped/HunyuanTools"
-#     DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
-#
-#     def convert_key_format(self, key: str) -> str:
-#         """Standardize LoRA key format by removing prefixes."""
-#         prefixes = ["diffusion_model.", "transformer."]
-#         for prefix in prefixes:
-#             if key.startswith(prefix):
-#                 key = key[len(prefix):]
-#                 break
-#         return key
-#
-#     def filter_lora_keys(self, lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
-#         """Filter LoRA weights based on block type."""
-#         if blocks_type == "all":
-#             return lora
-#         filtered_lora = {}
-#         for key, value in lora.items():
-#             base_key = self.convert_key_format(key)
-#             if blocks_type in base_key:
-#                 filtered_lora[key] = value
-#         return filtered_lora
-#
-#     def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
-#         """Load and filter a single LoRA model."""
-#         if not lora_name or strength == 0:
-#             return {}, {}
-#
-#         # Get the full path to the LoRA file
-#         lora_path = folder_paths.get_full_path("loras", lora_name)
-#         if not os.path.exists(lora_path):
-#             raise ValueError(f"LoRA file not found: {lora_path}")
-#
-#         # Load the LoRA weights
-#         lora_weights = utils.load_torch_file(lora_path)
-#
-#         # Filter the LoRA weights based on the block type
-#         filtered_lora = self.filter_lora_keys(lora_weights, blocks_type)
-#
-#         return lora_weights, filtered_lora
-#
-#     def merge_multiple_loras(self, save_path, lora_1, strength_1, blocks_type_1, lora_2, strength_2, blocks_type_2):
-#         """Load and apply multiple LoRA models."""
-#         temp_loras = {}
-#         metadata = {"loras": "{} and {}".format(lora_1, lora_2)}
-#         metadata["strengths"] = "{} and {}".format(strength_1, strength_2)
-#         metadata["block_types"] = "{} and {}".format(blocks_type_1, blocks_type_2)
-#
-#         if lora_1 != "None" and strength_1 != 0:
-#             # Load and filter the LoRA weights
-#             lora_weights, filtered_lora = self.load_lora(lora_1, 1.0, blocks_type_1)
-#             temp_loras["1"] = {"lora_weights": lora_weights, "strength": strength_1, "filtered_lora": filtered_lora}
-#
-#         if lora_2 != "None" and strength_2 != 0:
-#             # Load and filter the LoRA weights
-#             lora_weights, filtered_lora = self.load_lora(lora_2, 1.0, blocks_type_2)
-#             temp_loras["2"] = {"lora_weights": lora_weights, "strength": strength_2, "filtered_lora": filtered_lora}
-#
-#         loras = {}
-#
-#         for lora_key in temp_loras.keys():
-#             loras[lora_key] = {"lora_weights": {}, "strength": temp_loras[lora_key]["strength"], "filtered_lora": temp_loras[lora_key]["filtered_lora"]}
-#
-#             for key in temp_loras[lora_key]["lora_weights"].keys():
-#                 new_key = key.replace("transformer.", "diffusion_model.")
-#                 loras[lora_key]["lora_weights"][new_key] = temp_loras[lora_key]["lora_weights"][key]
-#
-#         new_lora = {}
-#
-#         for lora_key in loras.keys():
-#             for key in loras[lora_key]["lora_weights"].keys():
-#                 if not key in new_lora.keys():
-#                     new_lora[key] = None
-#                 print("Lora: {}  | Key: {}  |  Shape: {}".format(lora_key, key, loras[lora_key]["lora_weights"][key].shape))
-#
-#         print_it = True
-#
-#         i = 0
-#
-#         # Merge The Weighted Key Weights
-#         for key in new_lora.keys():
-#             for lora_key in loras.keys():
-#                 if key in loras[lora_key]["lora_weights"].keys():
-#                     if not new_lora[key] is None:
-#                         temp_weights = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
-#
-#                         if print_it:
-#                             print("\n--------------------------------------------------------------------")
-#                             print("Before: New Lora Shape: {}  |  Temp Weights Shape: {}".format(new_lora[key].shape, temp_weights.shape))
-#                             print("--------------------------------------------------------------------\n")
-#
-#                         if new_lora[key].shape[0] < new_lora[key].shape[1]:
-#                             if temp_weights.shape[0] < new_lora[key].shape[0]:
-#                                 if not (int(new_lora[key].shape[0] % temp_weights.shape[0]) == 0):
-#                                     temp_weights = temp_weights.clone().detach()
-#                                     new_lora[key] = new_lora[key].clone().detach()
-#
-#                                     padding = torch.zeros([new_lora[key].shape[0], new_lora[key].shape[1]])
-#                                     padding[:temp_weights.shape[0],:] = temp_weights
-#                                     temp_weights = padding
-#                                 else:
-#                                     temp_weights2 = temp_weights.clone().detach()
-#
-#                                     while temp_weights.shape[0] < new_lora[key].shape[0]:
-#                                         temp_weights = torch.cat((temp_weights, temp_weights2.clone().detach()), 0)
-#                             elif temp_weights.shape[0] > new_lora[key].shape[0]:
-#                                 if not (int(temp_weights.shape[0] % new_lora[key].shape[0]) == 0):
-#                                     temp_weights = temp_weights.clone().detach()
-#                                     new_lora[key] = new_lora[key].clone().detach()
-#
-#                                     padding = torch.zeros([temp_weights.shape[0], temp_weights.shape[1]])
-#                                     padding[:new_lora[key].shape[0],:] = new_lora[key]
-#                                     new_lora[key] = padding
-#                                 else:
-#                                     temp_weights2 = new_lora[key].clone().detach()
-#
-#                                     while temp_weights.shape[0] > new_lora[key].shape[0]:
-#                                         new_lora[key] = torch.cat((new_lora[key], temp_weights2.clone().detach()), 0)
-#                         else:
-#                             if temp_weights.shape[1] < new_lora[key].shape[1]:
-#                                 if not (int(new_lora[key].shape[1] % temp_weights.shape[1]) == 0):
-#                                     temp_weights = temp_weights.clone().detach()
-#                                     new_lora[key] = new_lora[key].clone().detach()
-#
-#                                     padding = torch.zeros([new_lora[key].shape[0], new_lora[key].shape[1]])
-#                                     padding[:,:temp_weights.shape[1]] = temp_weights
-#                                     temp_weights = padding
-#                                 else:
-#                                     temp_weights2 = temp_weights.clone().detach()
-#
-#                                     while temp_weights.shape[1] < new_lora[key].shape[1]:
-#                                         temp_weights = torch.cat((temp_weights, temp_weights2.clone().detach()), 1)
-#                             elif temp_weights.shape[1] > new_lora[key].shape[1]:
-#                                 if not (int(temp_weights.shape[1] % new_lora[key].shape[1]) == 0):
-#                                     temp_weights = temp_weights.clone().detach()
-#                                     new_lora[key] = new_lora[key].clone().detach()
-#
-#                                     padding = torch.zeros([temp_weights.shape[0], temp_weights.shape[1]])
-#                                     padding[:,:new_lora[key].shape[1]] = new_lora[key]
-#                                     new_lora[key] = padding
-#                                 else:
-#                                     temp_weights2 = new_lora[key].clone().detach()
-#
-#                                     while temp_weights.shape[1] > new_lora[key].shape[1]:
-#                                         new_lora[key] = torch.cat((new_lora[key], temp_weights2.clone().detach()), 1)
-#
-#                         try:
-#                             # new_lora[key] = ((new_lora[key] + temp_weights) / 2.0)
-#                             new_lora[key] = torch.add(new_lora[key], temp_weights)
-#
-#                             if print_it:
-#                                 if (i + 1) >= 10:
-#                                     print_it = False
-#
-#                                 i += 1
-#                                 print("\n--------------------------------------------------------------------")
-#                                 print("After: New Lora Shape: {}".format(new_lora[key].shape))
-#                                 print("--------------------------------------------------------------------\n")
-#                                 # print("\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-#                                 # print("After: New Lora Key Tensor: {}".format(new_lora[key]))
-#                                 # print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
-#                         except Exception as e:
-#                             raise(e)
-#                     else:
-#                         new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
-#
-#         utils.save_torch_file(new_lora, save_path, metadata=metadata)
-#
-#         return ("Weights Saved To: {}".format(save_path),)
-
-# class WarpedHunyuanConvert32To64Exp:
-#     def __init__(self):
-#         self.base_output_dir = get_default_output_folder()
-#         os.makedirs(self.base_output_dir, exist_ok = True)
-#
-#     @classmethod
-#     def INPUT_TYPES(s):
-#         return {
-#             "required": {
-#                 "save_path": ("STRING", {"default": get_default_output_path()}),
-#                 "lora": (['None'] + get_lora_list(),),
-#                 "blocks_type": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
-#                 "secondary_strength": ("FLOAT", {"default": 0.50, "min": 0.10, "max": 1.00, "step": 0.01}),
-#             },
-#         }
-#
-#     RETURN_TYPES = ()
-#     OUTPUT_NODE = True
-#     OUTPUT_IS_LIST = (True,)
-#     FUNCTION = "convert_lora"
-#     CATEGORY = "Warped/HunyuanTools"
-#     DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
-#
-#     def convert_key_format(self, key: str) -> str:
-#         """Standardize LoRA key format by removing prefixes."""
-#         prefixes = ["diffusion_model.", "transformer."]
-#         for prefix in prefixes:
-#             if key.startswith(prefix):
-#                 key = key[len(prefix):]
-#                 break
-#         return key
-#
-#     def filter_lora_keys(self, lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
-#         """Filter LoRA weights based on block type."""
-#         if blocks_type == "all":
-#             return lora
-#         filtered_lora = {}
-#         for key, value in lora.items():
-#             base_key = self.convert_key_format(key)
-#             if blocks_type in base_key:
-#                 filtered_lora[key] = value
-#         return filtered_lora
-#
-#     def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
-#         """Load and filter a single LoRA model."""
-#         if not lora_name or strength == 0:
-#             return {}, {}
-#
-#         # Get the full path to the LoRA file
-#         lora_path = folder_paths.get_full_path("loras", lora_name)
-#         if not os.path.exists(lora_path):
-#             raise ValueError(f"LoRA file not found: {lora_path}")
-#
-#         # Load the LoRA weights
-#         lora_weights = utils.load_torch_file(lora_path)
-#
-#         # Filter the LoRA weights based on the block type
-#         filtered_lora = self.filter_lora_keys(lora_weights, blocks_type)
-#
-#         return lora_weights, filtered_lora
-#
-#     def convert_lora(self, save_path, lora, blocks_type, secondary_strength):
-#         metadata = {"lora": "{}".format(lora)}
-#         metadata["block_type"] = "{}".format(blocks_type)
-#
-#         if lora != "None":
-#             # Load and filter the LoRA weights
-#             lora_weights, filtered_lora = self.load_lora(lora, 1.0, blocks_type)
-#
-#         new_lora = {}
-#
-#         try:
-#             for lora_key in lora_weights.keys():
-#                 if lora_weights[lora_key].shape[0] < lora_weights[lora_key].shape[1]:
-#                     if lora_weights[lora_key].shape[0] != 32:
-#                         return "LORA {} Is Not A 32 Dimensional LORA. It Is A {} Dimensional LORA. Unable To Modify.".format(lora, lora_weights[lora_key].shape[0])
-#
-#                     new_lora[lora_key] = torch.cat((lora_weights[lora_key], torch.mul(lora_weights[lora_key].clone().detach(), secondary_strength)), 0)
-#                 else:
-#                     if lora_weights[lora_key].shape[1] != 32:
-#                         return "LORA {} Is Not A 32 Dimensional LORA. It Is A {} Dimensional LORA. Unable To Modify.".format(lora, lora_weights[lora_key].shape[1])
-#
-#                     new_lora[lora_key] = torch.cat((lora_weights[lora_key], torch.mul(lora_weights[lora_key].clone().detach(), secondary_strength)), 1)
-#
-#             utils.save_torch_file(new_lora, save_path, metadata=metadata)
-#         except Exception as e:
-#             raise(e)
-#         finally:
-#             lora_weights = None
-#             mm.soft_empty_cache()
-#             gc.collect()
-#             time.sleep(0.1)
-#
-#         return ("Weights Saved To: {}".format(save_path),)
-
 class WarpedHunyuanLoraMerge:
     def __init__(self):
         self.base_output_dir = get_default_output_folder()
@@ -583,6 +295,7 @@ class WarpedHunyuanLoraMerge:
                 "lora_2": (['None'] + get_lora_list(),),
                 "strength_2": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                 "blocks_type_2": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+                "save_metadata": ("BOOLEAN", {"default": True}),
             },
         }
 
@@ -631,7 +344,7 @@ class WarpedHunyuanLoraMerge:
 
         return lora_weights, filtered_lora
 
-    def merge_multiple_loras(self, save_path, lora_1, strength_1, blocks_type_1, lora_2, strength_2, blocks_type_2):
+    def merge_multiple_loras(self, save_path, lora_1, strength_1, blocks_type_1, lora_2, strength_2, blocks_type_2, save_metadata=True):
         """Load and apply multiple LoRA models."""
         temp_loras = {}
         metadata = {"loras": "{} and {}".format(lora_1, lora_2)}
@@ -732,13 +445,16 @@ class WarpedHunyuanLoraMerge:
                     else:
                         new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
 
+        if not save_metadata:
+            metadata = None
+
         utils.save_torch_file(new_lora, save_path, metadata=metadata)
 
         save_message = "Weights Saved To: {}".format(save_path)
 
         return {"ui": {"tags": [save_message]}}
 
-class WarpedHunyuanMultiLoraMerge:
+class WarpedHunyuanLoraMerge2:
     def __init__(self):
         self.base_output_dir = get_default_output_folder()
         os.makedirs(self.base_output_dir, exist_ok = True)
@@ -749,17 +465,12 @@ class WarpedHunyuanMultiLoraMerge:
             "required": {
                 "save_path": ("STRING", {"default": get_default_output_path()}),
                 "lora_1": (['None'] + get_lora_list(),),
-                "strength_1": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "strength_1": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                 "blocks_type_1": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
                 "lora_2": (['None'] + get_lora_list(),),
-                "strength_2": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "strength_2": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                 "blocks_type_2": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
-                "lora_3": (['None'] + get_lora_list(),),
-                "strength_3": ("FLOAT", {"default": 0.00, "min": 0.00, "max": 2.00, "step": 0.01}),
-                "blocks_type_3": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
-                "lora_4": (['None'] + get_lora_list(),),
-                "strength_4": ("FLOAT", {"default": 0.00, "min": 0.00, "max": 2.00, "step": 0.01}),
-                "blocks_type_4": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+                "save_metadata": ("BOOLEAN", {"default": True}),
             },
         }
 
@@ -808,7 +519,188 @@ class WarpedHunyuanMultiLoraMerge:
 
         return lora_weights, filtered_lora
 
-    def merge_multiple_loras(self, save_path, lora_1, strength_1, blocks_type_1, lora_2, strength_2, blocks_type_2, lora_3, strength_3, blocks_type_3, lora_4, strength_4, blocks_type_4):
+    def merge_multiple_loras(self, save_path, lora_1, strength_1, blocks_type_1, lora_2, strength_2, blocks_type_2, save_metadata=True):
+        """Load and apply multiple LoRA models."""
+        temp_loras = {}
+        metadata = {"loras": "{} and {}".format(lora_1, lora_2)}
+        metadata["strengths"] = "{} and {}".format(strength_1, strength_2)
+        metadata["block_types"] = "{} and {}".format(blocks_type_1, blocks_type_2)
+
+        if lora_1 != "None" and strength_1 != 0:
+            # Load and filter the LoRA weights
+            lora_weights, filtered_lora = self.load_lora(lora_1, 1.0, blocks_type_1)
+            temp_loras["1"] = {"lora_weights": lora_weights, "strength": strength_1, "filtered_lora": filtered_lora}
+
+        if lora_2 != "None" and strength_2 != 0:
+            # Load and filter the LoRA weights
+            lora_weights, filtered_lora = self.load_lora(lora_2, 1.0, blocks_type_2)
+            temp_loras["2"] = {"lora_weights": lora_weights, "strength": strength_2, "filtered_lora": filtered_lora}
+
+        loras = {}
+
+        for lora_key in temp_loras.keys():
+            loras[lora_key] = {"lora_weights": {}, "strength": temp_loras[lora_key]["strength"], "filtered_lora": temp_loras[lora_key]["filtered_lora"]}
+
+            for key in temp_loras[lora_key]["lora_weights"].keys():
+                new_key = key.replace("transformer.", "diffusion_model.")
+                loras[lora_key]["lora_weights"][new_key] = temp_loras[lora_key]["lora_weights"][key]
+
+        new_lora = {}
+
+        for lora_key in loras.keys():
+            for key in loras[lora_key]["filtered_lora"].keys():
+                if not key in new_lora.keys():
+                    new_lora[key] = None
+                print("Lora: {}  | Key: {}  |  Shape: {}".format(lora_key, key, loras[lora_key]["filtered_lora"][key].shape))
+
+        # print_it = True
+        #
+        # i = 0
+
+        # Merge The Weighted Key Weights
+        for key in new_lora.keys():
+            for lora_key in loras.keys():
+                if key in loras[lora_key]["filtered_lora"].keys():
+                    if not new_lora[key] is None:
+                        temp_weights = torch.mul(loras[lora_key]["filtered_lora"][key], loras[lora_key]["strength"])
+
+                        # if print_it:
+                        #     print("\n--------------------------------------------------------------------")
+                        #     print("Before: New Lora Shape: {}  |  Temp Weights Shape: {}".format(new_lora[key].shape, temp_weights.shape))
+                        #     print("--------------------------------------------------------------------\n")
+
+                        if new_lora[key].shape[0] < new_lora[key].shape[1]:
+                            if temp_weights.shape[0] < new_lora[key].shape[0]:
+                                temp_weights = temp_weights.clone().detach()
+                                new_lora[key] = new_lora[key].clone().detach()
+
+                                padding = torch.zeros([new_lora[key].shape[0], new_lora[key].shape[1]])
+                                padding[:temp_weights.shape[0],:] = temp_weights
+                                temp_weights = padding
+                            elif temp_weights.shape[0] > new_lora[key].shape[0]:
+                                temp_weights = temp_weights.clone().detach()
+                                new_lora[key] = new_lora[key].clone().detach()
+
+                                padding = torch.zeros([temp_weights.shape[0], temp_weights.shape[1]])
+                                padding[:new_lora[key].shape[0],:] = new_lora[key]
+                                new_lora[key] = padding
+                        else:
+                            if temp_weights.shape[1] < new_lora[key].shape[1]:
+                                temp_weights = temp_weights.clone().detach()
+                                new_lora[key] = new_lora[key].clone().detach()
+
+                                padding = torch.zeros([new_lora[key].shape[0], new_lora[key].shape[1]])
+                                padding[:,:temp_weights.shape[1]] = temp_weights
+                                temp_weights = padding
+                            elif temp_weights.shape[1] > new_lora[key].shape[1]:
+                                temp_weights = temp_weights.clone().detach()
+                                new_lora[key] = new_lora[key].clone().detach()
+
+                                padding = torch.zeros([temp_weights.shape[0], temp_weights.shape[1]])
+                                padding[:,:new_lora[key].shape[1]] = new_lora[key]
+                                new_lora[key] = padding
+
+                        try:
+                            # new_lora[key] = ((new_lora[key] + temp_weights) / 2.0)
+                            new_lora[key] = torch.add(new_lora[key], temp_weights)
+
+                            # if print_it:
+                            #     if (i + 1) >= 10:
+                            #         print_it = False
+                            #
+                            #     i += 1
+                            #     print("\n--------------------------------------------------------------------")
+                            #     print("After: New Lora Shape: {}".format(new_lora[key].shape))
+                            #     print("--------------------------------------------------------------------\n")
+                                # print("\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+                                # print("After: New Lora Key Tensor: {}".format(new_lora[key]))
+                                # print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
+                        except Exception as e:
+                            raise(e)
+                    else:
+                        new_lora[key] = torch.mul(loras[lora_key]["filtered_lora"][key], loras[lora_key]["strength"])
+
+        if not save_metadata:
+            metadata = None
+
+        utils.save_torch_file(new_lora, save_path, metadata=metadata)
+
+        save_message = "Weights Saved To: {}".format(save_path)
+
+        return {"ui": {"tags": [save_message]}}
+
+class WarpedHunyuanMultiLoraMerge:
+    def __init__(self):
+        self.base_output_dir = get_default_output_folder()
+        os.makedirs(self.base_output_dir, exist_ok = True)
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "save_path": ("STRING", {"default": get_default_output_path()}),
+                "lora_1": (['None'] + get_lora_list(),),
+                "strength_1": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "blocks_type_1": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+                "lora_2": (['None'] + get_lora_list(),),
+                "strength_2": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "blocks_type_2": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+                "lora_3": (['None'] + get_lora_list(),),
+                "strength_3": ("FLOAT", {"default": 0.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "blocks_type_3": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+                "lora_4": (['None'] + get_lora_list(),),
+                "strength_4": ("FLOAT", {"default": 0.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "blocks_type_4": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+                "save_metadata": ("BOOLEAN", {"default": True}),
+            },
+        }
+
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
+    OUTPUT_IS_LIST = (True,)
+    FUNCTION = "merge_multiple_loras"
+    CATEGORY = "Warped/HunyuanTools"
+    DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
+
+    def convert_key_format(self, key: str) -> str:
+        """Standardize LoRA key format by removing prefixes."""
+        prefixes = ["diffusion_model.", "transformer."]
+        for prefix in prefixes:
+            if key.startswith(prefix):
+                key = key[len(prefix):]
+                break
+        return key
+
+    def filter_lora_keys(self, lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
+        """Filter LoRA weights based on block type."""
+        if blocks_type == "all":
+            return lora
+        filtered_lora = {}
+        for key, value in lora.items():
+            base_key = self.convert_key_format(key)
+            if blocks_type in base_key:
+                filtered_lora[key] = value
+        return filtered_lora
+
+    def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        """Load and filter a single LoRA model."""
+        if not lora_name or strength == 0:
+            return {}, {}
+
+        # Get the full path to the LoRA file
+        lora_path = folder_paths.get_full_path("loras", lora_name)
+        if not os.path.exists(lora_path):
+            raise ValueError(f"LoRA file not found: {lora_path}")
+
+        # Load the LoRA weights
+        lora_weights = utils.load_torch_file(lora_path)
+
+        # Filter the LoRA weights based on the block type
+        filtered_lora = self.filter_lora_keys(lora_weights, blocks_type)
+
+        return lora_weights, filtered_lora
+
+    def merge_multiple_loras(self, save_path, lora_1, strength_1, blocks_type_1, lora_2, strength_2, blocks_type_2, lora_3, strength_3, blocks_type_3, lora_4, strength_4, blocks_type_4, save_metadata=True):
         temp_loras = {}
         metadata = {"loras": "{} and {} and {} and {}".format(lora_1, lora_2, lora_3, lora_4)}
         metadata["strengths"] = "{} and {} and {} and {}".format(strength_1, strength_2, strength_3, strength_4)
@@ -905,6 +797,9 @@ class WarpedHunyuanMultiLoraMerge:
                     else:
                         new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
 
+        if not save_metadata:
+            metadata = None
+
         utils.save_torch_file(new_lora, save_path, metadata=metadata)
 
         save_message = "Weights Saved To: {}".format(save_path)
@@ -927,6 +822,7 @@ class WarpedHunyuanLoraAvgMerge:
                 "lora_2": (['None'] + get_lora_list(),),
                 # "strength_2": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                 "blocks_type_2": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+                "save_metadata": ("BOOLEAN", {"default": True}),
             },
         }
 
@@ -975,7 +871,7 @@ class WarpedHunyuanLoraAvgMerge:
 
         return lora_weights, filtered_lora
 
-    def merge_multiple_loras(self, save_path, lora_1, blocks_type_1, lora_2, blocks_type_2):
+    def merge_multiple_loras(self, save_path, lora_1, blocks_type_1, lora_2, blocks_type_2, save_metadata=True):
         """Load and apply multiple LoRA models."""
         strength = 1.0000
         temp_loras = {}
@@ -1056,6 +952,9 @@ class WarpedHunyuanLoraAvgMerge:
                     else:
                         new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
 
+        if not save_metadata:
+            metadata = None
+
         utils.save_torch_file(new_lora, save_path, metadata=metadata)
 
         save_message = "Weights Saved To: {}".format(save_path)
@@ -1080,6 +979,7 @@ class WarpedHunyuanMultiLoraAvgMerge:
                 "blocks_type_3": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
                 "lora_4": (['None'] + get_lora_list(),),
                 "blocks_type_4": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+                "save_metadata": ("BOOLEAN", {"default": True}),
             },
         }
 
@@ -1128,7 +1028,7 @@ class WarpedHunyuanMultiLoraAvgMerge:
 
         return lora_weights, filtered_lora
 
-    def merge_multiple_loras(self, save_path, lora_1, blocks_type_1, lora_2, blocks_type_2, lora_3, blocks_type_3, lora_4, blocks_type_4):
+    def merge_multiple_loras(self, save_path, lora_1, blocks_type_1, lora_2, blocks_type_2, lora_3, blocks_type_3, lora_4, blocks_type_4, save_metadata=True):
         strength = 1.0000
         temp_loras = {}
         metadata = {"loras": "{} and {} and {} and {}".format(lora_1, lora_2, lora_3, lora_4)}
@@ -1224,7 +1124,153 @@ class WarpedHunyuanMultiLoraAvgMerge:
         for key in new_lora.keys():
             final_lora[key] = torch.div(new_lora[key]["weights"], new_lora[key]["count"])
 
+        if not save_metadata:
+            metadata = None
+
         utils.save_torch_file(final_lora, save_path, metadata=metadata)
+
+        save_message = "Weights Saved To: {}".format(save_path)
+
+        return {"ui": {"tags": [save_message]}}
+
+class WarpedHunyuanLoraMergeMixer:
+    def __init__(self):
+        self.base_output_dir = get_default_output_folder()
+        os.makedirs(self.base_output_dir, exist_ok = True)
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "save_path": ("STRING", {"default": get_default_output_path()}),
+                "lora_1": (['None'] + get_lora_list(),),
+                "block_groups_1": (["odd", "even"], {"default": "odd"}),
+                "lora_2": (['None'] + get_lora_list(),),
+                "strength_2": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "mode": (["blocks", "groups"], {"default": "blocks"}),
+                "save_metadata": ("BOOLEAN", {"default": True}),
+            },
+        }
+
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
+    OUTPUT_IS_LIST = (True,)
+    FUNCTION = "merge_loras"
+    CATEGORY = "Warped/HunyuanTools"
+    DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
+
+    def filter_lora_keys(self, lora: Dict[str, torch.Tensor], block_groups: str, mode: str) -> Dict[str, torch.Tensor]:
+        """Filter LoRA weights based on block group."""
+
+        filtered_lora = {}
+
+        if mode == "groups":
+            # Seperate Odds and Evens
+            odds_evens = {"odd": {}, "even": {}}
+
+            for key in lora.keys():
+                temp_parts = key.split('.')
+                temp_block_num = int(temp_parts[2])
+
+                if "single_blocks" in key:
+                    temp_group_num = int(temp_block_num // 8)
+                else:
+                    temp_group_num = int(temp_block_num // 4)
+
+                # if even group
+                if (temp_group_num % 2) == 0:
+                    odds_evens["even"][key] = key
+                    continue
+
+                # if odd group
+                odds_evens["odd"][key] = key
+
+            for key, value in lora.items():
+                if not (key in odds_evens[block_groups].keys()):
+                    continue
+
+                filtered_lora[key] = value
+        else:
+            # Seperate Odds and Evens
+            odds_evens = {"odd": {}, "even": {}}
+
+            for key in lora.keys():
+                temp_parts = key.split('.')
+                temp_block_num = int(temp_parts[2])
+
+                # if even
+                if (temp_block_num % 2) == 0:
+                    odds_evens["even"][key] = key
+                    continue
+
+                # if odd
+                odds_evens["odd"][key] = key
+
+            for key, value in lora.items():
+                if not (key in odds_evens[block_groups].keys()):
+                    continue
+
+                filtered_lora[key] = value
+
+        return filtered_lora, odds_evens
+
+    def load_lora(self, lora_name: str, strength: float, block_groups: str, mode: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        """Load and filter a single LoRA model."""
+        if not lora_name or strength == 0:
+            return {}, {}
+
+        # Get the full path to the LoRA file
+        lora_path = folder_paths.get_full_path("loras", lora_name)
+        if not os.path.exists(lora_path):
+            raise ValueError(f"LoRA file not found: {lora_path}")
+
+        # Load the LoRA weights
+        lora_weights = utils.load_torch_file(lora_path)
+
+        # Filter the LoRA weights based on the block type
+        filtered_lora, odds_evens = self.filter_lora_keys(lora_weights, block_groups, mode)
+
+        return lora_weights, filtered_lora, odds_evens
+
+    def merge_loras(self, save_path, lora_1, block_groups_1, lora_2, strength_2, mode, save_metadata=True):
+        """Load and apply multiple LoRA models."""
+        block_groups_2 = "even"
+
+        if block_groups_2 == block_groups_1:
+            block_groups_2 = "odd"
+
+        temp_loras = {}
+        metadata = {"loras": "{} and {}".format(lora_1, lora_2)}
+        metadata["block_groups"] = "{} and {}".format(block_groups_1, block_groups_2)
+
+        if lora_1 != "None":
+            # Load and filter the LoRA weights
+            lora_weights, filtered_lora, odds_evens = self.load_lora(lora_1, 1.0, block_groups_1, mode)
+            temp_loras["1"] = {"lora_weights": lora_weights, "block_groups": block_groups_1, "filtered_lora": filtered_lora, "odds_evens": odds_evens}
+
+        if lora_2 != "None":
+            # Load and filter the LoRA weights
+            lora_weights, filtered_lora, odds_evens = self.load_lora(lora_2, 1.0, block_groups_2, mode)
+            temp_loras["2"] = {"lora_weights": lora_weights, "block_groups": block_groups_2, "filtered_lora": filtered_lora, "odds_evens": odds_evens, "strength": strength_2}
+
+        new_lora = {}
+
+        for lora_key in temp_loras.keys():
+            for key in temp_loras[lora_key]["filtered_lora"].keys():
+                temp_key = str(key).replace("transformer.", "diffusion_model.")
+
+                if not temp_key in new_lora.keys():
+                    if not (lora_key == "2"):
+                        new_lora[temp_key] = temp_loras[lora_key]["lora_weights"][key]
+                    else:
+                        new_lora[temp_key] = torch.mul(temp_loras[lora_key]["lora_weights"][key], temp_loras[lora_key]["strength"])
+
+                print("Lora: {}  | Key: {}  |  Shape: {}".format(lora_key, key.replace("transformer.", "diffusion_model."), temp_loras[lora_key]["filtered_lora"][key].shape))
+
+        if not save_metadata:
+            metadata = None
+
+        utils.save_torch_file(new_lora, save_path, metadata=metadata)
 
         save_message = "Weights Saved To: {}".format(save_path)
 
@@ -1244,6 +1290,7 @@ class WarpedWanLoraMerge:
                 "strength_1": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                 "lora_2": (['None'] + get_lora_list(),),
                 "strength_2": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
+                "save_metadata": ("BOOLEAN", {"default": True}),
             },
         }
 
@@ -1278,7 +1325,7 @@ class WarpedWanLoraMerge:
 
         return lora_weights
 
-    def merge_multiple_loras(self, save_path, lora_1, strength_1, lora_2, strength_2):
+    def merge_multiple_loras(self, save_path, lora_1, strength_1, lora_2, strength_2, save_metadata=True):
         """Load and apply multiple LoRA models."""
         temp_loras = {}
         metadata = {"loras": "{} and {}".format(lora_1, lora_2)}
@@ -1377,6 +1424,9 @@ class WarpedWanLoraMerge:
                             raise(e)
                     else:
                         new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
+
+        if not save_metadata:
+            metadata = None
 
         utils.save_torch_file(new_lora, save_path, metadata=metadata)
 
@@ -1698,7 +1748,7 @@ class WarpedSamplerCustomAdv:
             mm.unload_all_models()
             mm.soft_empty_cache()
             gc.collect()
-            time.sleep(1)            
+            time.sleep(1)
 
             if len(samples.shape) < 5:
                 samples = samples.unsqueeze(0)
@@ -2747,16 +2797,6 @@ class WarpedCFGGuider:
             self.conds[k] = list(map(lambda a: a.copy(), self.original_conds[k]))
         preprocess_conds_hooks(self.conds)
 
-        # print("\nWarpedCFGGuider: noise Shape: {}  |  latent_image Shape: {}".format(noise.shape, latent_image.shape))
-        # print("WarpedCFGGuider: sampler: {}".format(sampler))
-        # print("WarpedCFGGuider: Sigmas: {}".format(sigmas))
-        # print("WarpedCFGGuider: denoise_mask: {}".format(denoise_mask))
-        # print("WarpedCFGGuider: callback: {}".format(callback))
-        # print("WarpedCFGGuider: disable_pbar: {}".format(disable_pbar))
-        # print("WarpedCFGGuider: seed: {}".format(seed))
-        # print("WarpedCFGGuider: model_patcher: {}".format(self.model_patcher))
-        # print("WarpedCFGGuider: model_options: {}\n".format(self.model_options))
-
         try:
             orig_model_options = self.model_options
             self.model_options = comfy_model_patcher.create_model_options_clone(self.model_options)
@@ -3666,14 +3706,6 @@ class WarpedWanLoadAndEditLoraBlocks(WarpedBaseWanLoraLoader):
 
         return_model, return_clip = self.apply_lora(model, clip, lora_name, strength_model, strength_clip, block_settings)
 
-        # print("\n=============================================================")
-        # print(return_model)
-        # print("=============================================================\n")
-        #
-        # print("\n=============================================================")
-        # print(return_clip)
-        # print("=============================================================\n")
-
         return (return_model, return_clip,)
 
 class WarpedHunyuanImageToVideo:
@@ -3765,19 +3797,12 @@ class WarpedImageResize:
                 "width": ("INT", { "default": 400, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, }),
                 "height": ("INT", { "default": 720, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, }),
                 "upscale_method": (self.upscale_methods, {"default": "lanczos"}),
-                "keep_proportion": ("BOOLEAN", { "default": False }),
-                "divisible_by": ("INT", { "default": 2, "min": 0, "max": 512, "step": 1, }),
+                "crop": (["center", "top_left", "top_right", "bottom_left", "bottom_right", "top_center", "bottom_center"], {"default": "center"}),
             },
-            "optional" : {
-                "width_input": ("INT", { "forceInput": True}),
-                "height_input": ("INT", { "forceInput": True}),
-                "get_image_size": ("IMAGE",),
-                "crop": (["disabled","center", "top_left", "top_right", "bottom_left", "bottom_right", "top_center", "bottom_center"], {"default": "disabled"}),
-            }
         }
 
-    RETURN_TYPES = ("IMAGE", "INT", "INT",)
-    RETURN_NAMES = ("IMAGE", "width", "height",)
+    RETURN_TYPES = ("IMAGE", "IMAGE", "INT", "INT",)
+    RETURN_NAMES = ("IMAGE", "scale_orig_image", "width", "height",)
     FUNCTION = "resize"
     CATEGORY = "Warped/Image"
     DESCRIPTION = """
@@ -3792,55 +3817,189 @@ class WarpedImageResize:
                 highest dimension.
                 """
 
-    def resize(self, image, width, height, keep_proportion, upscale_method, divisible_by,
-               width_input=None, height_input=None, get_image_size=None, crop="disabled"):
+    def resize(self, image, width, height, upscale_method, crop="center"):
+        print("Original Image Shape: {}".format(image.shape))
+
         B, H, W, C = image.shape
         self.is_downsize = False
 
-        if (width < W) or (height < H):
-            if width < height:
-                image = self.scale_to_side(image, height)
+        scaled_image = image.clone().detach()
+        test_image1  = image.clone().detach()
+        test_image2  = image.clone().detach()
+
+        is_long_side, orig_is_landscape, new_is_landscape, upscale_required = self.determine_side_to_scale(H, W, width, height)
+
+        print("Automatic Value Determination: is_long_side: {}  |  original_is_landscape: {}  |  new_is_landscape: {}  | upscale_required {}".format(is_long_side, orig_is_landscape, new_is_landscape, upscale_required))
+
+        if upscale_required:
+            W = int(W / 16) * 16
+            H = int(H / 16) * 16
+
+            print("Modified Width: {}  |  Height: {}".format(W, H))
+
+            # Scale based on which dimension is smaller in proportion to the desired dimensions
+            ratio = max(width / W, height / H)
+            temp_width = round(W * ratio)
+            temp_height = round(H * ratio)
+
+            print("Aspect Ratio Change Required: temp_width: {}  |  temp_height: {}".format(temp_width, temp_height))
+
+            image = image.movedim(-1,1)
+            image = self.upscale(image, temp_width, temp_height, upscale_method, crop)
+            image = image.movedim(1,-1)
+
+            if orig_is_landscape:
+                if is_long_side:
+                    image = self.scale_to_side(image, width, is_long_side)
+                else:
+                    image = self.scale_to_side(image, height, is_long_side)
             else:
-                image = self.scale_to_side(image, width)
+                if is_long_side:
+                    image = self.scale_to_side(image, height, is_long_side)
+                else:
+                    image = self.scale_to_side(image, width, is_long_side)
+
+            scaled_image = image.clone().detach()
+
+            image = self.crop(image, width, height, crop)
+
+            return(image, scaled_image, image.shape[2], image.shape[1],)
+
+        if (width < W) or (height < H):
+            if is_long_side:
+                if width <= height:
+                    image = self.scale_to_side(image, height, True)
+                else:
+                    image = self.scale_to_side(image, width, True)
+            else:
+                if width >= height:
+                    image = self.scale_to_side(image, height, False)
+                else:
+                    image = self.scale_to_side(image, width, False)
+
+            scaled_image = image.clone().detach()
 
             B, H, W, C = image.shape
             self.is_downsize = True
 
-        if width_input:
-            width = width_input
-        if height_input:
-            height = height_input
-        if get_image_size is not None:
-            _, height, width, _ = get_image_size.shape
+        if self.is_downsize:
+            image = self.crop(image, width, height, crop)
+            return(image, scaled_image, image.shape[2], image.shape[1],)
 
-        if keep_proportion and get_image_size is None:
-                # If one of the dimensions is zero, calculate it to maintain the aspect ratio
-                if width == 0 and height != 0:
-                    ratio = height / H
-                    width = round(W * ratio)
-                elif height == 0 and width != 0:
-                    ratio = width / W
-                    height = round(H * ratio)
-                elif width != 0 and height != 0:
-                    # Scale based on which dimension is smaller in proportion to the desired dimensions
-                    ratio = min(width / W, height / H)
-                    width = round(W * ratio)
-                    height = round(H * ratio)
-        else:
-            if width == 0:
-                width = W
-            if height == 0:
-                height = H
+        if (orig_is_landscape and new_is_landscape) or ((not orig_is_landscape) and (not new_is_landscape)):
+            image = image.movedim(-1,1)
+            image = self.upscale(image, width, height, upscale_method, crop)
+            image = image.movedim(1,-1)
 
-        if divisible_by > 1 and get_image_size is None:
-            width = width - (width % divisible_by)
-            height = height - (height % divisible_by)
+            return(image, image, image.shape[2], image.shape[1],)
+
+        if orig_is_landscape:
+            temp_ratio = round(height // H)
+            temp_width = round(W * temp_ratio)
+
+            image = image.movedim(-1,1)
+            image = self.upscale(image, temp_width, height, upscale_method, "disabled")
+            image = image.movedim(1,-1)
+
+            scaled_image = image.clone().detach()
+            image = self.crop(image, width, height, crop)
+
+            return(image, scaled_image, image.shape[2], image.shape[1],)
+
+        temp_ratio = round(width // W)
+        temp_height = round(H * temp_ratio)
 
         image = image.movedim(-1,1)
-        image = self.upscale(image, width, height, upscale_method, crop)
+        image = self.upscale(image, width, temp_height, upscale_method, "disabled")
         image = image.movedim(1,-1)
 
-        return(image, image.shape[2], image.shape[1],)
+        scaled_image = image.clone().detach()
+        image = self.crop(image, width, height, crop)
+
+        return(image, scaled_image, image.shape[2], image.shape[1],)
+
+    def determine_side_to_scale(self, original_height, original_width, width, height):
+        original_is_landscape = False
+        new_is_landscape = False
+
+        if original_width > original_height:
+            original_is_landscape = True
+
+        if width > height:
+            new_is_landscape = True
+
+        is_long_side = True
+        upscale_required = False
+
+        if (not new_is_landscape and original_is_landscape) or (new_is_landscape and not original_is_landscape):
+            is_long_side = False
+        else:
+            if original_is_landscape:
+                temp_ratio  = round(width // original_width)
+                temp_height = round(temp_ratio * height)
+
+                if temp_height < height:
+                    is_long_side = False
+                    upscale_required = True
+            else:
+                temp_ratio  = round(height // original_height)
+                temp_width = round(temp_ratio * width)
+
+                if temp_width < width:
+                    is_long_side = False
+                    upscale_required = True
+
+        return is_long_side, original_is_landscape, new_is_landscape, upscale_required
+
+    def crop(self, image, width, height, crop_type):
+        new_image = tensor2pilSwap(image)
+        new_image = new_image[0]
+
+        print("Image width: {} height: {}  |  New width: {} height: {}".format(new_image.width, new_image.height, width, height))
+
+        #(left, upper, right, lower)
+        if crop_type == "top_left":
+            left = 0
+            upper = 0
+            right = width
+            lower = height
+        elif crop_type == "top_right":
+            left = new_image.width - width
+            upper = 0
+            right = new_image.width
+            lower = height
+        elif crop_type == "top_center":
+            left = int(new_image.width // 2) - int(width // 2)
+            upper = 0
+            right = (int(new_image.width // 2) - int(width // 2)) + width
+            lower = height
+        elif crop_type == "bottom_left":
+            left = 0
+            upper = new_image.height - height
+            right = width
+            lower = new_image.height
+        elif crop_type == "bottom_right":
+            left = new_image.width - width
+            upper = new_image.height - height
+            right = new_image.width
+            lower = new_image.height
+        elif crop_type == "bottom_center":
+            left = int(new_image.width // 2) - int(width // 2)
+            upper = new_image.height - height
+            right = (int(new_image.width // 2) - int(width // 2)) + width
+            lower = new_image.height
+        elif crop_type == "center":
+            left = int(new_image.width // 2) - int(width // 2)
+            upper = int(new_image.height // 2) - int(height // 2)
+            right = (int(new_image.width // 2) - int(width // 2)) + width
+            lower = (int(new_image.height // 2) - int(height // 2)) + height
+
+        print("Crop Locations: Left: {}  |  Upper: {}  |  Right: {}  |  Lower: {}".format(int(new_image.width // 2) - int(width // 2), 0, width, height))
+        new_image = new_image.crop((left, upper, right, lower))
+
+        new_image = pil2tensorSwap(new_image)
+
+        return new_image
 
     def upscale(self, samples, width, height, upscale_method, crop):
             orig_shape = tuple(samples.shape)
@@ -3920,19 +4079,71 @@ class WarpedImageResize:
             out = out.reshape((orig_shape[0], -1, orig_shape[1]) + (height, width))
             return out.movedim(2, 1).reshape(orig_shape[:-2] + (height, width))
 
-    def scale_to_side(self, image, length=1024):
+    def scale_to_side(self, image, length=1024, scale_long_side=True):
         img = tensor2pilSwap(image)
         img = img[0]
 
-        if img.height >= img.width:
-            newHeight = length
-            newWidth = int(float(length / img.height) * img.width)
+        if scale_long_side:
+            if img.height >= img.width:
+                newHeight = length
+                newWidth = int(float(length / img.height) * img.width)
+            else:
+                newWidth = length
+                newHeight = int(float(length / img.width) * img.height)
         else:
-            newWidth = length
-            newHeight = int(float(length / img.width) * img.height)
+            if img.height <= img.width:
+                newHeight = length
+                newWidth = int(float(length / img.height) * img.width)
+            else:
+                newWidth = length
+                newHeight = int(float(length / img.width) * img.height)
 
         tempImage = img.resize((newWidth, newHeight), resample=Image.BILINEAR)
 
         newImage = pil2tensorSwap([tempImage])
 
         return newImage
+
+class WarpedImageScaleToSide:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"image": ("IMAGE", ),
+                     "length": ("INT", {"default": 1024}),
+                     "scale_to": (["long_side", "short_side"], {"default": "long_side"}),
+                    },
+                }
+
+    CATEGORY = "Warped/Image"
+
+    RETURN_TYPES = ("IMAGE", )
+    RETURN_NAMES = ("image", )
+
+    FUNCTION = "scale_image"
+
+    def scale_image(self, image, length=1024, scale_to="long_side"):
+        img = tensor2pilSwap(image)
+        img = img[0]
+
+        if scale_to == "long_side":
+            if img.height >= img.width:
+                newHeight = length
+                newWidth = int(float(length / img.height) * img.width)
+            else:
+                newWidth = length
+                newHeight = int(float(length / img.width) * img.height)
+        else:
+            if img.height <= img.width:
+                newHeight = length
+                newWidth = int(float(length / img.height) * img.width)
+            else:
+                newWidth = length
+                newHeight = int(float(length / img.width) * img.height)
+
+        tempImage = img.resize((newWidth, newHeight), resample=Image.BILINEAR)
+
+        newImage = pil2tensorSwap([tempImage])
+
+        return newImage,
+
+#
