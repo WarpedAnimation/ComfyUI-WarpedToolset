@@ -1,0 +1,62 @@
+{
+  "last_node_id": 5,
+  "last_link_id": 1,
+  "nodes": [
+    {
+      "id": 5,
+      "type": "WarpedHunyuanMultiLoraMerge",
+      "pos": [
+        759,
+        248
+      ],
+      "size": [
+        390.5999755859375,
+        346
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "WarpedHunyuanMultiLoraMerge"
+      },
+      "widgets_values": [
+        "M:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\MergedHunyuanLoras\\new_lora_hy.safetensors",
+        "None",
+        1,
+        "all",
+        "None",
+        1,
+        "all",
+        "None",
+        0,
+        "all",
+        "None",
+        0,
+        "all"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    "node_versions": {},
+    "ue_links": [],
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

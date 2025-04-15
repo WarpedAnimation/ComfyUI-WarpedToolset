@@ -1,0 +1,1366 @@
+{
+  "id": "0a50bfc6-2def-47da-9774-2630f586b894",
+  "revision": 0,
+  "last_node_id": 279,
+  "last_link_id": 904,
+  "nodes": [
+    {
+      "id": 152,
+      "type": "PreviewTextNode",
+      "pos": [
+        743.6790771484375,
+        -206.6033477783203
+      ],
+      "size": [
+        342.3085632324219,
+        114.48214721679688
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 899
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_custom_nodes_alekpet",
+        "ver": "7b3d6f190aeca261422bdfb74b5af37937e5bf68",
+        "Node name for S&R": "PreviewTextNode"
+      },
+      "widgets_values": [
+        "",
+        "****** WarpedSamplerCustomAdv: Total Images Generated 129 ******",
+        [
+          false,
+          true
+        ]
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 99,
+      "type": "Fast Groups Muter (rgthree)",
+      "pos": [
+        320.3949890136719,
+        -243.12155151367188
+      ],
+      "size": [
+        386.92010498046875,
+        138.19512939453125
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "OPT_CONNECTION",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "properties": {
+        "matchColors": "",
+        "matchTitle": "",
+        "showNav": true,
+        "sort": "position",
+        "customSortAlphabet": "",
+        "toggleRestriction": "default"
+      }
+    },
+    {
+      "id": 115,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        958.191162109375,
+        -29.289133071899414
+      ],
+      "size": [
+        533.32568359375,
+        334
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 898
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-videohelpersuite",
+        "ver": "5e61bcf218fe3bb7c899bbd584bbc99a9d05fb42",
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 15,
+        "loop_count": 0,
+        "filename_prefix": "Hunyuan/%date:yyyy_MM_dd%/midres/vid",
+        "format": "video/nvenc_h264-mp4",
+        "pix_fmt": "yuv420p",
+        "bitrate": 10,
+        "megabit": true,
+        "save_metadata": true,
+        "pingpong": false,
+        "save_output": true,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "vid_00001.mp4",
+            "subfolder": "Hunyuan\\2025_03_13\\midres",
+            "type": "output",
+            "format": "video/nvenc_h264-mp4",
+            "frame_rate": 15,
+            "workflow": "vid_00001.png",
+            "fullpath": "M:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\Hunyuan\\2025_03_13\\midres\\vid_00001.mp4"
+          },
+          "muted": false
+        }
+      }
+    },
+    {
+      "id": 26,
+      "type": "FluxGuidance",
+      "pos": [
+        15.291160583496094,
+        191.15277099609375
+      ],
+      "size": [
+        317.4000244140625,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 352
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "shape": 3,
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            129
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "FluxGuidance"
+      },
+      "widgets_values": [
+        7
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 146,
+      "type": "CLIPTextEncode",
+      "pos": [
+        16.21417999267578,
+        237.3597869873047
+      ],
+      "size": [
+        288.2851257324219,
+        78.88789367675781
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 366
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 448
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            352
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "8itchW4lk, dynamic (real life:1.15) video showing front view of a beautiful stunning gorgeous woman with very long flowing brown hair with blonde highlights and exotic sexy grey eyes, she is wearing (a provocative revealing see-through scientist indiana jones style maroon satin top blouse:1.2) and see-through black thong underwear with an extremely short tight micro miniskirt low on the hips and she is braless, (she is showing her massive ((natural heavy sagging:1.3)) naked breasts:1.15), (her nipples are erect:1.25), (she is also wearing a thin silver military dogtags pendant necklace, she is in an abandonned nuclear facility, she was surprised by the viewer, so now she is walking toward the viewer to seduce him:1.25), (she is walking toward the viewer:1.2), (she is walking in a very sexy manner, smug facial expression with a slight smirk, sexy but dangerous attitude and seductive lips, normal speed, her heavy breasts (((are (bouncing:1.5) and (swaying:1.3) and (jiggling:1.7):1.7)) unrestrained with every step she takes and with ever move she makes:1.15), (((her breasts bounce into each other and recoil away from each other as she walks:1.8))), the viewer keeps her in view all the times, (extremely soft breasts:1.3), (extremely bouncing breasts:1.3), (breasts bouncing up and down side to side:1.5), detailed face, detailed hands, detailed fingers, nail polish, glamour eye makeup, eyeliner, lipstick, mascara, 4k ultra high quality video footage, (realisic jiggle, boucing, wobble, swaying physics, her breasts jiggle and bounce with each staps she take:1.2), dark atmosphere, post apocalyptic nuclear building interior, retro cyberpunk vibe",
+        true
+      ]
+    },
+    {
+      "id": 22,
+      "type": "BasicGuider",
+      "pos": [
+        193.12765502929688,
+        126.15785217285156
+      ],
+      "size": [
+        222.3482666015625,
+        46
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 195
+        },
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 129
+        }
+      ],
+      "outputs": [
+        {
+          "name": "GUIDER",
+          "shape": 3,
+          "type": "GUIDER",
+          "slot_index": 0,
+          "links": [
+            895
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "BasicGuider"
+      },
+      "widgets_values": [],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 67,
+      "type": "ModelSamplingSD3",
+      "pos": [
+        -4.116424560546875,
+        127.65672302246094
+      ],
+      "size": [
+        210,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 901
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            195
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "ModelSamplingSD3"
+      },
+      "widgets_values": [
+        12
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 278,
+      "type": "WarpedTeaCache",
+      "pos": [
+        -2,
+        75
+      ],
+      "size": [
+        315,
+        106
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 900
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            901
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "WarpedTeaCache"
+      },
+      "widgets_values": [
+        "hunyuan_video",
+        0.4,
+        1
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 258,
+      "type": "HunyuanMultiLoraLoader",
+      "pos": [
+        -441.56573486328125,
+        1.5375827550888062
+      ],
+      "size": [
+        315,
+        322
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 840
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            827
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "Hunyuan-Multi-Lora-Loader",
+        "ver": "dd009a9d44b47bfaf01a4ffa38d7098f523e2cce",
+        "Node name for S&R": "HunyuanMultiLoraLoader"
+      },
+      "widgets_values": [
+        "Hunyuan\\RsmFunbags2Hy.safetensors",
+        0.75,
+        "all",
+        "Hunyuan\\cinematik_flux50epoch.safetensors",
+        0.4,
+        "all",
+        "Hunyuan\\HYVrewardMPS_epoch40.safetensors",
+        1,
+        "double_blocks",
+        "None",
+        1,
+        "all"
+      ]
+    },
+    {
+      "id": 81,
+      "type": "Reroute",
+      "pos": [
+        -79.89932250976562,
+        281.7754211425781
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 827
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            288,
+            900
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 144,
+      "type": "DualCLIPLoaderGGUF",
+      "pos": [
+        -433.17376708984375,
+        369.4688415527344
+      ],
+      "size": [
+        386.0740051269531,
+        106
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "slot_index": 0,
+          "links": [
+            366
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-GGUF",
+        "ver": "bc5223b0e37e053dbec2ea5e5f52c2fd4b8f712a",
+        "Node name for S&R": "DualCLIPLoaderGGUF"
+      },
+      "widgets_values": [
+        "clip_l.safetensors",
+        "Kijai\\llava-llama-3-8B-v1_1-Q4_K_M.gguf",
+        "hunyuan_video"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "VAELoader",
+      "pos": [
+        -424.82598876953125,
+        491.69921875
+      ],
+      "size": [
+        323.2068786621094,
+        65.77056884765625
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "shape": 3,
+          "type": "VAE",
+          "slot_index": 0,
+          "links": [
+            569,
+            871
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "hunyuan_video_vae_bf16.safetensors"
+      ]
+    },
+    {
+      "id": 145,
+      "type": "UnetLoaderGGUF",
+      "pos": [
+        -429.0895080566406,
+        425.6887512207031
+      ],
+      "size": [
+        383.6085510253906,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            840
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-GGUF",
+        "ver": "bc5223b0e37e053dbec2ea5e5f52c2fd4b8f712a",
+        "Node name for S&R": "UnetLoaderGGUF"
+      },
+      "widgets_values": [
+        "hunyuan-video-t2v-720p-Q4_K_M.gguf"
+      ]
+    },
+    {
+      "id": 272,
+      "type": "VAEEncodeTiled",
+      "pos": [
+        -423.6894836425781,
+        545.298583984375
+      ],
+      "size": [
+        315,
+        150
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pixels",
+          "type": "IMAGE",
+          "link": 883
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 871
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "slot_index": 0,
+          "links": [
+            872
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "VAEEncodeTiled"
+      },
+      "widgets_values": [
+        128,
+        64,
+        64,
+        8
+      ]
+    },
+    {
+      "id": 276,
+      "type": "WarpedRsmBundleAllVideoImages",
+      "pos": [
+        -438.81732177734375,
+        606.6919555664062
+      ],
+      "size": [
+        319.0613708496094,
+        126.09915924072266
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image_batch",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            883
+          ]
+        },
+        {
+          "name": "first_image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "last_image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "num_frames",
+          "type": "INT",
+          "slot_index": 3,
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "WarpedRsmBundleAllVideoImages"
+      },
+      "widgets_values": [
+        "M:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\Hunyuan\\2025_03_13\\lowres\\vid_00012.mp4"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 279,
+      "type": "WarpedImageResize",
+      "pos": [
+        -435.9199523925781,
+        782.9992065429688
+      ],
+      "size": [
+        315,
+        190
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 902
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            903,
+            904
+          ]
+        },
+        {
+          "name": "scale_orig_image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "WarpedImageResize"
+      },
+      "widgets_values": [
+        416,
+        640,
+        "lanczos",
+        "center"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 120,
+      "type": "BasicScheduler",
+      "pos": [
+        -431.461181640625,
+        1018.7208251953125
+      ],
+      "size": [
+        323.0991516113281,
+        106
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 288
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SIGMAS",
+          "type": "SIGMAS",
+          "slot_index": 0,
+          "links": [
+            897
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "BasicScheduler"
+      },
+      "widgets_values": [
+        "normal",
+        16,
+        0.75
+      ]
+    },
+    {
+      "id": 16,
+      "type": "KSamplerSelect",
+      "pos": [
+        -427.557861328125,
+        1185.7730712890625
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "shape": 3,
+          "type": "SAMPLER",
+          "slot_index": 0,
+          "links": [
+            896
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "euler"
+      ]
+    },
+    {
+      "id": 252,
+      "type": "LatentUpscaleBy",
+      "pos": [
+        -418.907470703125,
+        1291.7169189453125
+      ],
+      "size": [
+        315,
+        82
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 872
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "slot_index": 0,
+          "links": [
+            859
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "LatentUpscaleBy"
+      },
+      "widgets_values": [
+        "bilinear",
+        1.25
+      ]
+    },
+    {
+      "id": 261,
+      "type": "VAEDecodeTiled",
+      "pos": [
+        -417.4580383300781,
+        1346.868408203125
+      ],
+      "size": [
+        317.6997375488281,
+        162.1487579345703
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 859
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 835
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            860,
+            902
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "VAEDecodeTiled"
+      },
+      "widgets_values": [
+        256,
+        64,
+        64,
+        8
+      ]
+    },
+    {
+      "id": 255,
+      "type": "PreviewImage",
+      "pos": [
+        -87.62479400634766,
+        872.105224609375
+      ],
+      "size": [
+        492.45550537109375,
+        475.61602783203125
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 903
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 170,
+      "type": "StringConstantMultiline",
+      "pos": [
+        -88.6951904296875,
+        385.46868896484375
+      ],
+      "size": [
+        423.325927734375,
+        409.93310546875
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "slot_index": 0,
+          "links": [
+            448
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "e3b4bcf21e03402a2b11927eb5a4e3df500795b7",
+        "Node name for S&R": "StringConstantMultiline"
+      },
+      "widgets_values": [
+        "Breast physics, oiled up, with tan lines. a naked young woman is riding a chestnut horse in the Arizona desert at sunset. Rock formations in backdrop. high quality cinematic video of a cute native american woman proudly exposing herself in public. Very feminine,  uncensored, extremely cute slim girl with (tanned skin:1.3), realistic, A beautiful woman with large breasts and long black_hair is completely naked and wearing only a long indoan war bonnet and high moccasins and a native american turquoise necklace,  photorealistic, cinematic lighting, cinematic video, ultra-highres, highres, 4k, absurdres, masterpiece. native american face, DDDD cup breasts, shaved pussy, high quality, sharp background, face and breasts in focus, horse is just walking along, puffy nipples, glamorous makeup, long black_hair, her big brown eyes and her hips are always in frame, silent smile, ultrasharp, Her enormous breasts are bouncing from the horse's movements, no slow motion, A beautiful black_hair with large breasts jiggling and bouncing. TRACKING SHOT, bouncing breasts, horse's head briefly shown as it turns, backdrop moves by, shadows, dust, dusty, camfires burning in background.",
+        true,
+        false
+      ]
+    },
+    {
+      "id": 195,
+      "type": "Reroute",
+      "pos": [
+        33.11954116821289,
+        270.03973388671875
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 569
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "VAE",
+          "slot_index": 0,
+          "links": [
+            835,
+            894
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 277,
+      "type": "WarpedSamplerCustomAdv",
+      "pos": [
+        409.8999938964844,
+        -39.04999542236328
+      ],
+      "size": [
+        533.800048828125,
+        880
+      ],
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 904
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 894
+        },
+        {
+          "name": "guider",
+          "type": "GUIDER",
+          "link": 895
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 896
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 897
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            898
+          ]
+        },
+        {
+          "name": "latents",
+          "type": "LATENT",
+          "links": null
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "generation_status",
+          "type": "STRING",
+          "slot_index": 3,
+          "links": [
+            899
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "WarpedSamplerCustomAdv"
+      },
+      "widgets_values": [
+        238728127651158,
+        "fixed",
+        256,
+        64,
+        64,
+        8,
+        256,
+        64,
+        64,
+        8,
+        0,
+        0.8,
+        1,
+        false
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    }
+  ],
+  "links": [
+    [
+      129,
+      26,
+      0,
+      22,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      195,
+      67,
+      0,
+      22,
+      0,
+      "MODEL"
+    ],
+    [
+      288,
+      81,
+      0,
+      120,
+      0,
+      "MODEL"
+    ],
+    [
+      352,
+      146,
+      0,
+      26,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      366,
+      144,
+      0,
+      146,
+      0,
+      "CLIP"
+    ],
+    [
+      448,
+      170,
+      0,
+      146,
+      1,
+      "STRING"
+    ],
+    [
+      569,
+      10,
+      0,
+      195,
+      0,
+      "*"
+    ],
+    [
+      827,
+      258,
+      0,
+      81,
+      0,
+      "*"
+    ],
+    [
+      835,
+      195,
+      0,
+      261,
+      1,
+      "VAE"
+    ],
+    [
+      840,
+      145,
+      0,
+      258,
+      0,
+      "MODEL"
+    ],
+    [
+      859,
+      252,
+      0,
+      261,
+      0,
+      "LATENT"
+    ],
+    [
+      871,
+      10,
+      0,
+      272,
+      1,
+      "VAE"
+    ],
+    [
+      872,
+      272,
+      0,
+      252,
+      0,
+      "LATENT"
+    ],
+    [
+      883,
+      276,
+      0,
+      272,
+      0,
+      "IMAGE"
+    ],
+    [
+      894,
+      195,
+      0,
+      277,
+      1,
+      "VAE"
+    ],
+    [
+      895,
+      22,
+      0,
+      277,
+      2,
+      "GUIDER"
+    ],
+    [
+      896,
+      16,
+      0,
+      277,
+      3,
+      "SAMPLER"
+    ],
+    [
+      897,
+      120,
+      0,
+      277,
+      4,
+      "SIGMAS"
+    ],
+    [
+      898,
+      277,
+      0,
+      115,
+      0,
+      "IMAGE"
+    ],
+    [
+      899,
+      277,
+      3,
+      152,
+      0,
+      "STRING"
+    ],
+    [
+      900,
+      81,
+      0,
+      278,
+      0,
+      "MODEL"
+    ],
+    [
+      901,
+      278,
+      0,
+      67,
+      0,
+      "MODEL"
+    ],
+    [
+      902,
+      261,
+      0,
+      279,
+      0,
+      "IMAGE"
+    ],
+    [
+      903,
+      279,
+      0,
+      255,
+      0,
+      "IMAGE"
+    ],
+    [
+      904,
+      279,
+      0,
+      277,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 2,
+      "title": "Hunyuan Mid Resolution",
+      "bounding": [
+        -479.1864318847656,
+        -109.82951354980469,
+        1968.408935546875,
+        1489.245361328125
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8264462809917354,
+      "offset": [
+        575.0699999999996,
+        -238.49999999999966
+      ]
+    },
+    "groupNodes": {},
+    "ue_links": [],
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 0,
+    "node_versions": {
+      "ComfyUI_Custom_Nodes_AlekPet": "7b3d6f190aeca261422bdfb74b5af37937e5bf68",
+      "comfy-core": "0.3.26",
+      "comfyui-videohelpersuite": "1.5.2",
+      "comfyui-kjnodes": "e3b4bcf21e03402a2b11927eb5a4e3df500795b7",
+      "Hunyuan-Multi-Lora-Loader": "dd009a9d44b47bfaf01a4ffa38d7098f523e2cce",
+      "ComfyUI-GGUF": "298192ed60f8ca821c6fe5f8030cae23424cada5"
+    },
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
