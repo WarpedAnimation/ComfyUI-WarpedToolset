@@ -13,6 +13,14 @@
 
 <div align="left">
 
+# Update
+
+1) In a command window, navigate to your ComfyUI/custom_nodes folder/ComfyUI-WarpedToolset
+2) enter "git pull"
+3) start/restart ComfyUI
+   
+<div align="left">
+
 # Sample Workflows
 
 Sample workflows are provided in the ComfyUI/custom_nodes/ComfyUI-WarpedToolset/Sample_Workflows folder.
