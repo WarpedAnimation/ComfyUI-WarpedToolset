@@ -1148,7 +1148,6 @@ class WarpedHunyuanMultiLoraMixer:
                     max_dimension = temp_dimension
 
         merge_mixtures, block_metadata = self.get_mixtures(seed, num_output, loras.keys())
-        metadata["block_metadata"] = block_metadata
         metadata["max_dimension"] = "{}".format(max_dimension)
 
         print("Max Dimension: {}".format(max_dimension))
@@ -1159,6 +1158,7 @@ class WarpedHunyuanMultiLoraMixer:
             new_lora = {}
             output_filename = os.path.join(save_folder, "{}_{:05}.safetensors".format(model_prefix, int(mixture_key)))
             metadata["merge_mixture"] = "{}".format(merge_mixtures[mixture_key])
+            metadata["block_metadata"] = "{}".format(block_metadata[mixture_key])
 
             for lora_key in loras.keys():
                 mixture_single_blocks = merge_mixtures[mixture_key][lora_key]["single"]
@@ -1434,8 +1434,8 @@ class WarpedHunyuanMultiLoraMixerExt:
         block_types = self.determine_lora_block_types(loras)
         merge_mixtures, block_metadata = self.get_mixtures(seed, num_output, loras.keys(), block_types)
 
-        metadata["block_metadata"] = "{}".format(block_metadata)
         metadata["max_dimension"] = "{}".format(max_dimension)
+        metadata["block_types"] = "{}".format(block_types)
 
         print("Max Dimension: {}".format(max_dimension))
 
@@ -1445,6 +1445,7 @@ class WarpedHunyuanMultiLoraMixerExt:
             new_lora = {}
             output_filename = os.path.join(save_folder, "{}_{:05}.safetensors".format(model_prefix, int(mixture_key)))
             metadata["merge_mixture"] = "{}".format(merge_mixtures[mixture_key])
+            metadata["block_metadata"] = "{}".format(block_metadata[mixture_key])
 
             for lora_key in loras.keys():
                 mixture_single_blocks = merge_mixtures[mixture_key][lora_key]["single"]
