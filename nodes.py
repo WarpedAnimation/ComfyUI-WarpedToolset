@@ -4111,16 +4111,24 @@ class WarpedImageResize:
             return(image, scaled_image, image.shape[2], image.shape[1],)
 
         if (width < W) or (height < H):
-            if is_long_side:
-                if width <= height:
-                    image = self.scale_to_side(image, height, True)
+            # if same orientation
+            if (orig_is_landscape and new_is_landscape) or (not orig_is_landscape and not new_is_landscape):
+                if is_long_side:
+                    if not new_is_landscape:
+                        image = self.scale_to_side(image, height, is_long_side)
+                    else:
+                        image = self.scale_to_side(image, width, is_long_side)
                 else:
-                    image = self.scale_to_side(image, width, True)
+                    if new_is_landscape:
+                        image = self.scale_to_side(image, height, is_long_side)
+                    else:
+                        image = self.scale_to_side(image, width, is_long_side)
+            # if original is landscape and new is portrait or original is portrait and new is landscape
             else:
-                if width >= height:
-                    image = self.scale_to_side(image, height, False)
+                if is_long_side:
+                    image = self.scale_to_side(image, width, is_long_side)
                 else:
-                    image = self.scale_to_side(image, width, False)
+                    image = self.scale_to_side(image, height, is_long_side)
 
             scaled_image = image.clone().detach()
 
@@ -4172,6 +4180,18 @@ class WarpedImageResize:
 
         if width > height:
             new_is_landscape = True
+
+        if (original_width == original_height):
+            if width <= height:
+                original_is_landscape = True
+
+                if width < height:
+                    new_is_landscape = True
+                else:
+                    new_is_landscape = original_is_landscape
+            else:
+                original_is_landscape = True
+                new_is_landscape = True
 
         is_long_side = True
         upscale_required = False
