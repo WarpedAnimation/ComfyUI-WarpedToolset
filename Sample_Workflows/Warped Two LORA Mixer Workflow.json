@@ -1,0 +1,55 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "revision": 0,
+  "last_node_id": 2,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 2,
+      "type": "WarpedHunyuanLoraMixer",
+      "pos": [
+        758,
+        241
+      ],
+      "size": [
+        315,
+        202
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "WarpedHunyuanLoraMixer"
+      },
+      "widgets_values": [
+        "M:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\MergedHunyuanLoras\\new_lora_hy.safetensors",
+        "None",
+        "odd",
+        "None",
+        1,
+        "blocks",
+        true
+      ]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    "ue_links": [],
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
