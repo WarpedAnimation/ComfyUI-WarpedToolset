@@ -20,6 +20,12 @@
 1) In a command window, navigate to your ComfyUI/custom_nodes folder/ComfyUI-WarpedToolset
 2) enter "git pull"
 3) start/restart ComfyUI
+
+<div align="left">
+
+# Random LORA Mixer Nodes
+
+#### [Rand LORA Mixer Nodes Tutorial - NSFW](https://mega.nz/file/D2YXDLhR#Kz4NGS_rRzMOM9ymuawPGe9e_jI16j4G36ip6JsW44s)
    
 <div align="left">
 
