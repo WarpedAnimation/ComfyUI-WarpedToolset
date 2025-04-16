@@ -11,6 +11,8 @@
 2) enter "git clone https://github.com/WarpedAnimation/ComfyUI-WarpedToolset"
 3) start/restart ComfyUI
 
+#### [Intallation And Overview Tutorial - NSFW](https://mega.nz/file/rn4RUbCA#Z9FEivUT2gCYc-uNJKGM7KnfmjhostnNsrChKGP6K_Q)
+
 <div align="left">
 
 # Update
