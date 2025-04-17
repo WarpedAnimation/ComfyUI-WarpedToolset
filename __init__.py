@@ -25,6 +25,8 @@ NODE_CLASS_MAPPINGS = {
     "WarpedWanLoadAndEditLoraBlocks": WarpedWanLoadAndEditLoraBlocks,
     "WarpedImageResize": WarpedImageResize,
     "WarpedImageScaleToSide": WarpedImageScaleToSide,
+    "WarpedLoadLorasBatch": WarpedLoadLorasBatch,
+    "WarpedHunyuanVideoLoraLoader": WarpedHunyuanVideoLoraLoader,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -52,6 +54,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WarpedWanLoadAndEditLoraBlocks": "Warped Wan Load And Edit Lora Blocks",
     "WarpedImageResize": "Warped Image Resize",
     "WarpedImageScaleToSide": "Warped Image Scale To Side",
+    "WarpedLoadLorasBatch": "Warped Load Loras Batch",
+    "WarpedHunyuanVideoLoraLoader": "Warped Hunyuan Video Lora Loader",
 }
 
 WEB_DIRECTORY = "./web"
