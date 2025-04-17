@@ -1157,8 +1157,9 @@ class WarpedHunyuanMultiLoraMixer:
         for mixture_key in merge_mixtures:
             new_lora = {}
             output_filename = os.path.join(save_folder, "{}_{:05}.safetensors".format(model_prefix, int(mixture_key)))
+
             metadata["merge_mixture"] = "{}".format(merge_mixtures[mixture_key])
-            metadata["block_metadata"] = "{}".format(block_metadata[mixture_key])
+            metadata["block_metadata"] = "{}".format(block_metadata[int(mixture_key)])
 
             for lora_key in loras.keys():
                 mixture_single_blocks = merge_mixtures[mixture_key][lora_key]["single"]
@@ -1444,8 +1445,9 @@ class WarpedHunyuanMultiLoraMixerExt:
         for mixture_key in merge_mixtures:
             new_lora = {}
             output_filename = os.path.join(save_folder, "{}_{:05}.safetensors".format(model_prefix, int(mixture_key)))
+
             metadata["merge_mixture"] = "{}".format(merge_mixtures[mixture_key])
-            metadata["block_metadata"] = "{}".format(block_metadata[mixture_key])
+            metadata["block_metadata"] = "{}".format(block_metadata[int(mixture_key)])
 
             for lora_key in loras.keys():
                 mixture_single_blocks = merge_mixtures[mixture_key][lora_key]["single"]
@@ -4411,4 +4413,45 @@ class WarpedImageScaleToSide:
 
         return newImage,
 
-#
+class WarpedHunyuanLoraCheck:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "lora": (['None'] + get_lora_list(),),
+            },
+        }
+
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
+    OUTPUT_IS_LIST = (True,)
+    FUNCTION = "check_lora"
+    CATEGORY = "Warped/HunyuanTools"
+    DESCRIPTION = ""
+
+    def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        """Load and filter a single LoRA model."""
+        if not lora_name or strength == 0:
+            return {}, {}
+
+        # Get the full path to the LoRA file
+        lora_path = folder_paths.get_full_path("loras", lora_name)
+        if not os.path.exists(lora_path):
+            raise ValueError(f"LoRA file not found: {lora_path}")
+
+        # Load the LoRA weights
+        lora_weights = utils.load_torch_file(lora_path)
+
+        return lora_weights
+
+    def check_lora(self, lora):
+        if lora != "None":
+            # Load and filter the LoRA weights
+            lora_weights = self.load_lora(lora_1, 1.0, blocks_type_1)
+        else:
+            lora_weights = {}
+
+        for key in lora_weights:
+            print(key)
+
+        return {"ui": {"tags": [save_message]}}
