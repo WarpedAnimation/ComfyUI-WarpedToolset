@@ -4455,3 +4455,279 @@ class WarpedHunyuanLoraCheck:
             print(key)
 
         return {"ui": {"tags": [save_message]}}
+
+def get_base_lora_dirs():
+    return folder_paths.get_folder_paths("loras")
+
+class WarpedLoadLorasBatch:
+    def __init__(self):
+        self.index = 0
+        self.base_lora_dir = ""
+        self.sub_folder = ""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "base_lora_dir": (get_base_lora_dirs(), ),
+                "lora_subdirectory": ("STRING", {"default": '', "multiline": False}),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "STRING", )
+    RETURN_NAMES = ("lora_name", "full_lora_path", )
+    FUNCTION = "load_batch_loras"
+
+    CATEGORY = "Warped/LORA"
+
+    def load_batch_loras(self, base_lora_dir, lora_subdirectory):
+        self.sub_folder = lora_subdirectory
+        self.base_lora_dir = base_lora_dir
+        path = os.path.join(self.base_lora_dir, self.sub_folder)
+        print(path)
+
+        if not os.path.exists(os.path.join(self.base_lora_dir, self.sub_folder)):
+            return ("", "", )
+
+        index=0
+        mode="incremental_lora"
+        label='Batch 001'
+        suffix=""
+
+        retry = False
+
+        try:
+            filename, full_filename = self.do_the_load(path, index, mode, label, suffix)
+            print("Filename: {}  |  Full File Path: {}".format(filename, full_filename))
+            return (filename, full_filename, )
+        except:
+            self.index = 0
+            retry = True
+
+        if retry:
+            filename, full_filename = self.do_the_load(path, index, mode, label, suffix)
+            print("Retrying: Filename: {}  |  Full File Path: {}".format(filename, full_filename))
+            return (filename, full_filename, )
+
+        return ("", "", )
+
+
+    def do_the_load(self, path, index, mode, label, suffix):
+        fl = self.BatchLoraLoader(path, label, '*', index)
+        new_paths = fl.lora_paths
+
+        filename = fl.lora_paths[self.index]
+        filename = os.path.join(self.sub_folder, filename)
+        full_filename = os.path.join(self.base_lora_dir, self.sub_folder, filename)
+
+        self.index += 1
+
+        if self.index >= len(fl.lora_paths):
+            self.index = 0
+
+        return filename, full_filename
+
+
+    class BatchLoraLoader:
+        def __init__(self, directory_path, label, pattern, index):
+            self.lora_paths = []
+            self.load_loras(directory_path, pattern)
+            self.lora_paths.sort()
+
+            self.index = index
+            self.label = label
+
+        def load_loras(self, directory_path, pattern):
+            for file_name in glob.glob(os.path.join(directory_path, pattern), recursive=True):
+                temp_strings = file_name.split('\\')
+                file_name = temp_strings[len(temp_strings) - 1]
+
+                if file_name.lower().endswith("safetensors"):
+                    # abs_file_path = os.path.abspath(file_name)
+                    self.lora_paths.append(file_name)
+
+        def get_lora_by_id(self, lora_id):
+            if lora_id < 0 or lora_id >= len(self.lora_paths):
+                cstr(f"Invalid lora index `{lora_id}`").error.print()
+                return
+
+            return self.lora_paths[lora_id]
+
+        def get_next_lora(self):
+            if self.index >= len(self.lora_paths):
+                self.index = 0
+
+            lora_path = self.lora_paths[self.index]
+            self.index += 1
+
+            if self.index == len(self.lora_paths):
+                self.index = 0
+
+            cstr(f'{cstr.color.YELLOW}{self.label}{cstr.color.END} Index: {self.index}').msg.print()
+
+            return lora_path
+
+        def get_current_lora(self):
+            if self.index >= len(self.lora_paths):
+                self.index = 0
+            lora_path = self.lora_paths[self.index]
+
+            return lora_path
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return float("NaN")
+
+class WarpedHunyuanVideoLoraLoader:
+    def __init__(self):
+        self.blocks_type = ["all", "single_blocks", "double_blocks"]
+        self.loaded_lora = None
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "lora_name": ("STRING", {"forceInput": True}),
+                "strength": ("FLOAT", {
+                    "default": 1.0,
+                    "min": -10.0,
+                    "max": 10.0,
+                    "step": 0.01,
+                    "display": "number"
+                }),
+                "blocks_type": (["all", "single_blocks", "double_blocks"],),
+            }
+        }
+
+    RETURN_TYPES = ("MODEL",)
+    RETURN_NAMES = ("model",)
+    FUNCTION = "load_lora"
+    CATEGORY = "Warped/LORA"
+    OUTPUT_NODE = False
+    DESCRIPTION = "LoRA, single blocks double blocks"
+
+    def convert_key_format(self, key: str) -> str:
+        prefixes = ["diffusion_model.", "transformer."]
+        for prefix in prefixes:
+            if key.startswith(prefix):
+                key = key[len(prefix):]
+                break
+
+        return key
+
+    def filter_lora_keys(self, lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
+        if blocks_type == "all":
+            return lora
+
+        filtered_lora = {}
+        for key, value in lora.items():
+            base_key = self.convert_key_format(key)
+
+            if blocks_type == "single_blocks" in base_key:
+                filtered_lora[key] = value
+            elif blocks_type == "double_blocks" in base_key:
+                filtered_lora[key] = value
+
+        return filtered_lora
+
+    def check_for_musubi(self, lora: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        """Checks for and converts from Musubi Tuner format which supports Network Alpha and uses different naming. Largely copied from that project"""
+        prefix = "lora_unet_"
+        musubi = False
+        lora_alphas = {}
+        for key, value in lora.items():
+            if key.startswith(prefix):
+                lora_name = key.split(".", 1)[0]  # before first dot
+                if lora_name not in lora_alphas and "alpha" in key:
+                    lora_alphas[lora_name] = value
+                    musubi = True
+        if musubi:
+            print("Loading Musubi Tuner format LoRA...")
+            converted_lora = {}
+            for key, weight in lora.items():
+                if key.startswith(prefix):
+                    if "alpha" in key:
+                        continue
+                lora_name = key.split(".", 1)[0]  # before first dot
+                # HunyuanVideo lora name to module name: ugly but works
+                module_name = lora_name[len(prefix) :]  # remove "lora_unet_"
+                module_name = module_name.replace("_", ".")  # replace "_" with "."
+                module_name = module_name.replace("double.blocks.", "double_blocks.")  # fix double blocks
+                module_name = module_name.replace("single.blocks.", "single_blocks.")  # fix single blocks
+                module_name = module_name.replace("img.", "img_")  # fix img
+                module_name = module_name.replace("txt.", "txt_")  # fix txt
+                module_name = module_name.replace("attn.", "attn_")  # fix attn
+                diffusers_prefix = "diffusion_model"
+                if "lora_down" in key:
+                    new_key = f"{diffusers_prefix}.{module_name}.lora_A.weight"
+                    dim = weight.shape[0]
+                elif "lora_up" in key:
+                    new_key = f"{diffusers_prefix}.{module_name}.lora_B.weight"
+                    dim = weight.shape[1]
+                else:
+                    print(f"unexpected key: {key} in Musubi LoRA format")
+                    continue
+                # scale weight by alpha
+                if lora_name in lora_alphas:
+                    # we scale both down and up, so scale is sqrt
+                    scale = lora_alphas[lora_name] / dim
+                    scale = scale.sqrt()
+                    weight = weight * scale
+                else:
+                    print(f"missing alpha for {lora_name}")
+
+                converted_lora[new_key] = weight
+            return converted_lora
+        else:
+            print("Loading Diffusers format LoRA...")
+            return lora
+
+    def load_lora(self, model, lora_name: str, strength: float, blocks_type: str):
+        """
+        Parameters
+        ----------
+        model : ModelPatcher
+        lora_name : str
+        strength : float
+        blocks_type : str
+            blocks: "all", "single_blocks" "double_blocks"
+
+        Returns
+        -------
+        tuple
+            LoRA
+        """
+        if not lora_name:
+            return (model,)
+
+        from comfy.utils import load_torch_file
+        from comfy.sd import load_lora_for_models
+        from comfy.lora import load_lora
+
+        lora_path = folder_paths.get_full_path("loras", lora_name)
+        if not os.path.exists(lora_path):
+            raise Exception(f"Lora {lora_name} not found at {lora_path}")
+
+        if self.loaded_lora is not None:
+            if self.loaded_lora[0] == lora_path:
+                lora = self.loaded_lora[1]
+            else:
+                self.loaded_lora = None
+
+        if self.loaded_lora is None:
+            lora = load_torch_file(lora_path)
+            self.loaded_lora = (lora_path, lora)
+
+        diffusers_lora = self.check_for_musubi(lora)
+        filtered_lora = self.filter_lora_keys(diffusers_lora, blocks_type)
+
+        new_model, _ = load_lora_for_models(model, None, filtered_lora, strength, 0)
+        if new_model is not None:
+            return (new_model,)
+
+        return (model,)
+
+    @classmethod
+    def IS_CHANGED(s, model, lora_name, strength, blocks_type):
+        return f"{lora_name}_{strength}_{blocks_type}"
