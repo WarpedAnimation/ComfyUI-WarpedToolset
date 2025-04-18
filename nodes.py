@@ -1159,7 +1159,7 @@ class WarpedHunyuanMultiLoraMixer:
             output_filename = os.path.join(save_folder, "{}_{:05}.safetensors".format(model_prefix, int(mixture_key)))
 
             metadata["merge_mixture"] = "{}".format(merge_mixtures[mixture_key])
-            metadata["block_metadata"] = "{}".format(block_metadata[int(mixture_key)])
+            # metadata["block_metadata"] = "{}".format(block_metadata[int(mixture_key)])
 
             for lora_key in loras.keys():
                 mixture_single_blocks = merge_mixtures[mixture_key][lora_key]["single"]
@@ -1447,7 +1447,7 @@ class WarpedHunyuanMultiLoraMixerExt:
             output_filename = os.path.join(save_folder, "{}_{:05}.safetensors".format(model_prefix, int(mixture_key)))
 
             metadata["merge_mixture"] = "{}".format(merge_mixtures[mixture_key])
-            metadata["block_metadata"] = "{}".format(block_metadata[int(mixture_key)])
+            # metadata["block_metadata"] = "{}".format(block_metadata[int(mixture_key)])
 
             for lora_key in loras.keys():
                 mixture_single_blocks = merge_mixtures[mixture_key][lora_key]["single"]
@@ -4486,7 +4486,7 @@ class WarpedLoadLorasBatch:
         path = os.path.join(self.base_lora_dir, self.sub_folder)
         print(path)
 
-        if not os.path.exists(os.path.join(self.base_lora_dir, self.sub_folder)):
+        if not os.path.exists(path):
             return ("", "", )
 
         index=0
@@ -4498,7 +4498,7 @@ class WarpedLoadLorasBatch:
 
         try:
             filename, full_filename = self.do_the_load(path, index, mode, label, suffix)
-            print("Filename: {}  |  Full File Path: {}".format(filename, full_filename))
+            print("WarpedLoadLorasBatch: Filename: {}  |  Full File Path: {}".format(filename, full_filename))
             return (filename, full_filename, )
         except:
             self.index = 0
@@ -4506,7 +4506,7 @@ class WarpedLoadLorasBatch:
 
         if retry:
             filename, full_filename = self.do_the_load(path, index, mode, label, suffix)
-            print("Retrying: Filename: {}  |  Full File Path: {}".format(filename, full_filename))
+            print("WarpedLoadLorasBatch: Retrying: Filename: {}  |  Full File Path: {}".format(filename, full_filename))
             return (filename, full_filename, )
 
         return ("", "", )
@@ -4517,8 +4517,9 @@ class WarpedLoadLorasBatch:
         new_paths = fl.lora_paths
 
         filename = fl.lora_paths[self.index]
+
         filename = os.path.join(self.sub_folder, filename)
-        full_filename = os.path.join(self.base_lora_dir, self.sub_folder, filename)
+        full_filename = os.path.join(self.base_lora_dir, filename)
 
         self.index += 1
 
@@ -4603,7 +4604,7 @@ class WarpedHunyuanVideoLoraLoader:
     RETURN_TYPES = ("MODEL",)
     RETURN_NAMES = ("model",)
     FUNCTION = "load_lora"
-    CATEGORY = "Warped/LORA"
+    CATEGORY = "Warped/LORA/Hunyuan"
     OUTPUT_NODE = False
     DESCRIPTION = "LoRA, single blocks double blocks"
 
@@ -4731,3 +4732,539 @@ class WarpedHunyuanVideoLoraLoader:
     @classmethod
     def IS_CHANGED(s, model, lora_name, strength, blocks_type):
         return f"{lora_name}_{strength}_{blocks_type}"
+
+class WarpedHunyuanMultiLoraLoader:
+    """
+    Hunyuan Multi-Lora Loader
+    This node works like the original lora_loader.py, with a required model input and output.
+    It does not output LoRA information in HYVIDLORA format.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "lora_01": (['None'] + folder_paths.get_filename_list("loras"),),
+                "strength_01": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                "blocks_type_01": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+                "lora_02": (['None'] + folder_paths.get_filename_list("loras"),),
+                "strength_02": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                "blocks_type_02": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+                "lora_03": (['None'] + folder_paths.get_filename_list("loras"),),
+                "strength_03": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                "blocks_type_03": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+                "lora_04": (['None'] + folder_paths.get_filename_list("loras"),),
+                "strength_04": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                "blocks_type_04": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+            },
+          "optional": {
+                "lora_name": ("STRING", {"default": None, "forceInput": True}),
+                "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                "blocks_type": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+            },
+        }
+
+    RETURN_TYPES = ("MODEL",)
+    RETURN_NAMES = ("model",)
+    FUNCTION = "load_multiple_loras"
+    CATEGORY = "Warped/LORA/Hunyuan"
+    DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
+
+    def convert_key_format(self, key: str) -> str:
+        """Standardize LoRA key format by removing prefixes."""
+        prefixes = ["diffusion_model.", "transformer."]
+        for prefix in prefixes:
+            if key.startswith(prefix):
+                key = key[len(prefix):]
+                break
+        return key
+
+    def filter_lora_keys(self, lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
+        """Filter LoRA weights based on block type."""
+        if blocks_type == "all":
+            return lora
+        filtered_lora = {}
+        for key, value in lora.items():
+            base_key = self.convert_key_format(key)
+            if blocks_type in base_key:
+                filtered_lora[key] = value
+        return filtered_lora
+
+    def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        """Load and filter a single LoRA model."""
+        if not lora_name or strength == 0:
+            return {}, {}
+
+        # Get the full path to the LoRA file
+        lora_path = folder_paths.get_full_path("loras", lora_name)
+        if not os.path.exists(lora_path):
+            raise ValueError(f"LoRA file not found: {lora_path}")
+
+        # Load the LoRA weights
+        lora_weights = utils.load_torch_file(lora_path)
+
+        # Filter the LoRA weights based on the block type
+        filtered_lora = self.filter_lora_keys(lora_weights, blocks_type)
+
+        return lora_weights, filtered_lora
+
+#    def load_multiple_loras(self, model, lora_name=None, strength=1.00, blocks_type="all", **kwargs):
+    def load_multiple_loras(self, model, **kwargs):
+        """Load and apply multiple LoRA models."""
+        from comfy.sd import load_lora_for_models
+
+        temp_lora_name = kwargs.get(f"lora_name")
+        temp_strength = kwargs.get(f"strength")
+        temp_blocks_type = kwargs.get(f"blocks_type")
+
+        if not temp_lora_name is None and temp_strength != 0:
+            print("Lora Name: {}  |  Strength: {}  |  Block Types: {}".format(temp_lora_name, temp_strength, temp_blocks_type))
+
+            lora_weights, filtered_lora = self.load_lora(temp_lora_name, temp_strength, temp_blocks_type)
+
+            # Apply the LoRA weights to the model
+            if filtered_lora:
+                model, _ = load_lora_for_models(model, None, filtered_lora, temp_strength, 0)
+
+        for i in range(1, 5):
+            temp_lora_name = kwargs.get(f"lora_0{i}")
+            temp_strength = kwargs.get(f"strength_0{i}")
+            temp_blocks_type = kwargs.get(f"blocks_type_0{i}")
+
+            if temp_lora_name != "None" and temp_strength != 0:
+                # Load and filter the LoRA weights
+                lora_weights, filtered_lora = self.load_lora(temp_lora_name, temp_strength, temp_blocks_type)
+
+                # Apply the LoRA weights to the model
+                if filtered_lora:
+                    model, _ = load_lora_for_models(model, None, filtered_lora, temp_strength, 0)
+
+        return (model,)
+
+    @classmethod
+    def IS_CHANGED(s, **kwargs):
+        return f"{kwargs.get('lora_name')}_{kwargs.get('strength')}_{kwargs.get('blocks_type')}_" \
+               f"{kwargs.get('lora_01')}_{kwargs.get('strength_01')}_{kwargs.get('blocks_type_01')}_" \
+               f"{kwargs.get('lora_02')}_{kwargs.get('strength_02')}_{kwargs.get('blocks_type_02')}_" \
+               f"{kwargs.get('lora_03')}_{kwargs.get('strength_03')}_{kwargs.get('blocks_type_03')}_" \
+               f"{kwargs.get('lora_04')}_{kwargs.get('strength_04')}_{kwargs.get('blocks_type_04')}"
+
+def get_save_lora_path(filename_prefix, output_dir):
+    def map_filename(filename):
+        prefix_len = len(os.path.basename(filename_prefix))
+        prefix = filename[:prefix_len + 1]
+
+        try:
+            temp_strings = filename.split("_")
+            temp_strings2 = temp_strings[len(temp_strings) - 1].split('.')
+            digits = int(temp_strings2[0])
+        except:
+            digits = 0
+
+        return (digits, prefix)
+
+    subfolder = os.path.dirname(os.path.normpath(filename_prefix))
+    filename = os.path.basename(os.path.normpath(filename_prefix))
+
+    full_output_folder = os.path.join(output_dir, subfolder)
+
+    full_folder_contents = os.listdir(full_output_folder)
+    relevant_folder_contents = []
+
+    for temp in full_folder_contents:
+        if temp.startswith(filename_prefix):
+            relevant_folder_contents.append(temp)
+
+    if len(relevant_folder_contents) > 0:
+        try:
+            counter = max(filter(lambda a: a[1][:-1] == filename and a[1][-1] == "_", map(map_filename, relevant_folder_contents)))[0] + 1
+        except ValueError:
+            counter = 1
+        except FileNotFoundError:
+            os.makedirs(full_output_folder, exist_ok=True)
+            counter = 1
+    else:
+        counter = 1
+
+    return full_output_folder, filename, counter, subfolder, filename_prefix
+
+class WarpedHunyuanLoraBatchMerge:
+    def __init__(self):
+        self.base_output_dir = get_default_output_folder()
+        os.makedirs(self.base_output_dir, exist_ok = True)
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "save_folder": ("STRING", {"default": get_default_output_folder()}),
+                "model_prefix": ("STRING", {"default": "new_model_hy"}),
+                "lora_1": ("STRING", {"default": None, "forceInput": True}),
+                "strength_1": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
+                "blocks_type_1": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+                "lora_2": (['None'] + get_lora_list(),),
+                "strength_2": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
+                "blocks_type_2": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
+                "save_metadata": ("BOOLEAN", {"default": True}),
+            },
+        }
+
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
+    OUTPUT_IS_LIST = (True,)
+    FUNCTION = "merge_multiple_loras"
+    CATEGORY = "Warped/HunyuanTools"
+    DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
+
+    def convert_key_format(self, key: str) -> str:
+        """Standardize LoRA key format by removing prefixes."""
+        prefixes = ["diffusion_model.", "transformer."]
+        for prefix in prefixes:
+            if key.startswith(prefix):
+                key = key[len(prefix):]
+                break
+        return key
+
+    def filter_lora_keys(self, lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
+        """Filter LoRA weights based on block type."""
+        if blocks_type == "all":
+            return lora
+        filtered_lora = {}
+        for key, value in lora.items():
+            base_key = self.convert_key_format(key)
+            if blocks_type in base_key:
+                filtered_lora[key] = value
+        return filtered_lora
+
+    def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        """Load and filter a single LoRA model."""
+        if not lora_name or strength == 0:
+            return {}, {}
+
+        # Get the full path to the LoRA file
+        lora_path = folder_paths.get_full_path("loras", lora_name)
+        if not os.path.exists(lora_path):
+            raise ValueError(f"LoRA file not found: {lora_path}")
+
+        # Load the LoRA weights
+        lora_weights = utils.load_torch_file(lora_path)
+
+        # Filter the LoRA weights based on the block type
+        filtered_lora = self.filter_lora_keys(lora_weights, blocks_type)
+
+        return lora_weights, filtered_lora
+
+    def merge_multiple_loras(self, save_folder, model_prefix, lora_1, strength_1, blocks_type_1, lora_2, strength_2, blocks_type_2, save_metadata=True):
+        """Load and apply multiple LoRA models."""
+        temp_loras = {}
+        metadata = {"loras": "{} and {}".format(lora_1, lora_2)}
+        metadata["strengths"] = "{} and {}".format(strength_1, strength_2)
+        metadata["block_types"] = "{} and {}".format(blocks_type_1, blocks_type_2)
+
+        print("Processing Lora: {}".format(lora_1))
+
+        if lora_1 != "None" and strength_1 != 0:
+            # Load and filter the LoRA weights
+            lora_weights, filtered_lora = self.load_lora(lora_1, 1.0, blocks_type_1)
+            temp_loras["1"] = {"lora_weights": lora_weights, "strength": strength_1, "filtered_lora": filtered_lora}
+
+        if lora_2 != "None" and strength_2 != 0:
+            # Load and filter the LoRA weights
+            lora_weights, filtered_lora = self.load_lora(lora_2, 1.0, blocks_type_2)
+            temp_loras["2"] = {"lora_weights": lora_weights, "strength": strength_2, "filtered_lora": filtered_lora}
+
+        loras = {}
+
+        for lora_key in temp_loras.keys():
+            loras[lora_key] = {"lora_weights": {}, "strength": temp_loras[lora_key]["strength"], "filtered_lora": temp_loras[lora_key]["filtered_lora"]}
+
+            for key in temp_loras[lora_key]["lora_weights"].keys():
+                new_key = key.replace("transformer.", "diffusion_model.")
+                loras[lora_key]["lora_weights"][new_key] = temp_loras[lora_key]["lora_weights"][key]
+
+        new_lora = {}
+
+        for lora_key in loras.keys():
+            for key in loras[lora_key]["lora_weights"].keys():
+                if not key in new_lora.keys():
+                    new_lora[key] = None
+                # print("Lora: {}  | Key: {}  |  Shape: {}".format(lora_key, key, loras[lora_key]["lora_weights"][key].shape))
+
+        # Merge The Weighted Key Weights
+        for key in new_lora.keys():
+            for lora_key in loras.keys():
+                if key in loras[lora_key]["lora_weights"].keys():
+                    if not new_lora[key] is None:
+                        temp_weights = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
+
+                        if new_lora[key].shape[0] < new_lora[key].shape[1]:
+                            if temp_weights.shape[0] < new_lora[key].shape[0]:
+                                temp_weights = temp_weights.clone().detach()
+                                new_lora[key] = new_lora[key].clone().detach()
+
+                                padding = torch.zeros([new_lora[key].shape[0], new_lora[key].shape[1]])
+                                padding[:temp_weights.shape[0],:] = temp_weights
+                                temp_weights = padding
+                            elif temp_weights.shape[0] > new_lora[key].shape[0]:
+                                temp_weights = temp_weights.clone().detach()
+                                new_lora[key] = new_lora[key].clone().detach()
+
+                                padding = torch.zeros([temp_weights.shape[0], temp_weights.shape[1]])
+                                padding[:new_lora[key].shape[0],:] = new_lora[key]
+                                new_lora[key] = padding
+                        else:
+                            if temp_weights.shape[1] < new_lora[key].shape[1]:
+                                temp_weights = temp_weights.clone().detach()
+                                new_lora[key] = new_lora[key].clone().detach()
+
+                                padding = torch.zeros([new_lora[key].shape[0], new_lora[key].shape[1]])
+                                padding[:,:temp_weights.shape[1]] = temp_weights
+                                temp_weights = padding
+                            elif temp_weights.shape[1] > new_lora[key].shape[1]:
+                                temp_weights = temp_weights.clone().detach()
+                                new_lora[key] = new_lora[key].clone().detach()
+
+                                padding = torch.zeros([temp_weights.shape[0], temp_weights.shape[1]])
+                                padding[:,:new_lora[key].shape[1]] = new_lora[key]
+                                new_lora[key] = padding
+
+                        try:
+                            new_lora[key] = torch.add(new_lora[key], temp_weights)
+                        except Exception as e:
+                            raise(e)
+                    else:
+                        new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
+
+        if not save_metadata:
+            metadata = None
+
+        full_output_path, filename, counter, subfolder, filename_prefix = get_save_lora_path(model_prefix, self.base_output_dir)
+
+        output_filename = os.path.join(full_output_path, "{}_{:05}.safetensors".format(model_prefix, counter))
+        utils.save_torch_file(new_lora, output_filename, metadata=metadata)
+
+        save_message = "Weights Saved To: {}".format(output_filename)
+        print(save_message)
+
+        return {"ui": {"tags": [save_message]}}
+
+class WarpedHunyuanLoraConvertKeys:
+    def __init__(self):
+        self.base_output_dir = get_default_output_folder()
+        os.makedirs(self.base_output_dir, exist_ok = True)
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "save_path": ("STRING", {"default": get_default_output_path()}),
+                "lora": (get_lora_list(),),
+                "convert_to": (["diffusion_model", "transformer"], {"default": "diffusion_model"}),
+                "save_metadata": ("BOOLEAN", {"default": True}),
+            },
+        }
+
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
+    OUTPUT_IS_LIST = (True,)
+    FUNCTION = "convert_lora"
+    CATEGORY = "Warped/HunyuanTools"
+    DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
+
+    def check_for_musubi(self, lora: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        """Checks for and converts from Musubi Tuner format which supports Network Alpha and uses different naming. Largely copied from that project"""
+        prefix = "lora_unet_"
+        musubi = False
+        lora_alphas = {}
+        for key, value in lora.items():
+            if key.startswith(prefix):
+                lora_name = key.split(".", 1)[0]  # before first dot
+                if lora_name not in lora_alphas and "alpha" in key:
+                    lora_alphas[lora_name] = value
+                    musubi = True
+        if musubi:
+            print("Loading Musubi Tuner format LoRA...")
+            converted_lora = {}
+            for key, weight in lora.items():
+                if key.startswith(prefix):
+                    if "alpha" in key:
+                        continue
+                lora_name = key.split(".", 1)[0]  # before first dot
+                # HunyuanVideo lora name to module name: ugly but works
+                module_name = lora_name[len(prefix) :]  # remove "lora_unet_"
+                module_name = module_name.replace("_", ".")  # replace "_" with "."
+                module_name = module_name.replace("double.blocks.", "double_blocks.")  # fix double blocks
+                module_name = module_name.replace("single.blocks.", "single_blocks.")  # fix single blocks
+                module_name = module_name.replace("img.", "img_")  # fix img
+                module_name = module_name.replace("txt.", "txt_")  # fix txt
+                module_name = module_name.replace("attn.", "attn_")  # fix attn
+                diffusers_prefix = "diffusion_model"
+                if "lora_down" in key:
+                    new_key = f"{diffusers_prefix}.{module_name}.lora_A.weight"
+                    dim = weight.shape[0]
+                elif "lora_up" in key:
+                    new_key = f"{diffusers_prefix}.{module_name}.lora_B.weight"
+                    dim = weight.shape[1]
+                else:
+                    print(f"unexpected key: {key} in Musubi LoRA format")
+                    continue
+                # scale weight by alpha
+                if lora_name in lora_alphas:
+                    # we scale both down and up, so scale is sqrt
+                    scale = lora_alphas[lora_name] / dim
+                    scale = scale.sqrt()
+                    weight = weight * scale
+                else:
+                    print(f"missing alpha for {lora_name}")
+
+                converted_lora[new_key] = weight
+            return converted_lora
+        else:
+            print("Loading Diffusers format LoRA...")
+            return lora
+
+    def load_lora(self, lora_name: str) -> Tuple[Dict[str, torch.Tensor],]:
+        """Load and filter a single LoRA model."""
+        if not lora_name:
+            return {}
+
+        # Get the full path to the LoRA file
+        lora_path = folder_paths.get_full_path("loras", lora_name)
+        if not os.path.exists(lora_path):
+            raise ValueError(f"LoRA file not found: {lora_path}")
+
+        # Load the LoRA weights
+        lora_weights = utils.load_torch_file(lora_path)
+
+        return lora_weights
+
+    def convert_lora(self, save_path, lora, convert_to, save_metadata=True):
+        metadata = {"original_lora": "{}".format(lora)}
+
+        # Load the LoRA weights
+        temp_lora = self.load_lora(lora)
+        temp_lora = self.check_for_musubi(temp_lora)
+
+        new_lora = {}
+
+        for key in temp_lora.keys():
+            if key.startswith("transformer.") and  (convert_to == "diffusion_model"):
+                new_key = key.replace("transformer.", "diffusion_model.")
+                new_lora[new_key] = temp_lora[key]
+                continue
+
+            if key.startswith("diffusion_model.") and  (convert_to == "transformer"):
+                new_key = key.replace("diffusion_model.", "transformer.")
+                new_lora[new_key] = temp_lora[key]
+                continue
+
+            if key.startswith("lora_unet_"):
+                new_key = key.replace("lora_unet_", "{}.".format(convert_to))
+
+                if "double" in new_key:
+                    new_key = new_key.replace("double_blocks_", "double_blocks.")
+                    new_key = new_key.replace("_img_attn", ".img_attn")
+                    new_key = new_key.replace("_img_mlp", ".img_mlp")
+                    new_key = new_key.replace("_txt_attn", ".txt_attn")
+                    new_key = new_key.replace("_txt_mlp", ".txt_mlp")
+                    new_key = new_key.replace(".lora_up.", ".lora_A.")
+                    new_key = new_key.replace(".lora_down.", ".lora_B.")
+
+                    continue
+
+                if "single" in new_key:
+                    new_key = new_key.replace("single_blocks_", "single_blocks.")
+                    new_key = new_key.replace("_linear", ".linear")
+                    new_key = new_key.replace(".lora_up.", ".lora_A.")
+                    new_key = new_key.replace(".lora_down.", ".lora_B.")
+
+                    continue
+
+        if not save_metadata:
+            metadata = None
+
+        if len(new_lora) < 1:
+            utils.save_torch_file(temp_lora, save_path, metadata=metadata)
+        else:
+            utils.save_torch_file(new_lora, save_path, metadata=metadata)
+
+        save_message = "Weights Saved To: {}".format(save_path)
+
+        return {"ui": {"tags": [save_message]}}
+
+class WarpedLoraKeysAndMetadataReader:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "lora_name": (folder_paths.get_filename_list("loras"),),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "STRING", )
+    RETURN_NAMES = ("keys", "metadata", )
+    OUTPUT_IS_LIST = (True, True, )
+    FUNCTION = "read_data"
+    CATEGORY = "Warped/Utils"
+    DESCRIPTION = "Read Metadata From Lora."
+
+    def get_metadata(self, lora_path):
+        # Open the file in binary mode
+        with open(lora_path, 'rb') as file:
+            length_of_header_bytes = file.read(8)
+            # Interpret the bytes as a little-endian unsigned 64-bit integer
+            length_of_header = struct.unpack('<Q', length_of_header_bytes)[0]
+            header_bytes = file.read(length_of_header)
+            #header = json.loads(header_bytes.decode('utf-8'))
+            metadata = json.loads(header_bytes)
+            return metadata["__metadata__"]
+
+    def load_lora(self, lora_name: str, strength: 1.0, blocks_type: "all") -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        """Load and filter a single LoRA model."""
+        if not lora_name:
+            return "", ""
+
+        # Get the full path to the LoRA file
+        lora_path = folder_paths.get_full_path("loras", lora_name)
+        if not os.path.exists(lora_path):
+            raise ValueError(f"LoRA file not found: {lora_path}")
+
+        lora_weights = comfy.utils.load_torch_file(lora_path)
+
+        metadata = self.get_metadata(lora_path)
+
+        return lora_weights, metadata
+
+    def read_data(self, lora_name):
+        metadata = {}
+        keys = []
+
+        if lora_name != "None":
+            # Load and filter the LoRA weights
+            lora_weights, metadata = self.load_lora(lora_name, 1.0, "all")
+
+        if metadata is None:
+            metadata = {}
+
+        lora_keys = []
+        for key in lora_weights.keys():
+            lora_keys.append("{}\n".format(key))
+            print(key)
+
+        lora_metadata = []
+        if len(metadata.keys()) > 0:
+            for key in metadata.keys():
+                lora_metadata.append("{}: {}\n".format(key, metadata[key]))
+                print("{}: {}".format(key, metadata[key]))
+
+        lora_weights = None
+
+        mm.soft_empty_cache()
+        gc.collect()
+        time.sleep(1)
+
+        return { "ui": { "string": lora_keys, "string": lora_metadata }, "result": (lora_keys, lora_metadata,), }
