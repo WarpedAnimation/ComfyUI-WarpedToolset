@@ -1,0 +1,14 @@
+[project]
+name = "warpedtoolset"
+description = "Custom tool set mostly for Hunyuan Video, but includes some WAN Video nodes."
+version = "1.0.0"
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/WarpedAnimation/ComfyUI-WarpedToolset"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "ComfyUI-WarpedToolset"
+Icon = ""
