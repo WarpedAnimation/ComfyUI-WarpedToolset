@@ -1,0 +1,55 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "revision": 0,
+  "last_node_id": 1,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "WarpedHunyuanLoraConvertKeys",
+      "pos": [
+        718,
+        323
+      ],
+      "size": [
+        403.1999816894531,
+        130
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
+        "Node name for S&R": "WarpedHunyuanLoraConvertKeys"
+      },
+      "widgets_values": [
+        "M:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\MergedHunyuanLoras\\RsmBreastDropV2Hy.safetensors",
+        "hunyuan\\breast_drop_v2_170.safetensors",
+        "diffusion_model",
+        true
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
