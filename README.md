@@ -26,6 +26,12 @@
 # Random LORA Mixer Nodes
 
 #### [Rand LORA Mixer Nodes Tutorial - NSFW](https://mega.nz/file/D2YXDLhR#Kz4NGS_rRzMOM9ymuawPGe9e_jI16j4G36ip6JsW44s)
+
+<div align="left">
+
+# Random LORA Mixer Nodes
+
+#### [Batch Hunyuan LORA Nodes Overview](https://mega.nz/file/Xn43TB6C#l3zAKEyqhmVlCXzGvvBkN0UgAyV4jrU3sNDamNRapxo)
    
 <div align="left">
 
