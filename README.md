@@ -29,7 +29,7 @@
 
 <div align="left">
 
-# Random LORA Mixer Nodes
+# Batch Hunyuan LORA Nodes
 
 #### [Batch Hunyuan LORA Nodes Overview](https://mega.nz/file/Xn43TB6C#l3zAKEyqhmVlCXzGvvBkN0UgAyV4jrU3sNDamNRapxo)
    
