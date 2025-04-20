@@ -7,6 +7,7 @@ NODE_CLASS_MAPPINGS = {
     "WarpedHunyuanMultiLoraMixer": WarpedHunyuanMultiLoraMixer,
     "WarpedHunyuanMultiLoraMixerExt": WarpedHunyuanMultiLoraMixerExt,
     "WarpedHunyuanLoraAvgMerge": WarpedHunyuanLoraAvgMerge,
+    "WarpedHunyuanLoraBatchMerge": WarpedHunyuanLoraBatchMerge,
     "WarpedWanLoraMerge": WarpedWanLoraMerge,
     "WarpedSamplerCustomAdv": WarpedSamplerCustomAdv,
     "WarpedSamplerCustomAdvLatent": WarpedSamplerCustomAdvLatent,
@@ -25,6 +26,12 @@ NODE_CLASS_MAPPINGS = {
     "WarpedWanLoadAndEditLoraBlocks": WarpedWanLoadAndEditLoraBlocks,
     "WarpedImageResize": WarpedImageResize,
     "WarpedImageScaleToSide": WarpedImageScaleToSide,
+    # "WarpedLoadLorasBatch": WarpedLoadLorasBatch,
+    "WarpedLoadLorasBatchByPrefix": WarpedLoadLorasBatchByPrefix,
+    "WarpedHunyuanVideoLoraLoader": WarpedHunyuanVideoLoraLoader,
+    "WarpedHunyuanMultiLoraLoader": WarpedHunyuanMultiLoraLoader,
+    "WarpedHunyuanLoraConvertKeys": WarpedHunyuanLoraConvertKeys,
+    "WarpedLoraKeysAndMetadataReader": WarpedLoraKeysAndMetadataReader,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -34,6 +41,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WarpedHunyuanMultiLoraMixer": "Warped Hunyuan Multi Lora Mixer",
     "WarpedHunyuanMultiLoraMixerExt": "Warped Hunyuan Multi Lora Mixer Ext",
     "WarpedHunyuanLoraAvgMerge": "Warped Hunyuan Lora Avg Merge",
+    "WarpedHunyuanLoraBatchMerge": "Warped Hunyuan Lora Batch Merge",
     "WarpedWanLoraMerge": "Warped Wan Lora Merge",
     "WarpedSamplerCustomAdv": "Warped Sampler Custom Advanced (Image)",
     "WarpedSamplerCustomAdvLatent": "Warped Sampler Custom Advanced (Latent)",
@@ -52,6 +60,12 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WarpedWanLoadAndEditLoraBlocks": "Warped Wan Load And Edit Lora Blocks",
     "WarpedImageResize": "Warped Image Resize",
     "WarpedImageScaleToSide": "Warped Image Scale To Side",
+    # "WarpedLoadLorasBatch": "Warped Load Loras Batch",
+    "WarpedLoadLorasBatchByPrefix": "Warped Load Loras Batch By Prefix",
+    "WarpedHunyuanVideoLoraLoader": "Warped Hunyuan Video Lora Loader",
+    "WarpedHunyuanMultiLoraLoader": "Warped Hunyuan Video Multi Lora Loader",
+    "WarpedHunyuanLoraConvertKeys": "Warped Hunyuan Lora Convert Keys",
+    "WarpedLoraKeysAndMetadataReader": "Warped Lora Keys And Metadata Reader",
 }
 
 WEB_DIRECTORY = "./web"
