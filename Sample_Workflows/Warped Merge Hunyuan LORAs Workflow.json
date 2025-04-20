@@ -1,0 +1,56 @@
+{
+  "last_node_id": 3,
+  "last_link_id": 1,
+  "nodes": [
+    {
+      "id": 3,
+      "type": "WarpedHunyuanLoraMerge",
+      "pos": [
+        708,
+        311
+      ],
+      "size": [
+        315,
+        202
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "WarpedHunyuanLoraMerge"
+      },
+      "widgets_values": [
+        "M:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\MergedHunyuanLoras\\RsmMadilyn4Hy.safetensors",
+        "hunyuan\\alyson-hannigan-hunyuan-v1.1-vfx_ai.safetensors",
+        0.6,
+        "all",
+        "hunyuan\\v1ctor1a_01_epoch70.safetensors",
+        0.4,
+        "all"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    "node_versions": {},
+    "ue_links": [],
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
