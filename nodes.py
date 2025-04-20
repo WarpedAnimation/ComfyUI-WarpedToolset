@@ -4459,18 +4459,164 @@ class WarpedHunyuanLoraCheck:
 def get_base_lora_dirs():
     return folder_paths.get_folder_paths("loras")
 
-class WarpedLoadLorasBatch:
+# class WarpedLoadLorasBatch:
+#     def __init__(self):
+#         self.index = 0
+#         self.base_lora_dir = ""
+#         self.sub_folder = ""
+#
+#     @classmethod
+#     def INPUT_TYPES(cls):
+#         return {
+#             "required": {
+#                 "base_lora_dir": (get_base_lora_dirs(), ),
+#                 "lora_subdirectory": ("STRING", {"default": '', "multiline": False}),
+#             },
+#         }
+#
+#     RETURN_TYPES = ("STRING", "STRING", )
+#     RETURN_NAMES = ("lora_name", "full_lora_path", )
+#     FUNCTION = "load_batch_loras"
+#
+#     CATEGORY = "Warped/LORA"
+#
+#     def load_batch_loras(self, base_lora_dir, lora_subdirectory):
+#         self.sub_folder = lora_subdirectory
+#         self.base_lora_dir = base_lora_dir
+#         path = os.path.join(self.base_lora_dir, self.sub_folder)
+#         print(path)
+#
+#         if not os.path.exists(path):
+#             return ("", "", )
+#
+#         index=0
+#         mode="incremental_lora"
+#         label='Batch 001'
+#         suffix=""
+#
+#         retry = False
+#
+#         try:
+#             filename, full_filename = self.do_the_load(path, index, mode, label, suffix)
+#             print("WarpedLoadLorasBatch: Filename: {}  |  Full File Path: {}".format(filename, full_filename))
+#             return (filename, full_filename, )
+#         except:
+#             self.index = 0
+#             retry = True
+#
+#         if retry:
+#             filename, full_filename = self.do_the_load(path, index, mode, label, suffix)
+#             print("WarpedLoadLorasBatch: Retrying: Filename: {}  |  Full File Path: {}".format(filename, full_filename))
+#             return (filename, full_filename, )
+#
+#         return ("", "", )
+#
+#
+#     def do_the_load(self, path, index, mode, label, suffix):
+#         fl = self.BatchLoraLoader(path, label, '*', index)
+#         new_paths = fl.lora_paths
+#
+#         filename = fl.lora_paths[self.index]
+#
+#         filename = os.path.join(self.sub_folder, filename)
+#         full_filename = os.path.join(self.base_lora_dir, filename)
+#
+#         self.index += 1
+#
+#         if self.index >= len(fl.lora_paths):
+#             self.index = 0
+#
+#         return filename, full_filename
+#
+#
+#     class BatchLoraLoader:
+#         def __init__(self, directory_path, label, pattern, index):
+#             self.lora_paths = []
+#             self.load_loras(directory_path, pattern)
+#             self.lora_paths.sort()
+#
+#             self.index = index
+#             self.label = label
+#
+#         def load_loras(self, directory_path, pattern):
+#             for file_name in glob.glob(os.path.join(directory_path, pattern), recursive=True):
+#                 temp_strings = file_name.split('\\')
+#                 file_name = temp_strings[len(temp_strings) - 1]
+#
+#                 if file_name.lower().endswith("safetensors"):
+#                     # abs_file_path = os.path.abspath(file_name)
+#                     self.lora_paths.append(file_name)
+#
+#         def get_lora_by_id(self, lora_id):
+#             if lora_id < 0 or lora_id >= len(self.lora_paths):
+#                 cstr(f"Invalid lora index `{lora_id}`").error.print()
+#                 return
+#
+#             return self.lora_paths[lora_id]
+#
+#         def get_next_lora(self):
+#             if self.index >= len(self.lora_paths):
+#                 self.index = 0
+#
+#             lora_path = self.lora_paths[self.index]
+#             self.index += 1
+#
+#             if self.index == len(self.lora_paths):
+#                 self.index = 0
+#
+#             cstr(f'{cstr.color.YELLOW}{self.label}{cstr.color.END} Index: {self.index}').msg.print()
+#
+#             return lora_path
+#
+#         def get_current_lora(self):
+#             if self.index >= len(self.lora_paths):
+#                 self.index = 0
+#             lora_path = self.lora_paths[self.index]
+#
+#             return lora_path
+#
+#     @classmethod
+#     def IS_CHANGED(cls, **kwargs):
+#         return float("NaN")
+
+def get_lora_directories():
+    lora_dirs = get_base_lora_dirs()
+
+    result_lora_dirs = []
+
+    for lora_dir in lora_dirs:
+        temp_dirs = [x[0] for x in os.walk(lora_dir)]
+        result_lora_dirs = result_lora_dirs + temp_dirs
+
+    result_lora_dirs.sort()
+
+    return(result_lora_dirs)
+
+def get_lora_path_parts(path):
+    temp_base_dirs = get_base_lora_dirs()
+    base_dir = ""
+    lora_name = ""
+
+    for temp_dir in temp_base_dirs:
+        if path.startswith(temp_dir):
+            base_dir = temp_dir
+            lora_name = path[len(base_dir) + 1:]
+            print("get_lora_path_parts: base_dir: {}  |  lora_name: {}".format(base_dir, lora_name))
+            break
+
+    return base_dir, lora_name
+
+class WarpedLoadLorasBatchByPrefix:
     def __init__(self):
         self.index = 0
-        self.base_lora_dir = ""
-        self.sub_folder = ""
+        self.lora_dir = ""
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "base_lora_dir": (get_base_lora_dirs(), ),
-                "lora_subdirectory": ("STRING", {"default": '', "multiline": False}),
+                "lora_dir": (get_lora_directories(), ),
+                "lora_prefix": ("STRING", {"default": '', "multiline": False}),
             },
         }
 
@@ -4480,63 +4626,66 @@ class WarpedLoadLorasBatch:
 
     CATEGORY = "Warped/LORA"
 
-    def load_batch_loras(self, base_lora_dir, lora_subdirectory):
-        self.sub_folder = lora_subdirectory
-        self.base_lora_dir = base_lora_dir
-        path = os.path.join(self.base_lora_dir, self.sub_folder)
+    def load_batch_loras(self, lora_dir, lora_prefix):
+        self.lora_dir = lora_dir
+        path = lora_dir
         print(path)
 
         if not os.path.exists(path):
             return ("", "", )
 
         index=0
-        mode="incremental_lora"
-        label='Batch 001'
-        suffix=""
-
         retry = False
 
         try:
-            filename, full_filename = self.do_the_load(path, index, mode, label, suffix)
-            print("WarpedLoadLorasBatch: Filename: {}  |  Full File Path: {}".format(filename, full_filename))
+            filename, full_filename = self.do_the_load(path, lora_prefix, index)
+            print("WarpedLoadLorasBatchByPrefix: Filename: {}  |  Full File Path: {}".format(filename, full_filename))
             return (filename, full_filename, )
         except:
             self.index = 0
             retry = True
 
         if retry:
-            filename, full_filename = self.do_the_load(path, index, mode, label, suffix)
-            print("WarpedLoadLorasBatch: Retrying: Filename: {}  |  Full File Path: {}".format(filename, full_filename))
+            retry = False
+            filename, full_filename = self.do_the_load(path, lora_prefix, index)
+            print("WarpedLoadLorasBatchByPrefix: Retrying: Filename: {}  |  Full File Path: {}".format(filename, full_filename))
             return (filename, full_filename, )
 
         return ("", "", )
 
 
-    def do_the_load(self, path, index, mode, label, suffix):
-        fl = self.BatchLoraLoader(path, label, '*', index)
+    def do_the_load(self, path, prefix, index):
+        prefix = prefix.strip(' ')
+
+        if (len(prefix) == 1) and (prefix == '*'):
+            fl = self.BatchLoraLoader(path, '*', index)
+        else:
+            prefix = prefix.strip('*')
+            fl = self.BatchLoraLoader(path, "{}*".format(prefix), index)
+
         new_paths = fl.lora_paths
 
         filename = fl.lora_paths[self.index]
 
-        filename = os.path.join(self.sub_folder, filename)
-        full_filename = os.path.join(self.base_lora_dir, filename)
+        # filename = os.path.join(self.sub_folder, filename)
+        full_filename = os.path.join(path, filename)
+        base_dir, lora_name = get_lora_path_parts(full_filename)
 
         self.index += 1
 
         if self.index >= len(fl.lora_paths):
             self.index = 0
 
-        return filename, full_filename
+        return lora_name, full_filename
 
 
     class BatchLoraLoader:
-        def __init__(self, directory_path, label, pattern, index):
+        def __init__(self, directory_path, pattern, index):
             self.lora_paths = []
             self.load_loras(directory_path, pattern)
             self.lora_paths.sort()
 
             self.index = index
-            self.label = label
 
         def load_loras(self, directory_path, pattern):
             for file_name in glob.glob(os.path.join(directory_path, pattern), recursive=True):
@@ -4544,12 +4693,11 @@ class WarpedLoadLorasBatch:
                 file_name = temp_strings[len(temp_strings) - 1]
 
                 if file_name.lower().endswith("safetensors"):
-                    # abs_file_path = os.path.abspath(file_name)
                     self.lora_paths.append(file_name)
 
         def get_lora_by_id(self, lora_id):
             if lora_id < 0 or lora_id >= len(self.lora_paths):
-                cstr(f"Invalid lora index `{lora_id}`").error.print()
+                cstr(f"WarpedLoadLorasBatchByPrefix: Invalid lora index `{lora_id}`").error.print()
                 return
 
             return self.lora_paths[lora_id]
@@ -4564,7 +4712,7 @@ class WarpedLoadLorasBatch:
             if self.index == len(self.lora_paths):
                 self.index = 0
 
-            cstr(f'{cstr.color.YELLOW}{self.label}{cstr.color.END} Index: {self.index}').msg.print()
+            cstr(f'{cstr.color.YELLOW}{cstr.color.END} Index: {self.index}').msg.print()
 
             return lora_path
 
