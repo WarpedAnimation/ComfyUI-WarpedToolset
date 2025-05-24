@@ -37,9 +37,9 @@
 
 <div align="left">
 
-# Batch Hunyuan LORA Nodes
+# FramePack Video Nodes
 
-#### [FramePack Video Nodes Overview](https://mega.nz/file/OjBRlJBZ#g14M-OFV2M-CG_mgALndSOLxKJrwU9gxrKV1tdmFbiM))
+#### [FramePack Video Nodes Overview](https://mega.nz/file/OjBRlJBZ#g14M-OFV2M-CG_mgALndSOLxKJrwU9gxrKV1tdmFbiM)
 
 <div align="left">
 
