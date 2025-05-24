@@ -34,7 +34,13 @@
 # Batch Hunyuan LORA Nodes
 
 #### [Batch Hunyuan LORA Nodes Overview](https://mega.nz/file/Xn43TB6C#l3zAKEyqhmVlCXzGvvBkN0UgAyV4jrU3sNDamNRapxo)
-   
+
+<div align="left">
+
+# Batch Hunyuan LORA Nodes
+
+#### [FramePack Video Nodes Overview](https://mega.nz/file/OjBRlJBZ#g14M-OFV2M-CG_mgALndSOLxKJrwU9gxrKV1tdmFbiM))
+
 <div align="left">
 
 # Sample Workflows
