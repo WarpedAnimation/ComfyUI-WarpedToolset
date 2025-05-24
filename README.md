@@ -7,6 +7,8 @@
 
 # Installation
 
+* Available in ComfyUI Manager or:
+  
 1) In a command window, navigate to your ComfyUI/custom_nodes folder
 2) enter "git clone https://github.com/WarpedAnimation/ComfyUI-WarpedToolset"
 3) start/restart ComfyUI
