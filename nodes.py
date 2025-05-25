@@ -5551,7 +5551,13 @@ class WarpedLoraKeysAndMetadataReader:
             header_bytes = file.read(length_of_header)
             #header = json.loads(header_bytes.decode('utf-8'))
             metadata = json.loads(header_bytes)
-            return metadata["__metadata__"]
+
+            try:
+                return metadata["__metadata__"]
+            except:
+                pass
+
+        return {"metadata": "No Metadata" }
 
     def load_lora(self, lora_name: str, strength: 1.0, blocks_type: "all") -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         """Load and filter a single LoRA model."""
@@ -5577,9 +5583,6 @@ class WarpedLoraKeysAndMetadataReader:
             # Load and filter the LoRA weights
             lora_weights, metadata = self.load_lora(lora_name, 1.0, "all")
 
-        if metadata is None:
-            metadata = {}
-
         lora_keys = []
         for key in lora_weights.keys():
             lora_keys.append("{}".format(key))
@@ -5598,6 +5601,7 @@ class WarpedLoraKeysAndMetadataReader:
         time.sleep(1)
 
         return { "ui": { "lora_keys": lora_keys, "lora_metadata": lora_metadata }, "result": (lora_keys, lora_metadata,), }
+
 
 class WarpedHunyuanLoraConvert:
     def __init__(self):
@@ -6011,6 +6015,20 @@ class WarpedFramepackSampler:
                     clean_latents = torch.cat([start_latent.to(history_latents), end_latent.to(history_latents)], dim=2)
                 else:
                     clean_latents = torch.cat([start_latent.to(history_latents), clean_latents_1x], dim=2)
+
+                if self.verbose_messaging:
+                    print("history_latents Shape: {}\n".format(history_latents.shape))
+
+                    print("indices: {}".format(indices))
+                    print("latent_indices: {}\n".format(latent_indices))
+                    print("clean_latent_2x_indices: {}".format(clean_latent_2x_indices))
+                    print("clean_latent_4x_indices: {}".format(clean_latent_4x_indices))
+                    print("clean_latent_indices: {}\n".format(clean_latent_indices))
+
+                    print("clean_latents_2x Shape: {}".format(clean_latents_2x.shape))
+                    print("clean_latents_4x Shape: {}".format(clean_latents_4x.shape))
+                    print("clean_latents Shape: {}\n".format(clean_latents.shape))
+                    print("noise Shape: {}\n".format(noise[latent_padding].shape))
 
                 if self.use_teacache:
                     self.transformer.initialize_teacache(enable_teacache=True, num_steps=self.steps, rel_l1_thresh=self.teacache_rel_l1_thresh)
