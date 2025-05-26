@@ -1,12 +1,14 @@
 <div align="center">
 
 # ComfyUI-WarpedToolset
-**A toolset for Hunyuan Video (mainly), with some additional nodes applicable to WAN Video.**
+**A toolset for Hunyuan Video (mainly), with some additional nodes applicable to Framepack Video and WAN Video.**
 
 <div align="left">
 
 # Installation
 
+* Available in ComfyUI Manager or:
+  
 1) In a command window, navigate to your ComfyUI/custom_nodes folder
 2) enter "git clone https://github.com/WarpedAnimation/ComfyUI-WarpedToolset"
 3) start/restart ComfyUI
@@ -26,7 +28,19 @@
 # Random LORA Mixer Nodes
 
 #### [Rand LORA Mixer Nodes Tutorial - NSFW](https://mega.nz/file/D2YXDLhR#Kz4NGS_rRzMOM9ymuawPGe9e_jI16j4G36ip6JsW44s)
-   
+
+<div align="left">
+
+# Batch Hunyuan LORA Nodes
+
+#### [Batch Hunyuan LORA Nodes Overview](https://mega.nz/file/Xn43TB6C#l3zAKEyqhmVlCXzGvvBkN0UgAyV4jrU3sNDamNRapxo)
+
+<div align="left">
+
+# FramePack Video Nodes
+
+#### [FramePack Video Nodes Overview](https://mega.nz/file/OjBRlJBZ#g14M-OFV2M-CG_mgALndSOLxKJrwU9gxrKV1tdmFbiM)
+
 <div align="left">
 
 # Sample Workflows

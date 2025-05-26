@@ -1,0 +1,14 @@
+[project]
+name = "ComfyUI-WarpedToolset"
+description = "A toolset for Hunyuan Video (mainly), with some additional nodes applicable to Framepack Video and WAN Video."
+version = "1.5.1"
+license = { file = "LICENSE" }
+
+[project.urls]
+Repository = "https://github.com/WarpedAnimation/ComfyUI-WarpedToolset"
+
+[tool.comfy]
+PublisherId = "warpedanimation"
+DisplayName = "Warped Toolset"
+Icon = ""
+Models = []

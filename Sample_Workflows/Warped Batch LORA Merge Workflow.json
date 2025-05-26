@@ -1,0 +1,119 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "revision": 0,
+  "last_node_id": 5,
+  "last_link_id": 4,
+  "nodes": [
+    {
+      "id": 3,
+      "type": "WarpedHunyuanLoraBatchMerge",
+      "pos": [
+        790,
+        204
+      ],
+      "size": [
+        390.5999755859375,
+        250
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "lora_1",
+          "type": "STRING",
+          "widget": {
+            "name": "lora_1"
+          },
+          "link": 4
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
+        "Node name for S&R": "WarpedHunyuanLoraBatchMerge"
+      },
+      "widgets_values": [
+        "M:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\MergedHunyuanLoras",
+        "RsmEbony2Hy",
+        "",
+        1,
+        "all",
+        "hunyuan\\move_enhancer_v3_20.safetensors",
+        0.6000000000000001,
+        "all",
+        true
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 5,
+      "type": "WarpedLoadLorasBatchByPrefix",
+      "pos": [
+        256,
+        218
+      ],
+      "size": [
+        393.8000183105469,
+        105
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "lora_name",
+          "type": "STRING",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "full_lora_path",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
+        "Node name for S&R": "WarpedLoadLorasBatchByPrefix"
+      },
+      "widgets_values": [
+        "M:\\Projects\\webui_test\\stable-diffusion-webui-forge\\models\\Lora\\Hunyuan",
+        "some_prefix"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    }
+  ],
+  "links": [
+    [
+      4,
+      5,
+      0,
+      3,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [
+        102,
+        16
+      ]
+    },
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
