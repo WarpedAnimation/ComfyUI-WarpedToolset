@@ -43,6 +43,12 @@
 
 <div align="left">
 
+# FramePack Video Fast Loading Nodes
+
+#### [FramePack Video Fast Loading Nodes Overview](https://mega.nz/file/ziIWUJ4K#HexNowxv7UgoRdE6OBFbWYK69Jo8ws6O1GgJqUX1HsA)
+
+<div align="left">
+
 # Sample Workflows
 
 Sample workflows are provided in the ComfyUI/custom_nodes/ComfyUI-WarpedToolset/Sample_Workflows folder.
