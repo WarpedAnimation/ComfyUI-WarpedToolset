@@ -1,7 +1,7 @@
 import nodes
 import torch
 import comfy.model_management as mm
-from PIL import ImageDraw, Image, ImageChops, ImageColor
+from PIL import ImageDraw, Image, ImageOps, ImageChops, ImageColor
 import numpy as np
 from typing import List, Set, Union, Optional, Dict, Optional, Tuple
 import struct
@@ -23,6 +23,9 @@ from comfy.samplers import filter_registered_hooks_on_conds as filter_registered
 from comfy.samplers import sampling_function as sampling_function
 from comfy.samplers import cast_to_load_options as cast_to_load_options
 from comfy.samplers import process_conds as process_conds
+
+from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict
+from enum import Enum
 
 import os
 import gc
@@ -5826,7 +5829,7 @@ class WarpedFramepackSampler:
         time.sleep(1)
 
         if not video_image_batch is None:
-            return self.process_v2v(start_image, video_image_batch)
+            return self.process_v2v(video_image_batch)
 
         if not start_image is None:
             return self.process_i2v(start_image, end_image, is_i2v=True)
@@ -6035,6 +6038,8 @@ class WarpedFramepackSampler:
                 else:
                     self.transformer.initialize_teacache(enable_teacache=False)
 
+                print("Generating Batch {}".format(latent_padding))
+
                 generated_latents = self.generate_video(W * 8, H * 8, num_frames, rnd, noise_latent, llama_vec, llama_attention_mask, clip_l_pooler, llama_vec_n, llama_attention_mask_n, clip_l_pooler_n, image_encoder_last_hidden_state,
                                                         latent_indices, clean_latents, clean_latent_indices, clean_latents_2x, clean_latent_2x_indices, clean_latents_4x, clean_latent_4x_indices, callback)
 
@@ -6122,7 +6127,7 @@ class WarpedFramepackSampler:
 
         return (output_images, generation_status, self.fps, )
 
-    def process_v2v(self, start_image, video_image_batch):
+    def process_v2v(self, video_image_batch):
         if len(video_image_batch.shape) < 4:
             video_image_batch = video_image_batch.unsqueeze(0)
 
@@ -6133,13 +6138,6 @@ class WarpedFramepackSampler:
         image_batch_size = int((video_image_batch.shape[0] - 1) / self.batch_count) + 1
         latent_size_factor = 4
         latent_batch_size = self.decoded_to_encoded_length(image_batch_size)
-
-        original_start_latent = None
-
-        if not start_image is None:
-            original_start_latent = self.encode_batched(start_image, self.latent_window_size)
-            original_start_latent = original_start_latent["samples"] * vae_scaling_factor
-            original_start_latent_embedding = self.clip_vision_encode(start_image)
 
         rnd = torch.Generator("cpu").manual_seed(self.seed)
 
@@ -6246,15 +6244,7 @@ class WarpedFramepackSampler:
                     print("noise_latent Shape: ()".format(noise_latent.shape))
 
                 if is_first_section:
-                    if original_start_latent is None:
-                        original_history_latents = torch.zeros(size=(1, 16, self.buffer_length, H, W), dtype=torch.float32).cpu()
-                    else:
-                        original_history_latents = torch.zeros(size=(1, 16, self.buffer_length - 1, H, W), dtype=torch.float32).cpu()
-                        original_history_latents = torch.cat([original_start_latent.to(original_history_latents), original_history_latents], 2)
-                        original_start_embedding_hidden_states = original_start_latent_embedding["last_hidden_state"].to(self.base_dtype).to(self.device)
-
-                if not original_start_latent is None:
-                    image_encoder_last_hidden_state = torch.mul(original_start_embedding_hidden_states, self.start_embed_strength)
+                    original_history_latents = torch.zeros(size=(1, 16, self.buffer_length, H, W), dtype=torch.float32).cpu()
 
                 latent_padding_size = 0
                 start_latent_frames = 1
@@ -6297,6 +6287,8 @@ class WarpedFramepackSampler:
                 clean_latents_2x.to(dtype=torch.float32, device=self.device)
                 clean_latents_4x.to(dtype=torch.float32, device=self.device)
                 noise_latent.to(dtype=torch.float32, device=self.device)
+
+                print("Generating Batch {}".format(latent_padding))
 
                 generated_latents = self.generate_video(W * 8, H * 8, num_frames, rnd, noise_latent, llama_vec, llama_attention_mask, clip_l_pooler, llama_vec_n, llama_attention_mask_n, clip_l_pooler_n, image_encoder_last_hidden_state,
                                                         latent_indices, clean_latents, clean_latent_indices, clean_latents_2x, clean_latent_2x_indices, clean_latents_4x, clean_latent_4x_indices, callback)
@@ -6469,9 +6461,6 @@ class WarpedFramepackSampler:
             if context_frames > (video_latents.shape[2] - 3):
                 context_frames = video_latents.shape[2] - 3
 
-            clean_latent_indices = []
-            i = 0
-
             offset = math.ceil((video_latents.shape[2] - 2 - self.buffer_length) / (context_frames - 2))
 
             if offset < 1:
@@ -6479,19 +6468,30 @@ class WarpedFramepackSampler:
 
             print("offset: {}".format(offset))
             index = 0
+            i = 0
+            clean_latent_indices = []
+            temp_clean_latent_indices = {}
+
             while i < (context_frames - 2):
                 if index < (video_latents.shape[2] - 1):
-                    clean_latent_indices.append(int(index + self.buffer_length))
+                    temp_clean_latent_indices["{}".format(int(index + self.buffer_length))] = int(index + self.buffer_length)
 
                 index += offset
                 i += 1
 
-            clean_latent_indices.append(int(video_latents.shape[2] - 2))
-            clean_latent_indices.append(int(video_latents.shape[2] - 1))
+            temp_clean_latent_indices["{}".format(int(video_latents.shape[2] - 2))] = int(video_latents.shape[2] - 2)
+            temp_clean_latent_indices["{}".format(int(video_latents.shape[2] - 1))] = int(video_latents.shape[2] - 1)
+
+            if self.verbose_messaging:
+                print("temp_clean_latent_indices.items(): {}".format(temp_clean_latent_indices.items()))
+
+            for key in temp_clean_latent_indices:
+                clean_latent_indices.append(temp_clean_latent_indices[key])
+
+            clean_latent_indices.sort()
 
             clean_latents = None
             for index in clean_latent_indices:
-                # print("get_video_clean_latents: index: {}".format(index))
                 if not clean_latents is None:
                     clean_latents = torch.cat((clean_latents, latents_split[index]), 2)
                 else:
@@ -6969,3 +6969,464 @@ class WarpedFramepackLoraSelectBatch:
 
         loras_list.append(lora)
         return (loras_list,)
+
+def warped_load_torch_file(ckpt, return_metadata=False):
+    from safetensors.torch import load as safeload
+
+    metadata = None
+
+    try:
+        f = safeload(ckpt)
+
+        sd = {}
+        for k in f.keys():
+            if k != "__metadata__":
+                sd[k] = f[k]
+            elif return_metadata:
+                metadata = f[k]
+    except Exception as e:
+        if len(e.args) > 0:
+            message = e.args[0]
+            if "HeaderTooLarge" in message:
+                raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt or invalid. Make sure this is actually a safetensors file and not a ckpt or pt or other filetype.".format(message, ckpt))
+            if "MetadataIncompleteBuffer" in message:
+                raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt/incomplete. Check the file size and make sure you have copied/downloaded it correctly.".format(message, ckpt))
+        raise e
+
+    return (sd, metadata) if return_metadata else sd
+
+def get_available_devices():
+    available_devices = ["cpu"]
+
+    if torch.cuda.is_available():
+        if torch.cuda.device_count() < 2:
+            available_devices.append("cuda")
+        else:
+            for i in range(torch.cuda.device_count()):
+                temp_device = "cuda:{}".format(i)
+                available_devices.append(temp_device)
+
+    return available_devices
+
+class WarpedDualCLIPLoaderAdvanced(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required": { "clip_name1": (folder_paths.get_filename_list("text_encoders"), ),
+                              "clip_name2": (folder_paths.get_filename_list("text_encoders"), ),
+                              "type": (["sdxl", "sd3", "flux", "hunyuan_video"], ),
+                              "device": (get_available_devices(), {"default": "cpu"}),
+                              "positive_text": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The positive prompt to be encoded."}),
+                              "negative_text": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The negative prompt to be encoded."}),
+                            },
+               }
+    RETURN_TYPES = ("CLIP", IO.CONDITIONING, IO.CONDITIONING, )
+    RETURN_NAMES = ("clip", "pos_conditioning", "neg_conditioning", )
+    FUNCTION = "load_clip"
+
+    CATEGORY = "Warped/Loaders"
+
+    DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5"
+
+    def load_clip(self, clip_name1, clip_name2, type, device="default", positive_text="", negative_text=""):
+        clip_path1 = folder_paths.get_full_path_or_raise("text_encoders", clip_name1)
+        clip_path2 = folder_paths.get_full_path_or_raise("text_encoders", clip_name2)
+        if type == "sdxl":
+            clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
+        elif type == "sd3":
+            clip_type = comfy.sd.CLIPType.SD3
+        elif type == "flux":
+            clip_type = comfy.sd.CLIPType.FLUX
+        elif type == "hunyuan_video":
+            clip_type = comfy.sd.CLIPType.HUNYUAN_VIDEO
+
+        model_options = {}
+        if device == "cpu":
+            model_options["load_device"] = model_options["offload_device"] = torch.device("cpu")
+        else:
+            model_options["load_device"] = model_options["offload_device"] = torch.device("cpu")
+
+            if torch.cuda.is_available():
+                if device == "cuda":
+                    model_options["load_device"] = torch.cuda.current_device()
+                else:
+                    temp_device = device.split(':')
+                    device_number = int(temp_device[len(temp_device) - 1])
+                    model_options["load_device"] = torch.device(device_number)
+
+            print("WarpedDualCLIPLoader: {}".format(model_options))
+
+        clip = self.sd_load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type, model_options=model_options)
+
+        if clip.patcher.model.device != model_options["load_device"]:
+            clip.patcher.model.to(device=model_options["load_device"])
+
+        positive_conditioning = self.encode(clip, positive_text)
+        negative_conditioning = self.encode(clip, negative_text)
+
+        clip.patcher.model.to(device=model_options["offload_device"])
+
+        return (clip, positive_conditioning, negative_conditioning, )
+
+    def sd_load_clip(self, ckpt_paths, embedding_directory=None, clip_type=comfy.sd.CLIPType.STABLE_DIFFUSION, model_options={"offload_device": get_offload_device()}):
+        checkpoint_temp = []
+        for p in ckpt_paths:
+            print("Reading: {}".format(p))
+            with open(p, "rb") as file:
+                content = file.read()
+
+            checkpoint_temp.append(content)
+
+        clip_data = []
+        i = 1
+        for p in checkpoint_temp:
+            print("Loading Clip: {}...".format(i))
+            clip_data.append(warped_load_torch_file(p))
+            print("Loading Clip: {}...Done".format(i))
+            i += 1
+
+        return_clip = comfy.sd.load_text_encoder_state_dicts(clip_data, embedding_directory=embedding_directory, clip_type=clip_type, model_options=model_options)
+
+        checkpoint_temp = None
+        clip_data = None
+
+        return return_clip
+
+    def encode(self, clip, text):
+
+        if clip is None:
+            raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
+
+        tokens = clip.tokenize(text)
+        return_encoding = clip.encode_from_tokens_scheduled(tokens)
+
+        return return_encoding
+
+script_directory = os.path.dirname(os.path.abspath(__file__))
+
+class WarpedLoadFramePackModel:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": (folder_paths.get_filename_list("diffusion_models"), {"tooltip": "These models are loaded from the 'ComfyUI/models/diffusion_models' -folder",}),
+
+            "base_precision": (["fp32", "bf16", "fp16"], {"default": "bf16"}),
+            "quantization": (['disabled', 'fp8_e4m3fn', 'fp8_e4m3fn_fast', 'fp8_e5m2'], {"default": 'disabled', "tooltip": "optional quantization method"}),
+            "load_device": (["main_device", "offload_device"], {"default": "cuda", "tooltip": "Initialize the model on the main device or offload device"}),
+            },
+            "optional": {
+                "attention_mode": ([
+                    "sdpa",
+                    "flash_attn",
+                    "sageattn",
+                    ], {"default": "sdpa"}),
+                "compile_args": ("FRAMEPACKCOMPILEARGS", ),
+                "lora": ("FPLORA", {"default": None, "tooltip": "LORA model to load"}),
+            }
+        }
+
+    RETURN_TYPES = ("FramePackMODEL",)
+    RETURN_NAMES = ("model", )
+    FUNCTION = "loadmodel"
+    CATEGORY = "Warped/Framepack/Loaders"
+
+    def loadmodel(self, model, base_precision, quantization,
+                  compile_args=None, attention_mode="sdpa", lora=None, load_device="main_device"):
+        from .diffusers_helper.models.hunyuan_video_packed import HunyuanVideoTransformer3DModel
+        from accelerate.utils import set_module_tensor_to_device
+        from accelerate import init_empty_weights
+        from .diffusers_helper.memory import DynamicSwapInstaller, move_model_to_device_with_memory_preservation
+
+        mm.unload_all_models()
+        gc.collect()
+        time.sleep(1)
+
+        base_dtype = {"fp8_e4m3fn": torch.float8_e4m3fn, "fp8_e4m3fn_fast": torch.float8_e4m3fn, "bf16": torch.bfloat16, "fp16": torch.float16, "fp16_fast": torch.float16, "fp32": torch.float32}[base_precision]
+
+        device = mm.get_torch_device()
+        offload_device = get_offload_device()
+        if load_device == "main_device":
+            transformer_load_device = device
+        else:
+            transformer_load_device = offload_device
+
+        model_path = folder_paths.get_full_path_or_raise("diffusion_models", model)
+        model_config_path = os.path.join(script_directory, "transformer_config.json")
+        import json
+        with open(model_config_path, "r") as f:
+            config = json.load(f)
+
+        print("Reading: {}".format(model_path))
+        with open(model_path, "rb") as file:
+            checkpoint_temp = file.read()
+
+        print("Loading Checkpoint...")
+        sd = warped_load_torch_file(checkpoint_temp)
+        print("Loading Checkpoint...Done")
+        checkpoint_temp = None
+
+        gc.collect()
+        time.sleep(1)
+
+        # sd = load_torch_file(model_path, device=offload_device, safe_load=True)
+        model_weight_dtype = sd['single_transformer_blocks.0.attn.to_k.weight'].dtype
+
+        with init_empty_weights():
+            transformer = HunyuanVideoTransformer3DModel(**config, attention_mode=attention_mode)
+
+        params_to_keep = {"norm", "bias", "time_in", "vector_in", "guidance_in", "txt_in", "img_in"}
+        if quantization == "fp8_e4m3fn" or quantization == "fp8_e4m3fn_fast" or quantization == "fp8_scaled":
+            dtype = torch.float8_e4m3fn
+        elif quantization == "fp8_e5m2":
+            dtype = torch.float8_e5m2
+        else:
+            dtype = base_dtype
+
+        if lora is not None:
+            after_lora_dtype = dtype
+            dtype = base_dtype
+
+        print("Using accelerate to load and assign model weights to device...")
+        param_count = sum(1 for _ in transformer.named_parameters())
+        for name, param in tqdm(transformer.named_parameters(),
+                desc=f"Loading transformer parameters to {transformer_load_device}",
+                total=param_count,
+                leave=True):
+            dtype_to_use = base_dtype if any(keyword in name for keyword in params_to_keep) else dtype
+
+            set_module_tensor_to_device(transformer, name, device=transformer_load_device, dtype=dtype_to_use, value=sd[name])
+
+        if lora is not None:
+            from diffusers.loaders.lora_conversion_utils import _convert_hunyuan_video_lora_to_diffusers
+
+            adapter_list = []
+            adapter_weights = []
+
+            lora_number = 1
+            for l in lora:
+                fuse = True if l["fuse_lora"] else False
+
+                print("Reading LORA: {}".format(l["path"]))
+                with open(l["path"], "rb") as file:
+                    lora_temp = file.read()
+
+                print("Loading Lora: {}...".format(lora_number))
+                lora_sd = warped_load_torch_file(lora_temp)
+                print("Loading Lora: {}...Done".format(lora_number))
+                lora_number += 1
+
+                if "lora_unet_single_transformer_blocks_0_attn_to_k.lora_up.weight" in lora_sd:
+                    from .utils import convert_to_diffusers
+                    lora_sd = convert_to_diffusers("lora_unet_", lora_sd)
+
+                if not "transformer.single_transformer_blocks.0.attn_to.k.lora_A.weight" in lora_sd:
+                    print(f"Converting LoRA weights from {l['path']} to diffusers format...")
+                    lora_sd = _convert_hunyuan_video_lora_to_diffusers(lora_sd)
+
+                lora_rank = None
+                for key, val in lora_sd.items():
+                    if "lora_B" in key or "lora_up" in key:
+                        lora_rank = val.shape[1]
+                        break
+                if lora_rank is not None:
+                    print(f"Merging rank {lora_rank} LoRA weights from {l['path']} with strength {l['strength']}")
+                    adapter_name = l['path'].split("/")[-1].split(".")[0]
+                    adapter_weight = l['strength']
+                    transformer.load_lora_adapter(lora_sd, weight_name=l['path'].split("/")[-1], lora_rank=lora_rank, adapter_name=adapter_name)
+
+                    adapter_list.append(adapter_name)
+                    adapter_weights.append(adapter_weight)
+
+                del lora_sd
+                mm.soft_empty_cache()
+            if adapter_list:
+                transformer.set_adapters(adapter_list, weights=adapter_weights)
+                if fuse:
+                    if model_weight_dtype not in [torch.float32, torch.float16, torch.bfloat16]:
+                        raise ValueError("Fusing LoRA doesn't work well with fp8 model weights. Please use a bf16 model file, or disable LoRA fusing.")
+                    lora_scale = 1
+                    transformer.fuse_lora(lora_scale=lora_scale)
+                    transformer.delete_adapters(adapter_list)
+
+            if quantization == "fp8_e4m3fn" or quantization == "fp8_e4m3fn_fast" or quantization == "fp8_e5m2":
+                params_to_keep = {"norm", "bias", "time_in", "vector_in", "guidance_in", "txt_in", "img_in"}
+                for name, param in transformer.named_parameters():
+                    # Make sure to not cast the LoRA weights to fp8.
+                    if not any(keyword in name for keyword in params_to_keep) and not 'lora' in name:
+                        param.data = param.data.to(after_lora_dtype)
+
+        if quantization == "fp8_e4m3fn_fast":
+            from .fp8_optimization import convert_fp8_linear
+            convert_fp8_linear(transformer, base_dtype, params_to_keep=params_to_keep)
+
+
+        DynamicSwapInstaller.install_model(transformer, device=device)
+
+        if compile_args is not None:
+            if compile_args["compile_single_blocks"]:
+                for i, block in enumerate(transformer.single_transformer_blocks):
+                    transformer.single_transformer_blocks[i] = torch.compile(block, fullgraph=compile_args["fullgraph"], dynamic=compile_args["dynamic"], backend=compile_args["backend"], mode=compile_args["mode"])
+            if compile_args["compile_double_blocks"]:
+                for i, block in enumerate(transformer.transformer_blocks):
+                    transformer.transformer_blocks[i] = torch.compile(block, fullgraph=compile_args["fullgraph"], dynamic=compile_args["dynamic"], backend=compile_args["backend"], mode=compile_args["mode"])
+
+            #transformer = torch.compile(transformer, fullgraph=compile_args["fullgraph"], dynamic=compile_args["dynamic"], backend=compile_args["backend"], mode=compile_args["mode"])
+
+        pipe = {
+            "transformer": transformer.eval(),
+            "dtype": base_dtype,
+        }
+        return (pipe, )
+
+def warped_clip_vision_load(ckpt_path):
+    print("Reading: {}".format(ckpt_path))
+    with open(ckpt_path, "rb") as file:
+        clip_vision_temp = file.read()
+
+    print("Loading Clip Vision Model...")
+    sd = warped_load_torch_file(clip_vision_temp)
+    print("Loading Clip Vision Model...Done")
+
+    clip_vision_temp = None
+    gc.collect()
+    time.sleep(1)
+
+    # sd = load_torch_file(ckpt_path)
+    if "visual.transformer.resblocks.0.attn.in_proj_weight" in sd:
+        return comfy.clip_vision.load_clipvision_from_sd(sd, prefix="visual.", convert_keys=True)
+    else:
+        return comfy.clip_vision.load_clipvision_from_sd(sd)
+
+class WarpedCLIPVisionLoader:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"), ),
+                             }}
+    RETURN_TYPES = ("CLIP_VISION",)
+    FUNCTION = "load_clip"
+
+    CATEGORY = "Warped/Loaders"
+
+    def load_clip(self, clip_name):
+        clip_path = folder_paths.get_full_path_or_raise("clip_vision", clip_name)
+        clip_vision = warped_clip_vision_load(clip_path)
+        return (clip_vision,)
+
+class WarpedVAELoader:
+    @staticmethod
+    def vae_list():
+        vaes = folder_paths.get_filename_list("vae")
+        approx_vaes = folder_paths.get_filename_list("vae_approx")
+        sdxl_taesd_enc = False
+        sdxl_taesd_dec = False
+        sd1_taesd_enc = False
+        sd1_taesd_dec = False
+        sd3_taesd_enc = False
+        sd3_taesd_dec = False
+        f1_taesd_enc = False
+        f1_taesd_dec = False
+
+        for v in approx_vaes:
+            if v.startswith("taesd_decoder."):
+                sd1_taesd_dec = True
+            elif v.startswith("taesd_encoder."):
+                sd1_taesd_enc = True
+            elif v.startswith("taesdxl_decoder."):
+                sdxl_taesd_dec = True
+            elif v.startswith("taesdxl_encoder."):
+                sdxl_taesd_enc = True
+            elif v.startswith("taesd3_decoder."):
+                sd3_taesd_dec = True
+            elif v.startswith("taesd3_encoder."):
+                sd3_taesd_enc = True
+            elif v.startswith("taef1_encoder."):
+                f1_taesd_dec = True
+            elif v.startswith("taef1_decoder."):
+                f1_taesd_enc = True
+        if sd1_taesd_dec and sd1_taesd_enc:
+            vaes.append("taesd")
+        if sdxl_taesd_dec and sdxl_taesd_enc:
+            vaes.append("taesdxl")
+        if sd3_taesd_dec and sd3_taesd_enc:
+            vaes.append("taesd3")
+        if f1_taesd_dec and f1_taesd_enc:
+            vaes.append("taef1")
+        return vaes
+
+    @staticmethod
+    def load_taesd(name):
+        sd = {}
+        approx_vaes = folder_paths.get_filename_list("vae_approx")
+
+        encoder = next(filter(lambda a: a.startswith("{}_encoder.".format(name)), approx_vaes))
+        decoder = next(filter(lambda a: a.startswith("{}_decoder.".format(name)), approx_vaes))
+
+        encoder_path = folder_paths.get_full_path_or_raise("vae_approx", encoder)
+
+        print("Reading vae_approx encoder: {}".format(encoder_path))
+
+        with open(encoder_path, "rb") as file:
+            vae_temp = file.read()
+
+        enc = warped_load_torch_file(vae_temp)
+        vae_temp = None
+
+        for k in enc:
+            sd["taesd_encoder.{}".format(k)] = enc[k]
+
+        decoder_path = folder_paths.get_full_path_or_raise("vae_approx", decoder)
+
+        print("Reading vae_approx encoder: {}".format(decoder_path))
+
+        with open(encoder_path, "rb") as file:
+            vae_temp = file.read()
+
+        dec = warped_load_torch_file(vae_temp)
+        vae_temp = None
+
+        for k in dec:
+            sd["taesd_decoder.{}".format(k)] = dec[k]
+
+        if name == "taesd":
+            sd["vae_scale"] = torch.tensor(0.18215)
+            sd["vae_shift"] = torch.tensor(0.0)
+        elif name == "taesdxl":
+            sd["vae_scale"] = torch.tensor(0.13025)
+            sd["vae_shift"] = torch.tensor(0.0)
+        elif name == "taesd3":
+            sd["vae_scale"] = torch.tensor(1.5305)
+            sd["vae_shift"] = torch.tensor(0.0609)
+        elif name == "taef1":
+            sd["vae_scale"] = torch.tensor(0.3611)
+            sd["vae_shift"] = torch.tensor(0.1159)
+        return sd
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "vae_name": (s.vae_list(), )}}
+    RETURN_TYPES = ("VAE",)
+    FUNCTION = "load_vae"
+
+    CATEGORY = "Warped/Loaders"
+
+    #TODO: scale factor?
+    def load_vae(self, vae_name):
+        if vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
+            sd = self.load_taesd(vae_name)
+        else:
+            vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
+
+            print("Reading VAE: {}".format(vae_path))
+            with open(vae_path, "rb") as file:
+                vae_temp = file.read()
+
+            sd = warped_load_torch_file(vae_temp)
+            vae_temp = None
+
+        vae = comfy.sd.VAE(sd=sd)
+
+        gc.collect()
+        time.sleep(1)
+
+        vae.throw_exception_if_invalid()
+        return (vae,)

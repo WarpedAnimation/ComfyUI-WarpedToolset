@@ -37,6 +37,10 @@ NODE_CLASS_MAPPINGS = {
     "WarpedHunyuanLoraConvert": WarpedHunyuanLoraConvert,
     "WarpedFramepackLoraSelectBatch": WarpedFramepackLoraSelectBatch,
     "WarpedFramepackMultiLoraSelect": WarpedFramepackMultiLoraSelect,
+    "WarpedDualCLIPLoaderAdvanced": WarpedDualCLIPLoaderAdvanced,
+    "WarpedLoadFramePackModel": WarpedLoadFramePackModel,
+    "WarpedCLIPVisionLoader": WarpedCLIPVisionLoader,
+    "WarpedVAELoader": WarpedVAELoader,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -76,6 +80,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WarpedHunyuanLoraConvert": "Warped Hunyuan Lora Convert",
     "WarpedFramepackLoraSelectBatch": "Warped Framepack Lora Select Batch",
     "WarpedFramepackMultiLoraSelect": "Warped Framepack Multi Lora Select",
+    "WarpedDualCLIPLoaderAdvanced": "Warped Dual CLIP Loader Advanced",
+    "WarpedLoadFramePackModel": "Warped Load FramePack Model",
+    "WarpedCLIPVisionLoader": "Warped Load CLIP Vision",
+    "WarpedVAELoader": "Warped Load VAE",
 }
 
 WEB_DIRECTORY = "./web"

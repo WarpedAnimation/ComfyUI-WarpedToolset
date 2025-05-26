@@ -1,103 +1,9 @@
 {
   "id": "0a716eea-b098-4879-aa7f-a05fe3e5f252",
   "revision": 0,
-  "last_node_id": 168,
-  "last_link_id": 322,
+  "last_node_id": 183,
+  "last_link_id": 360,
   "nodes": [
-    {
-      "id": 15,
-      "type": "PrimitiveNode",
-      "pos": [
-        250,
-        450
-      ],
-      "size": [
-        450,
-        140
-      ],
-      "flags": {
-        "pinned": true
-      },
-      "order": 0,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "label": " ",
-          "name": "STRING",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "slot_index": 0,
-          "links": [
-            19
-          ]
-        }
-      ],
-      "title": "Negative prompt",
-      "properties": {
-        "Run widget replace on values": false
-      },
-      "widgets_values": [
-        "low quality, deformation, a poor composition, bad hands, bad teeth, bad eyes, bad limbs, distortion, jump cuts"
-      ],
-      "color": "#322",
-      "bgcolor": "#533",
-      "shape": 1
-    },
-    {
-      "id": 30,
-      "type": "VAELoader",
-      "pos": [
-        244.67599487304688,
-        941.6321411132812
-      ],
-      "size": [
-        450,
-        60
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "label": " ",
-          "name": "VAE",
-          "type": "VAE",
-          "slot_index": 0,
-          "links": [
-            157,
-            159,
-            161,
-            180,
-            221,
-            230,
-            239,
-            262,
-            273,
-            280,
-            287,
-            301
-          ]
-        }
-      ],
-      "title": "VAE",
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.15",
-        "Node name for S&R": "VAELoader"
-      },
-      "widgets_values": [
-        "hunyuan_video_vae_bf16.safetensors"
-      ],
-      "color": "#223",
-      "bgcolor": "#335",
-      "shape": 1
-    },
     {
       "id": 122,
       "type": "WarpedImageScaleToSide",
@@ -112,7 +18,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 15,
+      "order": 13,
       "mode": 0,
       "inputs": [
         {
@@ -127,7 +33,8 @@
           "type": "IMAGE",
           "links": [
             198,
-            210
+            210,
+            359
           ]
         },
         {
@@ -156,142 +63,6 @@
       "bgcolor": "#535"
     },
     {
-      "id": 132,
-      "type": "WarpedImageResizeKJStyle",
-      "pos": [
-        -103.58763885498047,
-        1752.497314453125
-      ],
-      "size": [
-        352.79998779296875,
-        266
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 21,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "link": 210
-        },
-        {
-          "name": "get_image_size",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": null
-        },
-        {
-          "name": "width_input",
-          "shape": 7,
-          "type": "INT",
-          "widget": {
-            "name": "width_input"
-          },
-          "link": 211
-        },
-        {
-          "name": "height_input",
-          "shape": 7,
-          "type": "INT",
-          "widget": {
-            "name": "height_input"
-          },
-          "link": 212
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            213,
-            215,
-            225,
-            234,
-            243,
-            266,
-            276,
-            283,
-            291,
-            305
-          ]
-        },
-        {
-          "name": "width",
-          "type": "INT",
-          "links": null
-        },
-        {
-          "name": "height",
-          "type": "INT",
-          "links": null
-        }
-      ],
-      "properties": {
-        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
-        "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
-        "Node name for S&R": "WarpedImageResizeKJStyle",
-        "widget_ue_connectable": {}
-      },
-      "widgets_values": [
-        512,
-        512,
-        "nearest-exact",
-        false,
-        8,
-        0,
-        0,
-        "center"
-      ],
-      "color": "#323",
-      "bgcolor": "#535"
-    },
-    {
-      "id": 52,
-      "type": "CLIPVisionLoader",
-      "pos": [
-        246.97500610351562,
-        881.398193359375
-      ],
-      "size": [
-        450,
-        60
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 2,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "label": " ",
-          "name": "CLIP_VISION",
-          "type": "CLIP_VISION",
-          "slot_index": 0,
-          "links": [
-            284,
-            290,
-            304
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.18",
-        "Node name for S&R": "CLIPVisionLoader"
-      },
-      "widgets_values": [
-        "sigclip_vision_patch14_384.safetensors"
-      ],
-      "color": "#223",
-      "bgcolor": "#335",
-      "shape": 1
-    },
-    {
       "id": 156,
       "type": "PreviewTextNode",
       "pos": [
@@ -303,7 +74,7 @@
         162.57798767089844
       ],
       "flags": {},
-      "order": 31,
+      "order": 30,
       "mode": 0,
       "inputs": [
         {
@@ -338,51 +109,12 @@
       },
       "widgets_values": [
         "",
-        "WarpedSamplerCustomAdv: Processing Interrupted.\nImages Generated: 123",
+        "Images Generated: 309",
         [
           false,
           true
         ]
       ]
-    },
-    {
-      "id": 94,
-      "type": "Reroute",
-      "pos": [
-        -67.61992645263672,
-        1523.0308837890625
-      ],
-      "size": [
-        75,
-        26
-      ],
-      "flags": {},
-      "order": 11,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "",
-          "type": "*",
-          "link": 134
-        }
-      ],
-      "outputs": [
-        {
-          "name": "",
-          "type": "IMAGE",
-          "links": [
-            108,
-            109,
-            116,
-            197,
-            202
-          ]
-        }
-      ],
-      "properties": {
-        "showOutputText": false,
-        "horizontal": false
-      }
     },
     {
       "id": 160,
@@ -398,7 +130,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 9,
+      "order": 8,
       "mode": 2,
       "inputs": [
         {
@@ -454,7 +186,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 19,
+      "order": 17,
       "mode": 2,
       "inputs": [
         {
@@ -528,7 +260,7 @@
         335.6080017089844
       ],
       "flags": {},
-      "order": 22,
+      "order": 20,
       "mode": 0,
       "inputs": [
         {
@@ -558,7 +290,7 @@
       },
       "widgets_values": [
         "",
-        "1girl, sex, sex from behind, 1boy, doggystyle, hetero, penis, breasts, nude, blonde hair, all fours, ponytail, long hair, makeup, lips, looking at viewer, from side, green eyes, indoors, thighhighs, vaginal, ass, bed, lipstick, testicles, nose, medium breasts, looking back, solo focus, torso grab, red lips, window, bent over, photoshop, arm support, high ponytail, eyeshadow, closed mouth, looking to the side, blue eyes, large breasts, large penis, erection, thighs, arm hair, hanging breasts, parted lips, realistic, photo, uncensored, sideboob, on bed, ribs, cum, curtains, mascara, male pubic hair, eyeliner, arched back, leg hair, eyelashes, bedroom, watermark, pink lips, 3d, pubic hair, standing, hairy, expressionless, veins, day, original, skindentation, nipples, bed sheet, photoreferenced, shiny skin, brown hair, mole, facial hair, out of frame, cum in pussy, blurry, blush, topless, head out of frame, jewelry, open mouth, ass grab, skinny, fingernails, pussy, smile, wavy hair, anal, navel, tongue, web address, fingers, sunlight",
+        "1girl, photo, solo, towel, brown eyes, naked towel, brown hair, bed, photoshop, long hair, cover, text focus, real life, magazine cover, spread legs, nude, legs, lips, looking at viewer, realistic, bed sheet, naked sheet, retro artstyle, thighs, scan, chinese text, bath, english text, red hair, darkskinned female, thirdparty edit, wet, sitting, jpeg artifacts, blanket, tan, dark skin, bare shoulders, lingerie, 1980s (style), bare legs, watermark, wavy hair, hand on own knee, korean text, child, censored, paint.net, no panties, underwear, cover page, seethrough, knees, plump, pillow, bangs, breasts, nude cover, nipples, bathing, skirt, freckles, nose, dress, real life insert, topless, magazine (object), swimsuit, ass, bottomless, curly hair, speech bubble, strapless, character name, smile, no legwear, lying, screencap, on bed, original, polka dot, copyright name, mole, onsen, film grain, arm support, capcom, messy hair, logo, showering, pussy, blonde hair, disney, panties, artist name, reclining, cosplay, covering, brown theme, tanlines",
         [
           false,
           true
@@ -577,7 +309,7 @@
         58
       ],
       "flags": {},
-      "order": 16,
+      "order": 14,
       "mode": 0,
       "inputs": [
         {
@@ -617,7 +349,7 @@
         58
       ],
       "flags": {},
-      "order": 17,
+      "order": 15,
       "mode": 0,
       "inputs": [
         {
@@ -660,7 +392,7 @@
         26
       ],
       "flags": {},
-      "order": 23,
+      "order": 21,
       "mode": 0,
       "inputs": [
         {
@@ -698,7 +430,7 @@
         58
       ],
       "flags": {},
-      "order": 18,
+      "order": 16,
       "mode": 0,
       "inputs": [
         {
@@ -741,7 +473,7 @@
         26
       ],
       "flags": {},
-      "order": 24,
+      "order": 22,
       "mode": 0,
       "inputs": [
         {
@@ -779,7 +511,7 @@
         112
       ],
       "flags": {},
-      "order": 27,
+      "order": 25,
       "mode": 0,
       "inputs": [
         {
@@ -807,7 +539,7 @@
       },
       "widgets_values": [
         "",
-        "704",
+        "544",
         [
           false,
           true
@@ -826,7 +558,7 @@
         112
       ],
       "flags": {},
-      "order": 28,
+      "order": 26,
       "mode": 0,
       "inputs": [
         {
@@ -854,7 +586,7 @@
       },
       "widgets_values": [
         "",
-        "544",
+        "704",
         [
           false,
           true
@@ -865,15 +597,15 @@
       "id": 116,
       "type": "PreviewImage",
       "pos": [
-        1144.1494140625,
-        1721.58251953125
+        1101.5556640625,
+        1841.376220703125
       ],
       "size": [
         383.0299987792969,
         379.1000061035156
       ],
       "flags": {},
-      "order": 20,
+      "order": 18,
       "mode": 0,
       "inputs": [
         {
@@ -890,29 +622,27 @@
         "Node name for S&R": "PreviewImage",
         "widget_ue_connectable": {}
       },
-      "widgets_values": [
-        ""
-      ]
+      "widgets_values": []
     },
     {
       "id": 128,
       "type": "PreviewImage",
       "pos": [
-        1555.558837890625,
-        1715.7908935546875
+        1512.965087890625,
+        1835.5845947265625
       ],
       "size": [
         418.9670104980469,
         377.3840026855469
       ],
       "flags": {},
-      "order": 25,
+      "order": 23,
       "mode": 0,
       "inputs": [
         {
           "name": "images",
           "type": "IMAGE",
-          "link": 213
+          "link": 357
         }
       ],
       "outputs": [],
@@ -929,15 +659,15 @@
       "id": 96,
       "type": "PreviewImage",
       "pos": [
-        761.6046142578125,
-        1726.0230712890625
+        719.0128173828125,
+        1845.8167724609375
       ],
       "size": [
         363,
         374
       ],
       "flags": {},
-      "order": 14,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
@@ -953,139 +683,7 @@
         "ver": "0.3.27",
         "Node name for S&R": "PreviewImage"
       },
-      "widgets_values": [
-        ""
-      ]
-    },
-    {
-      "id": 75,
-      "type": "StringFunction|pysssss",
-      "pos": [
-        2559.7763671875,
-        561.3499755859375
-      ],
-      "size": [
-        422.8240051269531,
-        628.1209716796875
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 26,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "text_a",
-          "shape": 7,
-          "type": "STRING",
-          "widget": {
-            "name": "text_a"
-          },
-          "link": 196
-        },
-        {
-          "name": "text_b",
-          "shape": 7,
-          "type": "STRING",
-          "widget": {
-            "name": "text_b"
-          },
-          "link": 207
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "slot_index": 0,
-          "links": [
-            311,
-            312
-          ]
-        }
-      ],
-      "title": "Positive prompt (FINAL)",
-      "properties": {
-        "cnr_id": "comfyui-custom-scripts",
-        "ver": "1.1.1",
-        "Node name for S&R": "StringFunction|pysssss"
-      },
-      "widgets_values": [
-        "append",
-        "no",
-        "breast physics, braless, puffy, pointy, pufpuf, braless, no panties, no underwear, breasts, nipples, pussy, vagina, wobbly breasts, jiggly breasts, realistic video of a woman. She is sexy and sultry and sensual. solo, realistic, her breasts jiggle and wobble as she moves. nsfw.",
-        "A cat eats hamburger.",
-        "",
-        [
-          false,
-          true
-        ],
-        [
-          false,
-          true
-        ],
-        [
-          false,
-          true
-        ]
-      ],
-      "color": "#4b4b5c",
-      "bgcolor": "#373748"
-    },
-    {
-      "id": 62,
-      "type": "FramePackFindNearestBucket",
-      "pos": [
-        100.03911590576172,
-        1499.2103271484375
-      ],
-      "size": [
-        320,
-        78
-      ],
-      "flags": {},
-      "order": 13,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "link": 108
-        }
-      ],
-      "outputs": [
-        {
-          "name": "width",
-          "type": "INT",
-          "links": [
-            68,
-            169,
-            211,
-            309
-          ]
-        },
-        {
-          "name": "height",
-          "type": "INT",
-          "links": [
-            69,
-            170,
-            212,
-            310
-          ]
-        }
-      ],
-      "title": "Target width",
-      "properties": {
-        "aux_id": "kijai/ComfyUI-FramePackWrapper",
-        "ver": "4f9030a9f4c0bd67d86adf3d3dc07e37118c40bd",
-        "Node name for S&R": "FramePackFindNearestBucket"
-      },
-      "widgets_values": [
-        640
-      ],
-      "color": "#232",
-      "bgcolor": "#353"
+      "widgets_values": []
     },
     {
       "id": 86,
@@ -1099,7 +697,7 @@
         780
       ],
       "flags": {},
-      "order": 3,
+      "order": 0,
       "mode": 4,
       "inputs": [],
       "outputs": [
@@ -1148,7 +746,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 4,
+      "order": 1,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1169,395 +767,6 @@
       }
     },
     {
-      "id": 59,
-      "type": "DualCLIPLoader",
-      "pos": [
-        247.58200073242188,
-        998.6439819335938
-      ],
-      "size": [
-        320,
-        122
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 5,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "CLIP",
-          "type": "CLIP",
-          "links": [
-            73,
-            74
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.28",
-        "Node name for S&R": "DualCLIPLoader"
-      },
-      "widgets_values": [
-        "clip_l.safetensors",
-        "Kijai\\llava_llama3_fp8_scaled.safetensors",
-        "hunyuan_video",
-        "default"
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
-      "id": 31,
-      "type": "CLIPTextEncode",
-      "pos": [
-        246.81381225585938,
-        1054.53271484375
-      ],
-      "size": [
-        210,
-        78
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 29,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 73
-        },
-        {
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": 312
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "slot_index": 0,
-          "links": [
-            71,
-            136,
-            145,
-            156,
-            162,
-            182,
-            222,
-            231,
-            240,
-            263,
-            274,
-            281,
-            294,
-            302
-          ]
-        }
-      ],
-      "title": "Encode positive",
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.18",
-        "Node name for S&R": "CLIPTextEncode"
-      },
-      "widgets_values": [
-        "camera going forward.",
-        [
-          false,
-          true
-        ]
-      ],
-      "color": "#222",
-      "bgcolor": "#000",
-      "shape": 1
-    },
-    {
-      "id": 32,
-      "type": "CLIPTextEncode",
-      "pos": [
-        243.17391967773438,
-        1099.92041015625
-      ],
-      "size": [
-        210,
-        78
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 10,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 74
-        },
-        {
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": 19
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "slot_index": 0,
-          "links": [
-            72,
-            137,
-            146,
-            155,
-            163,
-            183,
-            223,
-            232,
-            241,
-            264,
-            275,
-            282,
-            292,
-            293,
-            303
-          ]
-        }
-      ],
-      "title": "Encode negative",
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.18",
-        "Node name for S&R": "CLIPTextEncode"
-      },
-      "widgets_values": [
-        "low quality, deformation, a poor composition, bad hands, bad teeth, bad eyes, bad limbs, distortion, jump cuts",
-        [
-          false,
-          true
-        ]
-      ],
-      "color": "#222",
-      "bgcolor": "#000",
-      "shape": 1
-    },
-    {
-      "id": 121,
-      "type": "Text Multiline",
-      "pos": [
-        2085.43359375,
-        381.801025390625
-      ],
-      "size": [
-        458.6564025878906,
-        179.3332061767578
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": [
-            196
-          ]
-        }
-      ],
-      "title": "Positive prompt",
-      "properties": {
-        "cnr_id": "pr-was-node-suite-comfyui-47064894",
-        "ver": "056badacda52e88d29d6a65f9509cd3115ace0f2",
-        "Node name for S&R": "Text Multiline",
-        "widget_ue_connectable": {}
-      },
-      "widgets_values": [
-        "breast physics, Doggy Style Anal Sex, WetPen, deep_penetration, realistic video of a female being fucked doggystyle by an old man, vaginal penetration. she is really enjoying the sex and is actively rotating her hips up and down as she thrusts her hips back and forth on the old man's penis. the old man is repeatedly thrusting his penis in and out of the girl's vagina. realistic, pussy, anus, pleasure.",
-        [
-          false,
-          true
-        ]
-      ],
-      "color": "#232",
-      "bgcolor": "#353"
-    },
-    {
-      "id": 8,
-      "type": "LoadImage",
-      "pos": [
-        2089.071044921875,
-        609.9551391601562
-      ],
-      "size": [
-        456.5150146484375,
-        673.52001953125
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "label": " ",
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "slot_index": 0,
-          "links": [
-            134
-          ]
-        },
-        {
-          "label": " ",
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "title": "Start image",
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.18",
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "00099-2568806309.png",
-        "image",
-        ""
-      ],
-      "color": "#432",
-      "bgcolor": "#653",
-      "shape": 1
-    },
-    {
-      "id": 158,
-      "type": "WarpedFramepackMultiLoraSelect",
-      "pos": [
-        259.2230224609375,
-        -217.31033325195312
-      ],
-      "size": [
-        428.4000244140625,
-        322
-      ],
-      "flags": {},
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "prev_lora",
-          "shape": 7,
-          "type": "FPLORA",
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "name": "lora",
-          "type": "FPLORA",
-          "links": [
-            297
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
-        "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
-        "Node name for S&R": "WarpedFramepackMultiLoraSelect",
-        "widget_ue_connectable": {}
-      },
-      "widgets_values": [
-        "Hunyuan\\RsmHanginFunbagsHy.safetensors",
-        0.7500000000000001,
-        false,
-        "Hunyuan\\RsmDoggyStylewStanding200Hy_00001.safetensors",
-        1,
-        false,
-        "Hunyuan\\WetPen HUNY [nskmgw195cc8ddb1aw12a7].safetensors",
-        0.8000000000000002,
-        false,
-        "None",
-        1,
-        false
-      ],
-      "color": "#233",
-      "bgcolor": "#355"
-    },
-    {
-      "id": 133,
-      "type": "LoadFramePackModel",
-      "pos": [
-        250.45864868164062,
-        820.7957763671875
-      ],
-      "size": [
-        449.4309997558594,
-        174
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 12,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "compile_args",
-          "shape": 7,
-          "type": "FRAMEPACKCOMPILEARGS",
-          "link": null
-        },
-        {
-          "name": "lora",
-          "shape": 7,
-          "type": "FPLORA",
-          "link": 297
-        }
-      ],
-      "outputs": [
-        {
-          "name": "model",
-          "type": "FramePackMODEL",
-          "links": [
-            218,
-            220,
-            229,
-            238,
-            261,
-            272,
-            279,
-            286,
-            300
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "kijai/ComfyUI-FramePackWrapper",
-        "ver": "acb0aa53f1bb536ff3ef9a0afe46f4683edc98b9",
-        "Node name for S&R": "LoadFramePackModel",
-        "widget_ue_connectable": {}
-      },
-      "widgets_values": [
-        "FramePack_F1_I2V_HY_20250503_fp8_e4m3fn.safetensors",
-        "bf16",
-        "fp8_e4m3fn",
-        "offload_device",
-        "sdpa"
-      ],
-      "color": "#223",
-      "bgcolor": "#335"
-    },
-    {
       "id": 167,
       "type": "VHS_VideoCombine",
       "pos": [
@@ -1569,7 +778,7 @@
         358
       ],
       "flags": {},
-      "order": 32,
+      "order": 31,
       "mode": 0,
       "inputs": [
         {
@@ -1632,11 +841,501 @@
         "videopreview": {
           "hidden": false,
           "paused": false,
-          "params": {}
+          "params": {
+            "filename": "vid_00021.mp4",
+            "subfolder": "Hunyuan\\2025_05_25\\lowres",
+            "type": "output",
+            "format": "video/h264-mp4",
+            "frame_rate": 30,
+            "workflow": "vid_first_00021.png",
+            "fullpath": "M:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\Hunyuan\\2025_05_25\\lowres\\vid_00021.mp4"
+          }
         }
       },
       "color": "#322",
       "bgcolor": "#533"
+    },
+    {
+      "id": 177,
+      "type": "Text Multiline",
+      "pos": [
+        242.7637176513672,
+        475.13067626953125
+      ],
+      "size": [
+        348.5464172363281,
+        103.10320281982422
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            340,
+            346,
+            351
+          ]
+        }
+      ],
+      "title": "Negative prompt",
+      "properties": {
+        "cnr_id": "pr-was-node-suite-comfyui-47064894",
+        "ver": "056badacda52e88d29d6a65f9509cd3115ace0f2",
+        "Node name for S&R": "Text Multiline",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "low quality, deformation, a poor composition, bad hands, bad teeth, bad eyes, bad limbs, distortion, jump cuts",
+        [
+          false,
+          true
+        ]
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 172,
+      "type": "WarpedVAELoader",
+      "pos": [
+        265.1935119628906,
+        761.4888305664062
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            328
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "Node name for S&R": "WarpedVAELoader",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "hunyuan_video_vae_bf16.safetensors"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 170,
+      "type": "WarpedCLIPVisionLoader",
+      "pos": [
+        260.35357666015625,
+        700.9889526367188
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP_VISION",
+          "type": "CLIP_VISION",
+          "links": [
+            325
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "Node name for S&R": "WarpedCLIPVisionLoader",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "sigclip_vision_patch14_384.safetensors"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 169,
+      "type": "WarpedLoadFramePackModel",
+      "pos": [
+        255.51377868652344,
+        639.2796020507812
+      ],
+      "size": [
+        340.20001220703125,
+        174
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "compile_args",
+          "shape": 7,
+          "type": "FRAMEPACKCOMPILEARGS",
+          "link": null
+        },
+        {
+          "name": "lora",
+          "shape": 7,
+          "type": "FPLORA",
+          "link": 323
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "FramePackMODEL",
+          "links": [
+            324
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "Node name for S&R": "WarpedLoadFramePackModel",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "FramePack_F1_I2V_HY_20250503_fp8_e4m3fn.safetensors",
+        "bf16",
+        "fp8_e4m3fn",
+        "offload_device",
+        "sdpa"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 180,
+      "type": "WarpedDualCLIPLoaderAdvanced",
+      "pos": [
+        267.55029296875,
+        821.8468017578125
+      ],
+      "size": [
+        403.1999816894531,
+        236.86000061035156
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 27,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive_text",
+          "type": "STRING",
+          "widget": {
+            "name": "positive_text"
+          },
+          "link": 350
+        },
+        {
+          "name": "negative_text",
+          "type": "STRING",
+          "widget": {
+            "name": "negative_text"
+          },
+          "link": 351
+        }
+      ],
+      "outputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "links": null
+        },
+        {
+          "name": "pos_conditioning",
+          "type": "CONDITIONING",
+          "links": [
+            352
+          ]
+        },
+        {
+          "name": "neg_conditioning",
+          "type": "CONDITIONING",
+          "links": [
+            353
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "Node name for S&R": "WarpedDualCLIPLoaderAdvanced",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "clip_l.safetensors",
+        "Kijai\\llava_llama3_fp8_scaled.safetensors",
+        "hunyuan_video",
+        "cuda:0",
+        "",
+        "",
+        [
+          false,
+          true
+        ],
+        [
+          false,
+          true
+        ]
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 158,
+      "type": "WarpedFramepackMultiLoraSelect",
+      "pos": [
+        259.2230224609375,
+        -217.31033325195312
+      ],
+      "size": [
+        428.4000244140625,
+        322
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "prev_lora",
+          "shape": 7,
+          "type": "FPLORA",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "lora",
+          "type": "FPLORA",
+          "links": [
+            297,
+            323
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
+        "Node name for S&R": "WarpedFramepackMultiLoraSelect",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "Hunyuan\\RsmFunbagsHy.safetensors",
+        0.7500000000000001,
+        false,
+        "None",
+        1,
+        false,
+        "None",
+        0.8000000000000002,
+        false,
+        "None",
+        1,
+        false
+      ],
+      "color": "#233",
+      "bgcolor": "#355"
+    },
+    {
+      "id": 121,
+      "type": "Text Multiline",
+      "pos": [
+        2085.43359375,
+        381.801025390625
+      ],
+      "size": [
+        458.6564025878906,
+        179.3332061767578
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            196
+          ]
+        }
+      ],
+      "title": "Positive prompt",
+      "properties": {
+        "cnr_id": "pr-was-node-suite-comfyui-47064894",
+        "ver": "056badacda52e88d29d6a65f9509cd3115ace0f2",
+        "Node name for S&R": "Text Multiline",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "female performs multiple poses for pornographic photo shoot, looking seductively into camera, seductively caresses her breasts, caresses her body, seductively fingers her vagina, displays multiple angles of her body to the camera, breast physics, cum covered body and breasts. seductive lips, erect nipples, oiled skin, wet skin, beads of sweat. makeup, long hair, jewelry, eyeshadow, bracelet, lipstick, brown hair, pussy, short trimmed female pubic hair, breasts, bikini tan, lips, thighs, piercing, large areolae, fingernails, nail_polish, eyeliner, legs, necklace, mascara, pussy, vaginal, breasts, nipples, nail polish, navel, (cum:1.3), (cum on breasts:1.3), (cum on body:1.3), (cum running down body:1.3), (cumdrip:1.3), real life, eyelashes",
+        [
+          false,
+          true
+        ]
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 62,
+      "type": "FramePackFindNearestBucket",
+      "pos": [
+        100.03911590576172,
+        1499.2103271484375
+      ],
+      "size": [
+        320,
+        78
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 108
+        }
+      ],
+      "outputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            68,
+            169,
+            309,
+            355
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            69,
+            170,
+            310,
+            356
+          ]
+        }
+      ],
+      "title": "Target width",
+      "properties": {
+        "aux_id": "kijai/ComfyUI-FramePackWrapper",
+        "ver": "4f9030a9f4c0bd67d86adf3d3dc07e37118c40bd",
+        "Node name for S&R": "FramePackFindNearestBucket"
+      },
+      "widgets_values": [
+        640
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 182,
+      "type": "ImageResizeKJv2",
+      "pos": [
+        -97.16889190673828,
+        1760.4610595703125
+      ],
+      "size": [
+        315,
+        242
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 359
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 355
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 356
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            357,
+            358
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "1.1.0",
+        "widget_ue_connectable": {},
+        "Node name for S&R": "ImageResizeKJv2"
+      },
+      "widgets_values": [
+        512,
+        512,
+        "lanczos",
+        "crop",
+        "0, 0, 0",
+        "center",
+        2
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
     },
     {
       "id": 159,
@@ -1646,43 +1345,43 @@
         -54.92832946777344
       ],
       "size": [
-        724.2410278320312,
-        1404.186279296875
+        729.5650024414062,
+        1316.168701171875
       ],
       "flags": {},
-      "order": 30,
+      "order": 29,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "FramePackMODEL",
-          "link": 300
+          "link": 324
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 301
+          "link": 328
         },
         {
           "name": "positive",
           "type": "CONDITIONING",
-          "link": 302
+          "link": 352
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 303
+          "link": 353
         },
         {
           "name": "clip_vision_model",
           "type": "CLIP_VISION",
-          "link": 304
+          "link": 325
         },
         {
           "name": "start_image",
           "shape": 7,
           "type": "IMAGE",
-          "link": 305
+          "link": 358
         },
         {
           "name": "end_image",
@@ -1734,7 +1433,7 @@
         1,
         12,
         24,
-        1085219891446441,
+        148904751514746,
         "randomize",
         61,
         "next_lowest",
@@ -1750,42 +1449,239 @@
         1,
         30,
         1,
-        0.8000000000000002,
+        1,
         1,
         704,
         544,
         5,
         false
       ],
-      "color": "#233",
-      "bgcolor": "#355"
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 75,
+      "type": "StringFunction|pysssss",
+      "pos": [
+        2096.587158203125,
+        610.5968627929688
+      ],
+      "size": [
+        422.8240051269531,
+        628.1209716796875
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 24,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text_a",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "text_a"
+          },
+          "link": 196
+        },
+        {
+          "name": "text_b",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "text_b"
+          },
+          "link": 207
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "slot_index": 0,
+          "links": [
+            311,
+            312,
+            330,
+            337,
+            343,
+            350,
+            360
+          ]
+        }
+      ],
+      "title": "Positive prompt (FINAL)",
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "1.1.1",
+        "Node name for S&R": "StringFunction|pysssss"
+      },
+      "widgets_values": [
+        "append",
+        "no",
+        "breast physics, braless, puffy, pointy, pufpuf, braless, no panties, no underwear, breasts, nipples, pussy, vagina, wobbly breasts, jiggly breasts, realistic video of a woman. She is sexy and sultry and sensual. solo, realistic, her breasts jiggle and wobble as she moves. nsfw.",
+        "A cat eats hamburger.",
+        "",
+        [
+          false,
+          true
+        ],
+        [
+          false,
+          true
+        ],
+        [
+          false,
+          true
+        ]
+      ],
+      "color": "#4b4b5c",
+      "bgcolor": "#373748"
+    },
+    {
+      "id": 8,
+      "type": "LoadImage",
+      "pos": [
+        2101.050537109375,
+        961.3381958007812
+      ],
+      "size": [
+        456.5150146484375,
+        673.52001953125
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "label": " ",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            134
+          ]
+        },
+        {
+          "label": " ",
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "Start image",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.18",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "s-l1600 (1).jpg",
+        "image"
+      ],
+      "color": "#432",
+      "bgcolor": "#653",
+      "shape": 1
+    },
+    {
+      "id": 183,
+      "type": "PreviewTextNode",
+      "pos": [
+        2077.041259765625,
+        654.1701049804688
+      ],
+      "size": [
+        480.1929931640625,
+        255.74798583984375
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": null
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 360
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_custom_nodes_alekpet",
+        "ver": "7b3d6f190aeca261422bdfb74b5af37937e5bf68",
+        "widget_ue_connectable": {},
+        "Node name for S&R": "PreviewTextNode"
+      },
+      "widgets_values": [
+        "",
+        "Images Generated: 309",
+        [
+          false,
+          true
+        ]
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 94,
+      "type": "Reroute",
+      "pos": [
+        -67.61992645263672,
+        1523.0308837890625
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 134
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "IMAGE",
+          "links": [
+            108,
+            109,
+            116,
+            197,
+            202
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
     }
   ],
   "links": [
-    [
-      19,
-      15,
-      0,
-      32,
-      1,
-      "STRING"
-    ],
-    [
-      73,
-      59,
-      0,
-      31,
-      0,
-      "CLIP"
-    ],
-    [
-      74,
-      59,
-      0,
-      32,
-      0,
-      "CLIP"
-    ],
     [
       108,
       94,
@@ -1907,100 +1803,12 @@
       "STRING"
     ],
     [
-      210,
-      122,
-      0,
-      132,
-      0,
-      "IMAGE"
-    ],
-    [
-      211,
-      62,
-      0,
-      132,
-      2,
-      "INT"
-    ],
-    [
-      212,
-      62,
-      1,
-      132,
-      3,
-      "INT"
-    ],
-    [
-      213,
-      132,
-      0,
-      128,
-      0,
-      "IMAGE"
-    ],
-    [
-      297,
-      158,
-      0,
-      133,
-      1,
-      "FPLORA"
-    ],
-    [
       299,
       159,
       1,
       156,
       1,
       "STRING"
-    ],
-    [
-      300,
-      133,
-      0,
-      159,
-      0,
-      "FramePackMODEL"
-    ],
-    [
-      301,
-      30,
-      0,
-      159,
-      1,
-      "VAE"
-    ],
-    [
-      302,
-      31,
-      0,
-      159,
-      2,
-      "CONDITIONING"
-    ],
-    [
-      303,
-      32,
-      0,
-      159,
-      3,
-      "CONDITIONING"
-    ],
-    [
-      304,
-      52,
-      0,
-      159,
-      4,
-      "CLIP_VISION"
-    ],
-    [
-      305,
-      132,
-      0,
-      159,
-      5,
-      "IMAGE"
     ],
     [
       306,
@@ -2043,14 +1851,6 @@
       "INT"
     ],
     [
-      312,
-      75,
-      0,
-      31,
-      1,
-      "STRING"
-    ],
-    [
       321,
       159,
       0,
@@ -2065,6 +1865,118 @@
       167,
       4,
       "FLOAT,INT"
+    ],
+    [
+      323,
+      158,
+      0,
+      169,
+      1,
+      "FPLORA"
+    ],
+    [
+      324,
+      169,
+      0,
+      159,
+      0,
+      "FramePackMODEL"
+    ],
+    [
+      325,
+      170,
+      0,
+      159,
+      4,
+      "CLIP_VISION"
+    ],
+    [
+      328,
+      172,
+      0,
+      159,
+      1,
+      "VAE"
+    ],
+    [
+      350,
+      75,
+      0,
+      180,
+      0,
+      "STRING"
+    ],
+    [
+      351,
+      177,
+      0,
+      180,
+      1,
+      "STRING"
+    ],
+    [
+      352,
+      180,
+      1,
+      159,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      353,
+      180,
+      2,
+      159,
+      3,
+      "CONDITIONING"
+    ],
+    [
+      355,
+      62,
+      0,
+      182,
+      1,
+      "INT"
+    ],
+    [
+      356,
+      62,
+      1,
+      182,
+      2,
+      "INT"
+    ],
+    [
+      357,
+      182,
+      0,
+      128,
+      0,
+      "IMAGE"
+    ],
+    [
+      358,
+      182,
+      0,
+      159,
+      5,
+      "IMAGE"
+    ],
+    [
+      359,
+      122,
+      0,
+      182,
+      0,
+      "IMAGE"
+    ],
+    [
+      360,
+      75,
+      0,
+      183,
+      1,
+      "STRING"
     ]
   ],
   "groups": [
@@ -2111,8 +2023,8 @@
       "id": 8,
       "title": "Preview Scaled Input",
       "bounding": [
-        750.3621215820312,
-        1610.1513671875,
+        707.7703247070312,
+        1729.945068359375,
         1247.3919677734375,
         541.8569946289062
       ],
@@ -2139,8 +2051,8 @@
     "ds": {
       "scale": 0.7513148009015777,
       "offset": [
-        -568.0150954545611,
-        -774.2847609090988
+        -207.63008729540886,
+        -52.787052835065495
       ]
     },
     "ue_links": [],

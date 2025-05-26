@@ -1,8 +1,8 @@
 {
   "id": "0a716eea-b098-4879-aa7f-a05fe3e5f252",
   "revision": 0,
-  "last_node_id": 239,
-  "last_link_id": 584,
+  "last_node_id": 243,
+  "last_link_id": 592,
   "nodes": [
     {
       "id": 15,
@@ -31,7 +31,8 @@
           },
           "slot_index": 0,
           "links": [
-            19
+            19,
+            591
           ]
         }
       ],
@@ -47,268 +48,6 @@
       "shape": 1
     },
     {
-      "id": 30,
-      "type": "VAELoader",
-      "pos": [
-        270.16943359375,
-        875.844970703125
-      ],
-      "size": [
-        450,
-        60
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "label": " ",
-          "name": "VAE",
-          "type": "VAE",
-          "slot_index": 0,
-          "links": [
-            157,
-            159,
-            161,
-            180,
-            221,
-            230,
-            239,
-            262,
-            281,
-            305,
-            325,
-            337,
-            350,
-            362,
-            372,
-            417,
-            436,
-            447,
-            457,
-            467,
-            497,
-            511,
-            521
-          ]
-        }
-      ],
-      "title": "VAE",
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.15",
-        "Node name for S&R": "VAELoader"
-      },
-      "widgets_values": [
-        "hunyuan_video_vae_bf16.safetensors"
-      ],
-      "color": "#223",
-      "bgcolor": "#335",
-      "shape": 1
-    },
-    {
-      "id": 184,
-      "type": "CLIPVisionLoader",
-      "pos": [
-        263.12451171875,
-        700.005126953125
-      ],
-      "size": [
-        315,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 2,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "CLIP_VISION",
-          "type": "CLIP_VISION",
-          "links": [
-            382,
-            420,
-            439,
-            450,
-            460,
-            470,
-            500,
-            514,
-            524
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "CLIPVisionLoader",
-        "widget_ue_connectable": {}
-      },
-      "widgets_values": [
-        "sigclip_vision_patch14_384.safetensors"
-      ],
-      "color": "#223",
-      "bgcolor": "#335"
-    },
-    {
-      "id": 59,
-      "type": "DualCLIPLoader",
-      "pos": [
-        264.48468017578125,
-        815.9710693359375
-      ],
-      "size": [
-        320,
-        122
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 3,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "CLIP",
-          "type": "CLIP",
-          "links": [
-            73,
-            74
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.28",
-        "Node name for S&R": "DualCLIPLoader"
-      },
-      "widgets_values": [
-        "clip_l.safetensors",
-        "Kijai\\llava_llama3_fp8_scaled.safetensors",
-        "hunyuan_video",
-        "default"
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
-      "id": 94,
-      "type": "Reroute",
-      "pos": [
-        322.0169982910156,
-        1275.557373046875
-      ],
-      "size": [
-        75,
-        26
-      ],
-      "flags": {},
-      "order": 11,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "",
-          "type": "*",
-          "link": 543
-        }
-      ],
-      "outputs": [
-        {
-          "name": "",
-          "type": "IMAGE",
-          "links": [
-            109,
-            116,
-            202,
-            544
-          ]
-        }
-      ],
-      "properties": {
-        "showOutputText": false,
-        "horizontal": false
-      }
-    },
-    {
-      "id": 133,
-      "type": "LoadFramePackModel",
-      "pos": [
-        263.0050964355469,
-        759.9691772460938
-      ],
-      "size": [
-        449.4309997558594,
-        174
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 9,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "compile_args",
-          "shape": 7,
-          "type": "FRAMEPACKCOMPILEARGS",
-          "link": null
-        },
-        {
-          "name": "lora",
-          "shape": 7,
-          "type": "FPLORA",
-          "link": 508
-        }
-      ],
-      "outputs": [
-        {
-          "name": "model",
-          "type": "FramePackMODEL",
-          "links": [
-            218,
-            220,
-            229,
-            238,
-            261,
-            280,
-            304,
-            324,
-            336,
-            349,
-            361,
-            371,
-            416,
-            435,
-            446,
-            456,
-            466,
-            496,
-            510,
-            520
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "kijai/ComfyUI-FramePackWrapper",
-        "ver": "acb0aa53f1bb536ff3ef9a0afe46f4683edc98b9",
-        "Node name for S&R": "LoadFramePackModel",
-        "widget_ue_connectable": {}
-      },
-      "widgets_values": [
-        "FramePack_F1_I2V_HY_20250503_fp8_e4m3fn.safetensors",
-        "bf16",
-        "fp8_e4m3fn",
-        "offload_device",
-        "sdpa"
-      ],
-      "color": "#223",
-      "bgcolor": "#335"
-    },
-    {
       "id": 206,
       "type": "VHS_VideoCombine",
       "pos": [
@@ -322,17 +61,19 @@
       "flags": {
         "collapsed": false
       },
-      "order": 32,
+      "order": 30,
       "mode": 0,
       "inputs": [
         {
           "label": " ",
+          "localized_name": "images",
           "name": "images",
           "type": "IMAGE",
           "link": 546
         },
         {
           "label": " ",
+          "localized_name": "audio",
           "name": "audio",
           "shape": 7,
           "type": "AUDIO",
@@ -340,6 +81,7 @@
         },
         {
           "label": " ",
+          "localized_name": "meta_batch",
           "name": "meta_batch",
           "shape": 7,
           "type": "VHS_BatchManager",
@@ -347,6 +89,7 @@
         },
         {
           "label": " ",
+          "localized_name": "vae",
           "name": "vae",
           "shape": 7,
           "type": "VAE",
@@ -364,13 +107,14 @@
       "outputs": [
         {
           "label": " ",
+          "localized_name": "Filenames",
           "name": "Filenames",
           "type": "VHS_FILENAMES",
           "slot_index": 0,
           "links": null
         }
       ],
-      "title": "Output",
+      "title": "Original Video Clip",
       "properties": {
         "cnr_id": "comfyui-videohelpersuite",
         "ver": "4c7858ddd5126f7293dc3c9f6e0fc4c263cde079",
@@ -409,60 +153,6 @@
       "shape": 1
     },
     {
-      "id": 223,
-      "type": "WarpedFramepackMultiLoraSelect",
-      "pos": [
-        230.29212951660156,
-        -272.5264892578125
-      ],
-      "size": [
-        428.4000244140625,
-        322
-      ],
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "prev_lora",
-          "shape": 7,
-          "type": "FPLORA",
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "name": "lora",
-          "type": "FPLORA",
-          "links": [
-            508
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
-        "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
-        "Node name for S&R": "WarpedFramepackMultiLoraSelect",
-        "widget_ue_connectable": {}
-      },
-      "widgets_values": [
-        "None",
-        1.2000000000000002,
-        false,
-        "Hunyuan\\RsmFunbagsHy.safetensors",
-        0.7500000000000001,
-        false,
-        "Hunyuan\\WetPen HUNY [nskmgw195cc8ddb1aw12a7].safetensors",
-        0.7500000000000001,
-        false,
-        "Hunyuan\\RsmNatalee32Hy.safetensors",
-        1.2000000000000002,
-        false
-      ],
-      "color": "#233",
-      "bgcolor": "#355"
-    },
-    {
       "id": 42,
       "type": "VHS_VideoCombine",
       "pos": [
@@ -471,22 +161,24 @@
       ],
       "size": [
         646.2034912109375,
-        733.271240234375
+        358
       ],
       "flags": {
         "collapsed": false
       },
-      "order": 33,
+      "order": 31,
       "mode": 0,
       "inputs": [
         {
           "label": " ",
+          "localized_name": "images",
           "name": "images",
           "type": "IMAGE",
           "link": 519
         },
         {
           "label": " ",
+          "localized_name": "audio",
           "name": "audio",
           "shape": 7,
           "type": "AUDIO",
@@ -494,6 +186,7 @@
         },
         {
           "label": " ",
+          "localized_name": "meta_batch",
           "name": "meta_batch",
           "shape": 7,
           "type": "VHS_BatchManager",
@@ -501,6 +194,7 @@
         },
         {
           "label": " ",
+          "localized_name": "vae",
           "name": "vae",
           "shape": 7,
           "type": "VAE",
@@ -518,13 +212,14 @@
       "outputs": [
         {
           "label": " ",
+          "localized_name": "Filenames",
           "name": "Filenames",
           "type": "VHS_FILENAMES",
           "slot_index": 0,
           "links": null
         }
       ],
-      "title": "Output",
+      "title": "Generated Video Clip",
       "properties": {
         "cnr_id": "comfyui-videohelpersuite",
         "ver": "4c7858ddd5126f7293dc3c9f6e0fc4c263cde079",
@@ -573,7 +268,7 @@
         147.08999633789062
       ],
       "flags": {},
-      "order": 31,
+      "order": 29,
       "mode": 0,
       "inputs": [
         {
@@ -603,6 +298,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "STRING",
           "name": "STRING",
           "type": "STRING",
           "links": null
@@ -624,89 +320,6 @@
       ]
     },
     {
-      "id": 32,
-      "type": "CLIPTextEncode",
-      "pos": [
-        268.0773010253906,
-        980.9032592773438
-      ],
-      "size": [
-        210,
-        78
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 74
-        },
-        {
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": 19
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "slot_index": 0,
-          "links": [
-            72,
-            137,
-            146,
-            155,
-            163,
-            183,
-            223,
-            232,
-            241,
-            264,
-            283,
-            307,
-            327,
-            339,
-            352,
-            364,
-            410,
-            411,
-            419,
-            438,
-            449,
-            459,
-            469,
-            499,
-            513,
-            523
-          ]
-        }
-      ],
-      "title": "Encode negative",
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.18",
-        "Node name for S&R": "CLIPTextEncode"
-      },
-      "widgets_values": [
-        "low quality, deformation, a poor composition, bad hands, bad teeth, bad eyes, bad limbs, distortion, jump cuts",
-        [
-          false,
-          true
-        ]
-      ],
-      "color": "#222",
-      "bgcolor": "#000",
-      "shape": 1
-    },
-    {
       "id": 62,
       "type": "FramePackFindNearestBucket",
       "pos": [
@@ -720,10 +333,11 @@
       "flags": {
         "collapsed": true
       },
-      "order": 17,
+      "order": 15,
       "mode": 0,
       "inputs": [
         {
+          "localized_name": "image",
           "name": "image",
           "type": "IMAGE",
           "link": 321
@@ -731,6 +345,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "width",
           "name": "width",
           "type": "INT",
           "links": [
@@ -742,6 +357,7 @@
           ]
         },
         {
+          "localized_name": "height",
           "name": "height",
           "type": "INT",
           "links": [
@@ -779,10 +395,11 @@
       "flags": {
         "collapsed": true
       },
-      "order": 10,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
+          "localized_name": "image",
           "name": "image",
           "type": "IMAGE",
           "link": 545
@@ -790,6 +407,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "image",
           "name": "image",
           "type": "IMAGE",
           "links": [
@@ -797,11 +415,13 @@
           ]
         },
         {
+          "localized_name": "width",
           "name": "width",
           "type": "INT",
           "links": null
         },
         {
+          "localized_name": "height",
           "name": "height",
           "type": "INT",
           "links": null
@@ -835,10 +455,11 @@
       "flags": {
         "collapsed": true
       },
-      "order": 22,
+      "order": 20,
       "mode": 0,
       "inputs": [
         {
+          "localized_name": "image",
           "name": "image",
           "type": "IMAGE",
           "link": 489
@@ -862,6 +483,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "IMAGE",
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
@@ -873,11 +495,13 @@
           ]
         },
         {
+          "localized_name": "width",
           "name": "width",
           "type": "INT",
           "links": []
         },
         {
+          "localized_name": "height",
           "name": "height",
           "type": "INT",
           "links": []
@@ -913,7 +537,7 @@
         58
       ],
       "flags": {},
-      "order": 19,
+      "order": 17,
       "mode": 0,
       "inputs": [
         {
@@ -927,6 +551,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "NUMBER",
           "name": "NUMBER",
           "type": "NUMBER",
           "links": [
@@ -956,10 +581,11 @@
         26
       ],
       "flags": {},
-      "order": 25,
+      "order": 23,
       "mode": 0,
       "inputs": [
         {
+          "localized_name": "number",
           "name": "number",
           "type": "NUMBER",
           "link": 171
@@ -967,6 +593,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "STRING",
           "name": "STRING",
           "type": "STRING",
           "links": [
@@ -994,7 +621,7 @@
         58
       ],
       "flags": {},
-      "order": 20,
+      "order": 18,
       "mode": 0,
       "inputs": [
         {
@@ -1008,6 +635,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "NUMBER",
           "name": "NUMBER",
           "type": "NUMBER",
           "links": [
@@ -1037,10 +665,11 @@
         26
       ],
       "flags": {},
-      "order": 26,
+      "order": 24,
       "mode": 0,
       "inputs": [
         {
+          "localized_name": "number",
           "name": "number",
           "type": "NUMBER",
           "link": 172
@@ -1048,6 +677,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "STRING",
           "name": "STRING",
           "type": "STRING",
           "links": [
@@ -1075,7 +705,7 @@
         112
       ],
       "flags": {},
-      "order": 29,
+      "order": 27,
       "mode": 0,
       "inputs": [
         {
@@ -1089,6 +719,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "STRING",
           "name": "STRING",
           "type": "STRING",
           "links": null
@@ -1122,7 +753,7 @@
         112
       ],
       "flags": {},
-      "order": 30,
+      "order": 28,
       "mode": 0,
       "inputs": [
         {
@@ -1136,6 +767,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "STRING",
           "name": "STRING",
           "type": "STRING",
           "links": null
@@ -1169,10 +801,11 @@
         377.3840026855469
       ],
       "flags": {},
-      "order": 27,
+      "order": 25,
       "mode": 0,
       "inputs": [
         {
+          "localized_name": "images",
           "name": "images",
           "type": "IMAGE",
           "link": 487
@@ -1186,9 +819,7 @@
         "Node name for S&R": "PreviewImage",
         "widget_ue_connectable": {}
       },
-      "widgets_values": [
-        ""
-      ]
+      "widgets_values": []
     },
     {
       "id": 96,
@@ -1202,10 +833,11 @@
         386.88409423828125
       ],
       "flags": {},
-      "order": 12,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
+          "localized_name": "images",
           "name": "images",
           "type": "IMAGE",
           "link": 116
@@ -1218,9 +850,7 @@
         "ver": "0.3.27",
         "Node name for S&R": "PreviewImage"
       },
-      "widgets_values": [
-        ""
-      ]
+      "widgets_values": []
     },
     {
       "id": 116,
@@ -1234,10 +864,11 @@
         379.1000061035156
       ],
       "flags": {},
-      "order": 16,
+      "order": 14,
       "mode": 0,
       "inputs": [
         {
+          "localized_name": "images",
           "name": "images",
           "type": "IMAGE",
           "link": 320
@@ -1251,9 +882,7 @@
         "Node name for S&R": "PreviewImage",
         "widget_ue_connectable": {}
       },
-      "widgets_values": [
-        ""
-      ]
+      "widgets_values": []
     },
     {
       "id": 125,
@@ -1267,10 +896,11 @@
         58
       ],
       "flags": {},
-      "order": 13,
+      "order": 11,
       "mode": 2,
       "inputs": [
         {
+          "localized_name": "image",
           "name": "image",
           "type": "IMAGE",
           "link": 202
@@ -1278,6 +908,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "STRING",
           "name": "STRING",
           "type": "STRING",
           "links": [
@@ -1307,7 +938,7 @@
         335.6080017089844
       ],
       "flags": {},
-      "order": 15,
+      "order": 13,
       "mode": 2,
       "inputs": [
         {
@@ -1321,6 +952,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "STRING",
           "name": "STRING",
           "type": "STRING",
           "links": [
@@ -1356,7 +988,7 @@
         130
       ],
       "flags": {},
-      "order": 5,
+      "order": 1,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1388,11 +1020,12 @@
         273.9331970214844
       ],
       "flags": {},
-      "order": 6,
+      "order": 2,
       "mode": 0,
       "inputs": [],
       "outputs": [
         {
+          "localized_name": "STRING",
           "name": "STRING",
           "type": "STRING",
           "links": [
@@ -1418,89 +1051,6 @@
       "bgcolor": "#353"
     },
     {
-      "id": 31,
-      "type": "CLIPTextEncode",
-      "pos": [
-        271.7171630859375,
-        921.0073852539062
-      ],
-      "size": [
-        210,
-        78
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 23,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 73
-        },
-        {
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": 561
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "slot_index": 0,
-          "links": [
-            71,
-            136,
-            145,
-            156,
-            162,
-            182,
-            222,
-            231,
-            240,
-            263,
-            282,
-            306,
-            326,
-            338,
-            351,
-            363,
-            408,
-            409,
-            418,
-            437,
-            448,
-            458,
-            468,
-            498,
-            512,
-            522
-          ]
-        }
-      ],
-      "title": "Encode positive",
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.18",
-        "Node name for S&R": "CLIPTextEncode"
-      },
-      "widgets_values": [
-        "camera going forward.",
-        [
-          false,
-          true
-        ]
-      ],
-      "color": "#222",
-      "bgcolor": "#000",
-      "shape": 1
-    },
-    {
       "id": 75,
       "type": "StringFunction|pysssss",
       "pos": [
@@ -1514,7 +1064,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 18,
+      "order": 16,
       "mode": 0,
       "inputs": [
         {
@@ -1538,17 +1088,19 @@
       ],
       "outputs": [
         {
+          "localized_name": "STRING",
           "name": "STRING",
           "type": "STRING",
           "slot_index": 0,
           "links": [
             560,
             561,
-            562
+            562,
+            590
           ]
         }
       ],
-      "title": "Positive prompt (FINAL)",
+      "title": "Positive prompt Merge",
       "properties": {
         "cnr_id": "comfyui-custom-scripts",
         "ver": "1.1.1",
@@ -1571,8 +1123,7 @@
         [
           false,
           true
-        ],
-        "breast physics, erotic, a female is giving a man a handjob. she is very seductive, seductive lips, (((large breasts:1.3))), erect nipples. bikini, solo focus, makeup, short hair, jewelry, eyeshadow, bracelet, lipstick, platinum blonde hair, pussy, breasts, bikini tan, lips, thighs, ass, piercing, large areolae, day, fingernails, nail_polish, eyeliner, legs, necklace, mascara, pussy, penis, WetPen, erection, (((cum:1.3))), (((cumshot:1.3))), (((ejaculation:1.3))), breasts, nipples, nail polish, navel, real life, eyelashes"
+        ]
       ],
       "color": "#4b4b5c",
       "bgcolor": "#373748"
@@ -1589,7 +1140,7 @@
         394.5712890625
       ],
       "flags": {},
-      "order": 24,
+      "order": 21,
       "mode": 0,
       "inputs": [
         {
@@ -1603,11 +1154,13 @@
       ],
       "outputs": [
         {
+          "localized_name": "STRING",
           "name": "STRING",
           "type": "STRING",
           "links": null
         }
       ],
+      "title": "Final Positive Prompt",
       "properties": {
         "cnr_id": "comfyui_custom_nodes_alekpet",
         "ver": "7b3d6f190aeca261422bdfb74b5af37937e5bf68",
@@ -1621,83 +1174,9 @@
           false,
           true
         ]
-      ]
-    },
-    {
-      "id": 229,
-      "type": "WarpedBundleVideoImages",
-      "pos": [
-        252.9959716796875,
-        1051.05810546875
       ],
-      "size": [
-        374.3047790527344,
-        250
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 7,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "image_batch",
-          "type": "IMAGE",
-          "links": [
-            545,
-            546
-          ]
-        },
-        {
-          "name": "first_image",
-          "type": "IMAGE",
-          "links": [
-            543
-          ]
-        },
-        {
-          "name": "last_image",
-          "type": "IMAGE",
-          "links": null
-        },
-        {
-          "name": "num_frames",
-          "type": "INT",
-          "links": null
-        },
-        {
-          "name": "width",
-          "type": "INT",
-          "links": null
-        },
-        {
-          "name": "height",
-          "type": "INT",
-          "links": null
-        },
-        {
-          "name": "fps",
-          "type": "FLOAT",
-          "links": [
-            547
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
-        "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
-        "Node name for S&R": "WarpedBundleVideoImages",
-        "widget_ue_connectable": {}
-      },
-      "widgets_values": [
-        "h:\\fortest\\Brooklynthj1c.mp4",
-        250,
-        301,
-        true
-      ],
-      "color": "#323",
-      "bgcolor": "#535"
+      "color": "#232",
+      "bgcolor": "#353"
     },
     {
       "id": 171,
@@ -1713,10 +1192,11 @@
       "flags": {
         "collapsed": true
       },
-      "order": 14,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
+          "localized_name": "image",
           "name": "image",
           "type": "IMAGE",
           "link": 544
@@ -1724,6 +1204,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "image",
           "name": "image",
           "type": "IMAGE",
           "links": [
@@ -1734,11 +1215,13 @@
           ]
         },
         {
+          "localized_name": "width",
           "name": "width",
           "type": "INT",
           "links": null
         },
         {
+          "localized_name": "height",
           "name": "height",
           "type": "INT",
           "links": null
@@ -1772,10 +1255,11 @@
       "flags": {
         "collapsed": true
       },
-      "order": 21,
+      "order": 19,
       "mode": 0,
       "inputs": [
         {
+          "localized_name": "image",
           "name": "image",
           "type": "IMAGE",
           "link": 482
@@ -1799,6 +1283,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "IMAGE",
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
@@ -1806,11 +1291,13 @@
           ]
         },
         {
+          "localized_name": "width",
           "name": "width",
           "type": "INT",
           "links": []
         },
         {
+          "localized_name": "height",
           "name": "height",
           "type": "INT",
           "links": []
@@ -1835,6 +1322,103 @@
       "bgcolor": "#335"
     },
     {
+      "id": 240,
+      "type": "WarpedCLIPVisionLoader",
+      "pos": [
+        263.1093444824219,
+        655.1119995117188
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "localized_name": "CLIP_VISION",
+          "name": "CLIP_VISION",
+          "type": "CLIP_VISION",
+          "links": [
+            585
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "widget_ue_connectable": {},
+        "Node name for S&R": "WarpedCLIPVisionLoader"
+      },
+      "widgets_values": [
+        "sigclip_vision_patch14_384.safetensors"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 241,
+      "type": "WarpedLoadFramePackModel",
+      "pos": [
+        261.7782287597656,
+        708.3515625
+      ],
+      "size": [
+        340.20001220703125,
+        174
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "compile_args",
+          "name": "compile_args",
+          "shape": 7,
+          "type": "FRAMEPACKCOMPILEARGS",
+          "link": null
+        },
+        {
+          "localized_name": "lora",
+          "name": "lora",
+          "shape": 7,
+          "type": "FPLORA",
+          "link": 586
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "FramePackMODEL",
+          "links": [
+            587
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "widget_ue_connectable": {},
+        "Node name for S&R": "WarpedLoadFramePackModel"
+      },
+      "widgets_values": [
+        "FramePack_F1_I2V_HY_20250503_fp8_e4m3fn.safetensors",
+        "bf16",
+        "fp8_e4m3fn",
+        "offload_device",
+        "sdpa"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
       "id": 226,
       "type": "WarpedFramepackSampler",
       "pos": [
@@ -1846,47 +1430,55 @@
         1317.0423583984375
       ],
       "flags": {},
-      "order": 28,
+      "order": 26,
       "mode": 0,
       "inputs": [
         {
+          "localized_name": "model",
           "name": "model",
           "type": "FramePackMODEL",
-          "link": 520
+          "link": 587
         },
         {
+          "localized_name": "vae",
           "name": "vae",
           "type": "VAE",
-          "link": 521
+          "link": 592
         },
         {
+          "localized_name": "positive",
           "name": "positive",
           "type": "CONDITIONING",
-          "link": 522
+          "link": 588
         },
         {
+          "localized_name": "negative",
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 523
+          "link": 589
         },
         {
+          "localized_name": "clip_vision_model",
           "name": "clip_vision_model",
           "type": "CLIP_VISION",
-          "link": 524
+          "link": 585
         },
         {
+          "localized_name": "start_image",
           "name": "start_image",
           "shape": 7,
           "type": "IMAGE",
           "link": null
         },
         {
+          "localized_name": "end_image",
           "name": "end_image",
           "shape": 7,
           "type": "IMAGE",
           "link": null
         },
         {
+          "localized_name": "video_image_batch",
           "name": "video_image_batch",
           "shape": 7,
           "type": "IMAGE",
@@ -1913,6 +1505,7 @@
       ],
       "outputs": [
         {
+          "localized_name": "images",
           "name": "images",
           "type": "IMAGE",
           "links": [
@@ -1920,6 +1513,7 @@
           ]
         },
         {
+          "localized_name": "generation_status",
           "name": "generation_status",
           "type": "STRING",
           "links": [
@@ -1927,6 +1521,7 @@
           ]
         },
         {
+          "localized_name": "fps",
           "name": "fps",
           "type": "FLOAT",
           "links": [
@@ -1969,38 +1564,313 @@
         640,
         640,
         5,
-        false,
-        ""
+        false
       ],
-      "color": "#322",
-      "bgcolor": "#533"
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 242,
+      "type": "WarpedDualCLIPLoaderAdvanced",
+      "pos": [
+        267.1025390625,
+        770.9083862304688
+      ],
+      "size": [
+        403.1999816894531,
+        278
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive_text",
+          "type": "STRING",
+          "widget": {
+            "name": "positive_text"
+          },
+          "link": 590
+        },
+        {
+          "name": "negative_text",
+          "type": "STRING",
+          "widget": {
+            "name": "negative_text"
+          },
+          "link": 591
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "links": null
+        },
+        {
+          "localized_name": "pos_conditioning",
+          "name": "pos_conditioning",
+          "type": "CONDITIONING",
+          "links": [
+            588
+          ]
+        },
+        {
+          "localized_name": "neg_conditioning",
+          "name": "neg_conditioning",
+          "type": "CONDITIONING",
+          "links": [
+            589
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "widget_ue_connectable": {},
+        "Node name for S&R": "WarpedDualCLIPLoaderAdvanced"
+      },
+      "widgets_values": [
+        "clip_l.safetensors",
+        "Kijai\\llava_llama3_fp8_scaled.safetensors",
+        "hunyuan_video",
+        "cpu",
+        "",
+        "low quality, deformation, a poor composition, bad hands, bad teeth, bad eyes, bad limbs, distortion, jump cuts",
+        [
+          false,
+          true
+        ],
+        [
+          false,
+          true
+        ]
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 243,
+      "type": "WarpedVAELoader",
+      "pos": [
+        265.771240234375,
+        829.4728393554688
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "localized_name": "VAE",
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            592
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "widget_ue_connectable": {},
+        "Node name for S&R": "WarpedVAELoader"
+      },
+      "widgets_values": [
+        "hunyuan_video_vae_bf16.safetensors"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 229,
+      "type": "WarpedBundleVideoImages",
+      "pos": [
+        250.333984375,
+        895.3316040039062
+      ],
+      "size": [
+        374.3047790527344,
+        250
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "localized_name": "image_batch",
+          "name": "image_batch",
+          "type": "IMAGE",
+          "links": [
+            545,
+            546
+          ]
+        },
+        {
+          "localized_name": "first_image",
+          "name": "first_image",
+          "type": "IMAGE",
+          "links": [
+            543
+          ]
+        },
+        {
+          "localized_name": "last_image",
+          "name": "last_image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "localized_name": "num_frames",
+          "name": "num_frames",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "localized_name": "width",
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "localized_name": "fps",
+          "name": "fps",
+          "type": "FLOAT",
+          "links": [
+            547
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
+        "Node name for S&R": "WarpedBundleVideoImages",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "h:\\fortest\\Brooklynthj1c.mp4",
+        0,
+        301,
+        true
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 223,
+      "type": "WarpedFramepackMultiLoraSelect",
+      "pos": [
+        230.29212951660156,
+        -272.5264892578125
+      ],
+      "size": [
+        428.4000244140625,
+        322
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "prev_lora",
+          "name": "prev_lora",
+          "shape": 7,
+          "type": "FPLORA",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "lora",
+          "name": "lora",
+          "type": "FPLORA",
+          "links": [
+            508,
+            586
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
+        "Node name for S&R": "WarpedFramepackMultiLoraSelect",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "None",
+        1.0000000000000002,
+        false,
+        "None",
+        1.0000000000000002,
+        false,
+        "None",
+        1.0000000000000002,
+        false,
+        "None",
+        1.0000000000000002,
+        false
+      ],
+      "color": "#233",
+      "bgcolor": "#355"
+    },
+    {
+      "id": 94,
+      "type": "Reroute",
+      "pos": [
+        444.41595458984375,
+        1433.385498046875
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 543
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "IMAGE",
+          "links": [
+            109,
+            116,
+            202,
+            544
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
     }
   ],
   "links": [
-    [
-      19,
-      15,
-      0,
-      32,
-      1,
-      "STRING"
-    ],
-    [
-      73,
-      59,
-      0,
-      31,
-      0,
-      "CLIP"
-    ],
-    [
-      74,
-      59,
-      0,
-      32,
-      0,
-      "CLIP"
-    ],
     [
       116,
       94,
@@ -2162,60 +2032,12 @@
       "INT"
     ],
     [
-      508,
-      223,
-      0,
-      133,
-      1,
-      "FPLORA"
-    ],
-    [
       519,
       226,
       0,
       42,
       0,
       "IMAGE"
-    ],
-    [
-      520,
-      133,
-      0,
-      226,
-      0,
-      "FramePackMODEL"
-    ],
-    [
-      521,
-      30,
-      0,
-      226,
-      1,
-      "VAE"
-    ],
-    [
-      522,
-      31,
-      0,
-      226,
-      2,
-      "CONDITIONING"
-    ],
-    [
-      523,
-      32,
-      0,
-      226,
-      3,
-      "CONDITIONING"
-    ],
-    [
-      524,
-      184,
-      0,
-      226,
-      4,
-      "CLIP_VISION"
     ],
     [
       526,
@@ -2274,14 +2096,6 @@
       "FLOAT"
     ],
     [
-      561,
-      75,
-      0,
-      31,
-      1,
-      "STRING"
-    ],
-    [
       562,
       75,
       0,
@@ -2304,6 +2118,70 @@
       42,
       4,
       "FLOAT,INT"
+    ],
+    [
+      585,
+      240,
+      0,
+      226,
+      4,
+      "CLIP_VISION"
+    ],
+    [
+      586,
+      223,
+      0,
+      241,
+      1,
+      "FPLORA"
+    ],
+    [
+      587,
+      241,
+      0,
+      226,
+      0,
+      "FramePackMODEL"
+    ],
+    [
+      588,
+      242,
+      1,
+      226,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      589,
+      242,
+      2,
+      226,
+      3,
+      "CONDITIONING"
+    ],
+    [
+      590,
+      75,
+      0,
+      242,
+      0,
+      "STRING"
+    ],
+    [
+      591,
+      15,
+      0,
+      242,
+      1,
+      "STRING"
+    ],
+    [
+      592,
+      243,
+      0,
+      226,
+      1,
+      "VAE"
     ]
   ],
   "groups": [
@@ -2350,10 +2228,10 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.6209213230591552,
+      "scale": 0.6209213230591554,
       "offset": [
-        -592.9357406427454,
-        -318.31835424718753
+        -713.1601790427558,
+        -0.07332604719397207
       ]
     },
     "ue_links": [],
