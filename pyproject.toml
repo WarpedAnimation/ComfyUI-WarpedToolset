@@ -8,7 +8,7 @@ license = { file = "LICENSE" }
 Repository = "https://github.com/WarpedAnimation/ComfyUI-WarpedToolset"
 
 [tool.comfy]
-PublisherId = "WarpedAnimation"
+PublisherId = "warpedanimation"
 DisplayName = "Warped Toolset"
 Icon = ""
 Models = []
