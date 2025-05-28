@@ -1,0 +1,578 @@
+{
+  "id": "05a742f7-a4cc-476b-bec2-4dfbaa1009f5",
+  "revision": 0,
+  "last_node_id": 281,
+  "last_link_id": 895,
+  "nodes": [
+    {
+      "id": 99,
+      "type": "Fast Groups Muter (rgthree)",
+      "pos": [
+        320.3949890136719,
+        -243.12155151367188
+      ],
+      "size": [
+        386.92010498046875,
+        138.19512939453125
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "OPT_CONNECTION",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "properties": {
+        "matchColors": "",
+        "matchTitle": "",
+        "showNav": true,
+        "sort": "position",
+        "customSortAlphabet": "",
+        "toggleRestriction": "default"
+      }
+    },
+    {
+      "id": 255,
+      "type": "PreviewImage",
+      "pos": [
+        -434.8162536621094,
+        537.4317626953125
+      ],
+      "size": [
+        542.0654907226562,
+        476.8260192871094
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 894
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 202,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        331.1438293457031,
+        451.63348388671875
+      ],
+      "size": [
+        534.675537109375,
+        358
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 886
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-videohelpersuite",
+        "ver": "5e61bcf218fe3bb7c899bbd584bbc99a9d05fb42",
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 15,
+        "loop_count": 0,
+        "filename_prefix": "Hunyuan/%date:yyyy_MM_dd%/hires/vid",
+        "format": "video/nvenc_h264-mp4",
+        "pix_fmt": "yuv420p",
+        "bitrate": 10,
+        "megabit": true,
+        "save_metadata": true,
+        "pingpong": false,
+        "save_output": true,
+        "save_images": true,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "vid_00001.mp4",
+            "subfolder": "Hunyuan\\2025_03_19\\hires",
+            "type": "output",
+            "format": "video/nvenc_h264-mp4",
+            "frame_rate": 15,
+            "workflow": "vid_00001.png",
+            "fullpath": "M:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\Hunyuan\\2025_03_19\\hires\\vid_00001.mp4"
+          }
+        }
+      }
+    },
+    {
+      "id": 201,
+      "type": "UpscaleModelLoader",
+      "pos": [
+        341.0927734375,
+        334.5395812988281
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "UPSCALE_MODEL",
+          "type": "UPSCALE_MODEL",
+          "slot_index": 0,
+          "links": [
+            885
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "UpscaleModelLoader"
+      },
+      "widgets_values": [
+        "4x_foolhardy_Remacri.pth"
+      ]
+    },
+    {
+      "id": 276,
+      "type": "WarpedUpscaleWithModel",
+      "pos": [
+        345.3873291015625,
+        158.17369079589844
+      ],
+      "size": [
+        315,
+        102
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "upscale_model",
+          "type": "UPSCALE_MODEL",
+          "link": 885
+        },
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 893
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            886,
+            890
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "Node name for S&R": "WarpedUpscaleWithModel"
+      },
+      "widgets_values": [
+        2,
+        "bilinear"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 278,
+      "type": "FILM VFI",
+      "pos": [
+        912,
+        159
+      ],
+      "size": [
+        443.4000244140625,
+        126
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "frames",
+          "type": "IMAGE",
+          "link": 890
+        },
+        {
+          "name": "optional_interpolation_states",
+          "shape": 7,
+          "type": "INTERPOLATION_STATES",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            891
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-frame-interpolation",
+        "ver": "18b7cce5b08290741929e39d4955b88382db4e1d",
+        "Node name for S&R": "FILM VFI"
+      },
+      "widgets_values": [
+        "film_net_fp32.pt",
+        20,
+        2
+      ]
+    },
+    {
+      "id": 279,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        911.143798828125,
+        449.63348388671875
+      ],
+      "size": [
+        534.675537109375,
+        358
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 891
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-videohelpersuite",
+        "ver": "5e61bcf218fe3bb7c899bbd584bbc99a9d05fb42",
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 30,
+        "loop_count": 0,
+        "filename_prefix": "Hunyuan/%date:yyyy_MM_dd%/interpolate/vid",
+        "format": "video/nvenc_h264-mp4",
+        "pix_fmt": "yuv420p",
+        "bitrate": 10,
+        "megabit": true,
+        "save_metadata": true,
+        "pingpong": false,
+        "save_output": true,
+        "save_images": true,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "vid_00001.mp4",
+            "subfolder": "Hunyuan\\2025_03_19\\interpolate",
+            "type": "output",
+            "format": "video/nvenc_h264-mp4",
+            "frame_rate": 30,
+            "workflow": "vid_00001.png",
+            "fullpath": "M:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\Hunyuan\\2025_03_19\\interpolate\\vid_00001.mp4"
+          }
+        }
+      }
+    },
+    {
+      "id": 280,
+      "type": "WarpedImageResize",
+      "pos": [
+        -24.520009994506836,
+        175.57980346679688
+      ],
+      "size": [
+        315,
+        190
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 895
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            893
+          ]
+        },
+        {
+          "name": "scale_orig_image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "Node name for S&R": "WarpedImageResize"
+      },
+      "widgets_values": [
+        416,
+        640,
+        "lanczos",
+        "center"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 281,
+      "type": "WarpedBundleAllVideoImages",
+      "pos": [
+        -436.52703857421875,
+        177.63095092773438
+      ],
+      "size": [
+        378,
+        202
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image_batch",
+          "type": "IMAGE",
+          "links": [
+            894,
+            895
+          ]
+        },
+        {
+          "name": "first_image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "last_image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "num_frames",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "fps",
+          "type": "FLOAT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "widget_ue_connectable": {},
+        "Node name for S&R": "WarpedBundleAllVideoImages"
+      },
+      "widgets_values": [
+        "",
+        true
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    }
+  ],
+  "links": [
+    [
+      885,
+      201,
+      0,
+      276,
+      0,
+      "UPSCALE_MODEL"
+    ],
+    [
+      886,
+      276,
+      0,
+      202,
+      0,
+      "IMAGE"
+    ],
+    [
+      890,
+      276,
+      0,
+      278,
+      0,
+      "IMAGE"
+    ],
+    [
+      891,
+      278,
+      0,
+      279,
+      0,
+      "IMAGE"
+    ],
+    [
+      893,
+      280,
+      0,
+      276,
+      1,
+      "IMAGE"
+    ],
+    [
+      894,
+      281,
+      0,
+      255,
+      0,
+      "IMAGE"
+    ],
+    [
+      895,
+      281,
+      0,
+      280,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 2,
+      "title": "Hunyuan High Resolution",
+      "bounding": [
+        -479.1864318847656,
+        -109.82951354980469,
+        1971.108642578125,
+        1907.701904296875
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7513148009015777,
+      "offset": [
+        762.6220000000011,
+        244.2959999999923
+      ]
+    },
+    "groupNodes": {},
+    "ue_links": [],
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 10,
+    "node_versions": {
+      "comfy-core": "0.3.26",
+      "comfyui-kjnodes": "e3b4bcf21e03402a2b11927eb5a4e3df500795b7",
+      "comfyui-videohelpersuite": "1.5.2",
+      "comfyui-frame-interpolation": "1.0.6"
+    },
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
