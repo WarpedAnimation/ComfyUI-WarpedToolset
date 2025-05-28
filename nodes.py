@@ -56,7 +56,7 @@ from comfy.ldm.lightricks.symmetric_patchifier import latent_to_pixel_coords
 from comfy.ldm.common_dit import rms_norm
 from comfy.ldm.wan.model import sinusoidal_embedding_1d
 
-from .diffusers_helper.memory import move_model_to_device_with_memory_preservation
+from .diffusers_helper.memory import move_model_to_device_with_memory_preservation, offload_model_from_device_for_memory_preservation
 from .diffusers_helper.k_diffusion_hunyuan import sample_hunyuan, sample_hunyuan2
 from .diffusers_helper.utils import crop_or_pad_yield_mask, soft_append_bcthw
 import math
@@ -5793,7 +5793,7 @@ class WarpedFramepackSampler:
         self.positive = positive
         self.negative = negative
         self.device = mm.get_torch_device()
-        self.offload_device = mm.unet_offload_device()
+        self.offload_device = get_offload_device()
         self.clip_vision = clip_vision_model
         self.blend_frames = blend_frames
         self.shift = shift
@@ -5802,6 +5802,8 @@ class WarpedFramepackSampler:
         self.fps = fps
         self.v2v_context_count = v2v_context_count
         self.verbose_messaging = verbose_messaging
+
+        print("Device: {}  | Offload Device: {}".format(self.device, self.offload_device))
 
         if not video_image_batch is None:
             if len(video_image_batch.shape) < 4:
@@ -6044,7 +6046,9 @@ class WarpedFramepackSampler:
                                                         latent_indices, clean_latents, clean_latent_indices, clean_latents_2x, clean_latent_2x_indices, clean_latents_4x, clean_latent_4x_indices, callback)
 
                 noise[latent_padding] = None
-                print("generated_latents {} | Shape: {}".format(latent_padding, generated_latents.shape))
+
+                if self.verbose_messaging:
+                    print("generated_latents {} | Shape: {}".format(latent_padding, generated_latents.shape))
 
                 if not is_last_section:
                     history_latents = torch.cat([original_history_latents, generated_latents.to(original_history_latents)], dim=2)
@@ -6060,10 +6064,10 @@ class WarpedFramepackSampler:
                     break
         except mm.InterruptProcessingException as ie:
             interrupted = True
-            print(f"\nWarpedSamplerCustomAdv: Processing Interrupted.")
-            print("WarpedSamplerCustomAdv: Returning only partial results (if any).\n If zero images generated, a blank yellow image will be returned.\n")
+            print(f"\nWarpedFramepackSampler: Processing Interrupted.")
+            print("WarpedFramepackSampler: Returning only partial results (if any).\n If zero images generated, a blank yellow image will be returned.\n")
 
-            generation_status = f"\nWarpedSamplerCustomAdv: Processing Interrupted."
+            generation_status = f"\nWarpedFramepackSampler: Processing Interrupted."
 
             pass
         except BaseException as e:
@@ -6072,10 +6076,10 @@ class WarpedFramepackSampler:
             gc.collect()
             time.sleep(1)
 
-            print(f"\nWarpedSamplerCustomAdv: Exception During Processing: {str(e)}")
-            print("WarpedSamplerCustomAdv: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned.\n")
-            generation_status = f"WarpedSamplerCustomAdv: Exception During Processing: {str(e)}"
-            generation_status = "{}{}".format(generation_status, "WarpedSamplerCustomAdv: Returning only partial results (if any).\nIf zero images generated, a blank red image will be returned.")
+            print(f"\nWarpedFramepackSampler: Exception During Processing: {str(e)}")
+            print("WarpedFramepackSampler: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned.\n")
+            generation_status = f"WarpedFramepackSampler: Exception During Processing: {str(e)}"
+            generation_status = "{}{}".format(generation_status, "WarpedFramepackSampler: Returning only partial results (if any).\nIf zero images generated, a blank red image will be returned.")
 
             traceback.print_tb(e.__traceback__, limit=99, file=sys.stdout)
 
@@ -6103,7 +6107,10 @@ class WarpedFramepackSampler:
         video_latent_batches = None
         video_image_batch = None
 
-        self.transformer.to(self.offload_device)
+        # self.transformer.to(self.offload_device)
+
+        offload_model_from_device_for_memory_preservation(self.transformer, self.device, preserved_memory_gb=0)
+
         mm.unload_all_models()
         mm.soft_empty_cache()
         gc.collect()
@@ -6294,9 +6301,11 @@ class WarpedFramepackSampler:
                                                         latent_indices, clean_latents, clean_latent_indices, clean_latents_2x, clean_latent_2x_indices, clean_latents_4x, clean_latent_4x_indices, callback)
 
                 noise[latent_padding] = None
-                print("generated_latents for batch {}: Shape: {}\n".format(latent_padding, generated_latents.shape))
-                latent_batches_gend.append(generated_latents.clone().detach()  / vae_scaling_factor)
 
+                if self.verbose_messaging:
+                    print("generated_latents for batch {}: Shape: {}\n".format(latent_padding, generated_latents.shape))
+
+                latent_batches_gend.append(generated_latents.clone().detach()  / vae_scaling_factor)
                 total_generated_latent_frames += int(generated_latents.shape[2])
 
                 generated_latents.to(dtype=torch.float32, device=self.offload_device)
@@ -6329,10 +6338,10 @@ class WarpedFramepackSampler:
                     break
         except mm.InterruptProcessingException as ie:
             interrupted = True
-            print(f"\nWarpedSamplerCustomAdv: Processing Interrupted.")
-            print("WarpedSamplerCustomAdv: Returning only partial results (if any).\n If zero images generated, a blank yellow image will be returned.\n")
+            print(f"\nWarpedFramepackSampler: Processing Interrupted.")
+            print("WarpedFramepackSampler: Returning only partial results (if any).\n If zero images generated, a blank yellow image will be returned.\n")
 
-            generation_status = f"\nWarpedSamplerCustomAdv: Processing Interrupted."
+            generation_status = f"\nWarpedFramepackSampler: Processing Interrupted."
 
             pass
         except BaseException as e:
@@ -6341,10 +6350,10 @@ class WarpedFramepackSampler:
             gc.collect()
             time.sleep(1)
 
-            print(f"\nWarpedSamplerCustomAdv: Exception During Processing: {str(e)}")
-            print("WarpedSamplerCustomAdv: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned.\n")
-            generation_status = f"WarpedSamplerCustomAdv: Exception During Processing: {str(e)}"
-            generation_status = "{}{}".format(generation_status, "WarpedSamplerCustomAdv: Returning only partial results (if any).\nIf zero images generated, a blank red image will be returned.")
+            print(f"\nWarpedFramepackSampler: Exception During Processing: {str(e)}")
+            print("WarpedFramepackSampler: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned.\n")
+            generation_status = f"WarpedFramepackSampler: Exception During Processing: {str(e)}"
+            generation_status = "{}{}".format(generation_status, "WarpedFramepackSampler: Returning only partial results (if any).\nIf zero images generated, a blank red image will be returned.")
 
             traceback.print_tb(e.__traceback__, limit=99, file=sys.stdout)
 
@@ -6373,7 +6382,9 @@ class WarpedFramepackSampler:
         video_image_batch = None
         latent_embeds = None
 
-        self.transformer.to(self.offload_device)
+        # self.transformer.to(self.offload_device)
+        offload_model_from_device_for_memory_preservation(self.transformer, self.device, preserved_memory_gb=0)
+
         mm.unload_all_models()
         mm.soft_empty_cache()
         gc.collect()
@@ -6999,35 +7010,78 @@ def get_available_devices():
     available_devices = ["cpu"]
 
     if torch.cuda.is_available():
-        if torch.cuda.device_count() < 2:
-            available_devices.append("cuda")
-        else:
+        available_devices.append("cuda")
+
+        if torch.cuda.device_count() > 1:
             for i in range(torch.cuda.device_count()):
                 temp_device = "cuda:{}".format(i)
                 available_devices.append(temp_device)
 
     return available_devices
 
-class WarpedDualCLIPLoaderAdvanced(ComfyNodeABC):
+class WarpedDualEncoder(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required": { "clip": ("CLIP", ),
+                              "positive_text": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The positive prompt to be encoded."}),
+                              "negative_text": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The negative prompt to be encoded."}),
+                            },
+               }
+    RETURN_TYPES = (IO.CONDITIONING, IO.CONDITIONING, )
+    RETURN_NAMES = ("pos_conditioning", "neg_conditioning", )
+    FUNCTION = "process"
+
+    CATEGORY = "Warped/Conditioning"
+
+    DESCRIPTION = "Encodes both positive and negative prompts."
+
+    def process(self, clip, positive_text="", negative_text=""):
+        if clip.patcher.model.device != clip.patcher.load_device:
+            clip.patcher.model.to(device=clip.patcher.load_device)
+
+        print("WarpedDualEncoder: Encoding Prompts...")
+        positive_conditioning = self.encode(clip, positive_text)
+        negative_conditioning = self.encode(clip, negative_text)
+        print("WarpedDualEncoder: Encoding Prompts...Done.")
+
+        clip.patcher.model.to(device=get_offload_device())
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        gc.collect()
+        time.sleep(1)
+
+        return (positive_conditioning, negative_conditioning, )
+
+    def encode(self, clip, text):
+
+        if clip is None:
+            raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
+
+        tokens = clip.tokenize(text)
+        return_encoding = clip.encode_from_tokens_scheduled(tokens)
+
+        return return_encoding
+
+class WarpedDualCLIPLoader:
     @classmethod
     def INPUT_TYPES(self):
         return {"required": { "clip_name1": (folder_paths.get_filename_list("text_encoders"), ),
                               "clip_name2": (folder_paths.get_filename_list("text_encoders"), ),
                               "type": (["sdxl", "sd3", "flux", "hunyuan_video"], ),
                               "device": (get_available_devices(), {"default": "cpu"}),
-                              "positive_text": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The positive prompt to be encoded."}),
-                              "negative_text": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The negative prompt to be encoded."}),
                             },
                }
-    RETURN_TYPES = ("CLIP", IO.CONDITIONING, IO.CONDITIONING, )
-    RETURN_NAMES = ("clip", "pos_conditioning", "neg_conditioning", )
+    RETURN_TYPES = ("CLIP", )
+    RETURN_NAMES = ("clip", )
     FUNCTION = "load_clip"
 
     CATEGORY = "Warped/Loaders"
 
     DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5"
 
-    def load_clip(self, clip_name1, clip_name2, type, device="default", positive_text="", negative_text=""):
+    def load_clip(self, clip_name1, clip_name2, type, device="default"):
         clip_path1 = folder_paths.get_full_path_or_raise("text_encoders", clip_name1)
         clip_path2 = folder_paths.get_full_path_or_raise("text_encoders", clip_name2)
         if type == "sdxl":
@@ -7057,15 +7111,7 @@ class WarpedDualCLIPLoaderAdvanced(ComfyNodeABC):
 
         clip = self.sd_load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type, model_options=model_options)
 
-        if clip.patcher.model.device != model_options["load_device"]:
-            clip.patcher.model.to(device=model_options["load_device"])
-
-        positive_conditioning = self.encode(clip, positive_text)
-        negative_conditioning = self.encode(clip, negative_text)
-
-        clip.patcher.model.to(device=model_options["offload_device"])
-
-        return (clip, positive_conditioning, negative_conditioning, )
+        return (clip, )
 
     def sd_load_clip(self, ckpt_paths, embedding_directory=None, clip_type=comfy.sd.CLIPType.STABLE_DIFFUSION, model_options={"offload_device": get_offload_device()}):
         checkpoint_temp = []
@@ -7112,7 +7158,7 @@ class WarpedLoadFramePackModel:
 
             "base_precision": (["fp32", "bf16", "fp16"], {"default": "bf16"}),
             "quantization": (['disabled', 'fp8_e4m3fn', 'fp8_e4m3fn_fast', 'fp8_e5m2'], {"default": 'disabled', "tooltip": "optional quantization method"}),
-            "load_device": (["main_device", "offload_device"], {"default": "cuda", "tooltip": "Initialize the model on the main device or offload device"}),
+            "load_device": (["main_device", "offload_device"], {"default": "offload_device", "tooltip": "Initialize the model on the main device or offload device"}),
             },
             "optional": {
                 "attention_mode": ([
