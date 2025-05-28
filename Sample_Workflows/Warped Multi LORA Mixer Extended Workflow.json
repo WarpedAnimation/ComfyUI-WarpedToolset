@@ -21,6 +21,8 @@
       "inputs": [],
       "outputs": [],
       "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
         "Node name for S&R": "WarpedHunyuanMultiLoraMixerExt"
       },
       "widgets_values": [
@@ -46,7 +48,9 @@
         "None",
         1,
         true
-      ]
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
     }
   ],
   "links": [],
@@ -54,15 +58,15 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 1,
+      "scale": 0.7513148009015777,
       "offset": [
-        0,
-        0
+        488.4360000000008,
+        26.011999999992337
       ]
     },
     "ue_links": [],
     "VHS_latentpreview": true,
-    "VHS_latentpreviewrate": 0,
+    "VHS_latentpreviewrate": 10,
     "VHS_MetadataImage": true,
     "VHS_KeepIntermediate": true
   },

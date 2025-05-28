@@ -1,8 +1,8 @@
 {
   "id": "dfed12ef-fd2b-4870-b037-155a07e06804",
   "revision": 0,
-  "last_node_id": 286,
-  "last_link_id": 918,
+  "last_node_id": 288,
+  "last_link_id": 921,
   "nodes": [
     {
       "id": 152,
@@ -206,8 +206,7 @@
       },
       "widgets_values": [
         "tumblr_ph7eqlDYZO1qm0hswo10000_1280.jpg",
-        "image",
-        ""
+        "image"
       ]
     },
     {
@@ -326,6 +325,8 @@
         }
       ],
       "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
         "Node name for S&R": "WarpedImageNoiseAugmentation"
       },
       "widgets_values": [
@@ -398,7 +399,7 @@
         {
           "name": "vae",
           "type": "VAE",
-          "link": 887
+          "link": 920
         }
       ],
       "outputs": [
@@ -463,6 +464,8 @@
         }
       ],
       "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
         "Node name for S&R": "WarpedLeapfusionHunyuanI2V"
       },
       "widgets_values": [
@@ -486,7 +489,7 @@
         346.54290771484375
       ],
       "flags": {},
-      "order": 9,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -563,6 +566,8 @@
         }
       ],
       "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
         "Node name for S&R": "WarpedCreateSpecialImageBatch"
       },
       "widgets_values": [
@@ -704,6 +709,8 @@
         }
       ],
       "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
         "Node name for S&R": "WarpedSamplerCustomAdv"
       },
       "widgets_values": [
@@ -734,7 +741,7 @@
       ],
       "size": [
         641.8053588867188,
-        334
+        358
       ],
       "flags": {},
       "order": 24,
@@ -787,6 +794,7 @@
         "save_metadata": true,
         "pingpong": false,
         "save_output": true,
+        "save_images": true,
         "videopreview": {
           "hidden": false,
           "paused": false,
@@ -851,6 +859,8 @@
         }
       ],
       "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
         "Node name for S&R": "WarpedImageResize"
       },
       "widgets_values": [
@@ -861,88 +871,6 @@
       ],
       "color": "#323",
       "bgcolor": "#535"
-    },
-    {
-      "id": 281,
-      "type": "CLIPVisionLoader",
-      "pos": [
-        -463.0522766113281,
-        1385.4107666015625
-      ],
-      "size": [
-        315,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 4,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "CLIP_VISION",
-          "type": "CLIP_VISION",
-          "links": [
-            895
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "CLIPVisionLoader"
-      },
-      "widgets_values": [
-        "clip_vision_h_fp8_e4m3fn.safetensors"
-      ]
-    },
-    {
-      "id": 280,
-      "type": "CLIPVisionEncode",
-      "pos": [
-        -448.5199279785156,
-        1441.1063232421875
-      ],
-      "size": [
-        380.4000244140625,
-        78
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 10,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "clip_vision",
-          "type": "CLIP_VISION",
-          "link": 895
-        },
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "link": 914
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CLIP_VISION_OUTPUT",
-          "type": "CLIP_VISION_OUTPUT",
-          "slot_index": 0,
-          "links": [
-            897
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "CLIPVisionEncode"
-      },
-      "widgets_values": [
-        "none"
-      ]
     },
     {
       "id": 195,
@@ -956,13 +884,13 @@
         26
       ],
       "flags": {},
-      "order": 8,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
           "name": "",
           "type": "*",
-          "link": 569
+          "link": 919
         }
       ],
       "outputs": [
@@ -1013,6 +941,8 @@
         }
       ],
       "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
         "Node name for S&R": "WarpedTeaCache"
       },
       "widgets_values": [
@@ -1113,44 +1043,6 @@
       "bgcolor": "#353"
     },
     {
-      "id": 10,
-      "type": "VAELoader",
-      "pos": [
-        -388.53619384765625,
-        543.612060546875
-      ],
-      "size": [
-        323.2068786621094,
-        65.77056884765625
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 5,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "VAE",
-          "shape": 3,
-          "type": "VAE",
-          "slot_index": 0,
-          "links": [
-            569,
-            887
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "VAELoader"
-      },
-      "widgets_values": [
-        "hunyuan_video_vae_bf16.safetensors"
-      ]
-    },
-    {
       "id": 145,
       "type": "UnetLoaderGGUF",
       "pos": [
@@ -1164,7 +1056,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 6,
+      "order": 4,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1223,6 +1115,130 @@
         "showOutputText": false,
         "horizontal": false
       }
+    },
+    {
+      "id": 287,
+      "type": "WarpedVAELoader",
+      "pos": [
+        -385.94879150390625,
+        547.649658203125
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            919,
+            920
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "widget_ue_connectable": {},
+        "Node name for S&R": "WarpedVAELoader"
+      },
+      "widgets_values": [
+        "hunyuan_video_vae_bf16.safetensors"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 280,
+      "type": "CLIPVisionEncode",
+      "pos": [
+        -457.8369140625,
+        1442.4373779296875
+      ],
+      "size": [
+        380.4000244140625,
+        78
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip_vision",
+          "type": "CLIP_VISION",
+          "link": 921
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 914
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CLIP_VISION_OUTPUT",
+          "type": "CLIP_VISION_OUTPUT",
+          "slot_index": 0,
+          "links": [
+            897
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "CLIPVisionEncode"
+      },
+      "widgets_values": [
+        "none"
+      ]
+    },
+    {
+      "id": 288,
+      "type": "WarpedCLIPVisionLoader",
+      "pos": [
+        -452.4989013671875,
+        1499.314208984375
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP_VISION",
+          "type": "CLIP_VISION",
+          "links": [
+            921
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "widget_ue_connectable": {},
+        "Node name for S&R": "WarpedCLIPVisionLoader"
+      },
+      "widgets_values": [
+        "clip_vision_h_fp8_e4m3fn.safetensors"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
     }
   ],
   "links": [
@@ -1249,14 +1265,6 @@
       177,
       0,
       "MODEL"
-    ],
-    [
-      569,
-      10,
-      0,
-      195,
-      0,
-      "*"
     ],
     [
       840,
@@ -1331,14 +1339,6 @@
       "IMAGE"
     ],
     [
-      887,
-      10,
-      0,
-      276,
-      1,
-      "VAE"
-    ],
-    [
       888,
       258,
       0,
@@ -1369,14 +1369,6 @@
       275,
       6,
       "FLOAT"
-    ],
-    [
-      895,
-      281,
-      0,
-      280,
-      0,
-      "CLIP_VISION"
     ],
     [
       897,
@@ -1465,6 +1457,30 @@
       67,
       0,
       "MODEL"
+    ],
+    [
+      919,
+      287,
+      0,
+      195,
+      0,
+      "*"
+    ],
+    [
+      920,
+      287,
+      0,
+      276,
+      1,
+      "VAE"
+    ],
+    [
+      921,
+      288,
+      0,
+      280,
+      0,
+      "CLIP_VISION"
     ]
   ],
   "groups": [
@@ -1485,16 +1501,16 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.8264462809917354,
+      "scale": 0.7513148009015777,
       "offset": [
-        464.9599999999997,
-        -290.53
+        531.0279999999998,
+        -244.1810000000078
       ]
     },
     "groupNodes": {},
     "ue_links": [],
     "VHS_latentpreview": true,
-    "VHS_latentpreviewrate": 0,
+    "VHS_latentpreviewrate": 10,
     "node_versions": {
       "ComfyUI_Custom_Nodes_AlekPet": "7b3d6f190aeca261422bdfb74b5af37937e5bf68",
       "comfy-core": "0.3.26",
