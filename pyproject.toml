@@ -1,7 +1,7 @@
 [project]
 name = "ComfyUI-WarpedToolset"
 description = "A toolset for Hunyuan Video (mainly), with some additional nodes applicable to Framepack Video and WAN Video."
-version = "1.6.0"
+version = "1.6.1"
 license = { file = "LICENSE" }
 
 [project.urls]
