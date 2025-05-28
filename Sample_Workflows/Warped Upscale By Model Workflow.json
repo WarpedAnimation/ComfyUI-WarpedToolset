@@ -1,8 +1,8 @@
 {
   "id": "05a742f7-a4cc-476b-bec2-4dfbaa1009f5",
   "revision": 0,
-  "last_node_id": 280,
-  "last_link_id": 893,
+  "last_node_id": 281,
+  "last_link_id": 895,
   "nodes": [
     {
       "id": 99,
@@ -53,7 +53,7 @@
         {
           "name": "images",
           "type": "IMAGE",
-          "link": 889
+          "link": 894
         }
       ],
       "outputs": [],
@@ -73,7 +73,7 @@
       ],
       "size": [
         534.675537109375,
-        334
+        358
       ],
       "flags": {},
       "order": 6,
@@ -126,6 +126,7 @@
         "save_metadata": true,
         "pingpong": false,
         "save_output": true,
+        "save_images": true,
         "videopreview": {
           "hidden": false,
           "paused": false,
@@ -213,6 +214,8 @@
         }
       ],
       "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
         "Node name for S&R": "WarpedUpscaleWithModel"
       },
       "widgets_values": [
@@ -279,7 +282,7 @@
       ],
       "size": [
         534.675537109375,
-        334
+        358
       ],
       "flags": {},
       "order": 8,
@@ -332,6 +335,7 @@
         "save_metadata": true,
         "pingpong": false,
         "save_output": true,
+        "save_images": true,
         "videopreview": {
           "hidden": false,
           "paused": false,
@@ -346,57 +350,6 @@
           }
         }
       }
-    },
-    {
-      "id": 277,
-      "type": "WarpedRsmBundleAllVideoImages",
-      "pos": [
-        -411.8690185546875,
-        155.4216766357422
-      ],
-      "size": [
-        304.2129211425781,
-        126.09915924072266
-      ],
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "image_batch",
-          "type": "IMAGE",
-          "slot_index": 0,
-          "links": [
-            888,
-            889,
-            892
-          ]
-        },
-        {
-          "name": "first_image",
-          "type": "IMAGE",
-          "links": null
-        },
-        {
-          "name": "last_image",
-          "type": "IMAGE",
-          "links": null
-        },
-        {
-          "name": "num_frames",
-          "type": "INT",
-          "links": null
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "WarpedRsmBundleAllVideoImages"
-      },
-      "widgets_values": [
-        "M:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\Hunyuan\\2025_04_15\\midres\\vid_00001.mp4"
-      ],
-      "color": "#323",
-      "bgcolor": "#535"
     },
     {
       "id": 280,
@@ -416,7 +369,7 @@
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 892
+          "link": 895
         }
       ],
       "outputs": [
@@ -444,6 +397,8 @@
         }
       ],
       "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
         "Node name for S&R": "WarpedImageResize"
       },
       "widgets_values": [
@@ -454,6 +409,74 @@
       ],
       "color": "#223",
       "bgcolor": "#335"
+    },
+    {
+      "id": 281,
+      "type": "WarpedBundleAllVideoImages",
+      "pos": [
+        -436.52703857421875,
+        177.63095092773438
+      ],
+      "size": [
+        378,
+        202
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image_batch",
+          "type": "IMAGE",
+          "links": [
+            894,
+            895
+          ]
+        },
+        {
+          "name": "first_image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "last_image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "num_frames",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "fps",
+          "type": "FLOAT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "widget_ue_connectable": {},
+        "Node name for S&R": "WarpedBundleAllVideoImages"
+      },
+      "widgets_values": [
+        "",
+        true
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
     }
   ],
   "links": [
@@ -474,14 +497,6 @@
       "IMAGE"
     ],
     [
-      889,
-      277,
-      0,
-      255,
-      0,
-      "IMAGE"
-    ],
-    [
       890,
       276,
       0,
@@ -498,19 +513,27 @@
       "IMAGE"
     ],
     [
-      892,
-      277,
-      0,
-      280,
-      0,
-      "IMAGE"
-    ],
-    [
       893,
       280,
       0,
       276,
       1,
+      "IMAGE"
+    ],
+    [
+      894,
+      281,
+      0,
+      255,
+      0,
+      "IMAGE"
+    ],
+    [
+      895,
+      281,
+      0,
+      280,
+      0,
       "IMAGE"
     ]
   ],
@@ -532,16 +555,16 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.8264462809917354,
+      "scale": 0.7513148009015777,
       "offset": [
-        550.8699999999997,
-        -94.5099999999999
+        762.6220000000011,
+        244.2959999999923
       ]
     },
     "groupNodes": {},
     "ue_links": [],
     "VHS_latentpreview": true,
-    "VHS_latentpreviewrate": 0,
+    "VHS_latentpreviewrate": 10,
     "node_versions": {
       "comfy-core": "0.3.26",
       "comfyui-kjnodes": "e3b4bcf21e03402a2b11927eb5a4e3df500795b7",
