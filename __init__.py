@@ -17,7 +17,6 @@ NODE_CLASS_MAPPINGS = {
     "WarpedCreateEmptyLatentBatch": WarpedCreateEmptyLatentBatch,
     "WarpedBundleVideoImages": WarpedBundleVideoImages,
     "WarpedBundleAllVideoImages": WarpedBundleAllVideoImages,
-    # "WarpedBundleVideoImagesFramepack": WarpedBundleVideoImagesFramepack,
     "WarpedImageNoiseAugmentation": WarpedImageNoiseAugmentation,
     "WarpedLeapfusionHunyuanI2V": WarpedLeapfusionHunyuanI2V,
     "WarpedSaveAnimatedPng": WarpedSaveAnimatedPng,
@@ -37,10 +36,11 @@ NODE_CLASS_MAPPINGS = {
     "WarpedHunyuanLoraConvert": WarpedHunyuanLoraConvert,
     "WarpedFramepackLoraSelectBatch": WarpedFramepackLoraSelectBatch,
     "WarpedFramepackMultiLoraSelect": WarpedFramepackMultiLoraSelect,
-    "WarpedDualCLIPLoaderAdvanced": WarpedDualCLIPLoaderAdvanced,
-    "WarpedLoadFramePackModel": WarpedLoadFramePackModel,
+    "WarpedDualCLIPLoader": WarpedDualCLIPLoader,
+    "WarpedDualEncoder": WarpedDualEncoder,
     "WarpedCLIPVisionLoader": WarpedCLIPVisionLoader,
     "WarpedVAELoader": WarpedVAELoader,
+    "WarpedLoadFramePackModel": WarpedLoadFramePackModel,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -60,7 +60,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WarpedCreateEmptyLatentBatch": "Warped Create Empty Latent Batch",
     "WarpedBundleVideoImages": "Warped Bundle Video Images",
     "WarpedBundleAllVideoImages": "Warped Bundle All Video Images",
-    # "WarpedBundleVideoImagesFramepack": "Warped Bundle Video Images Framepack",
     "WarpedImageNoiseAugmentation": "Warped Image Noise Augmentation",
     "WarpedLeapfusionHunyuanI2V": "Warped Leapfusion Hunyuan I2V",
     "WarpedSaveAnimatedPng": "Warped Save Animated Png",
@@ -80,10 +79,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WarpedHunyuanLoraConvert": "Warped Hunyuan Lora Convert",
     "WarpedFramepackLoraSelectBatch": "Warped Framepack Lora Select Batch",
     "WarpedFramepackMultiLoraSelect": "Warped Framepack Multi Lora Select",
-    "WarpedDualCLIPLoaderAdvanced": "Warped Dual CLIP Loader Advanced",
-    "WarpedLoadFramePackModel": "Warped Load FramePack Model",
+    "WarpedDualCLIPLoader": "Warped Dual CLIP Loader",
+    "WarpedDualEncoder": "Warped Dual Encoder",
     "WarpedCLIPVisionLoader": "Warped Load CLIP Vision",
     "WarpedVAELoader": "Warped Load VAE",
+    "WarpedLoadFramePackModel": "Warped Load FramePack Model",
 }
 
 WEB_DIRECTORY = "./web"
