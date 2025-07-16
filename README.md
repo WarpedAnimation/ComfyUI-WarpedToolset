@@ -25,6 +25,12 @@
 
 <div align="left">
 
+# V1.7.0 Overview
+
+#### [V1.7.0 Overview](https://mega.nz/file/r2YwySbS#a1Fw_Z4ASlkXIVBmLQFHAbEzFxpWGGVmyEMrVNplt6I)
+
+<div align="left">
+
 # Random LORA Mixer Nodes
 
 #### [Rand LORA Mixer Nodes Tutorial - NSFW](https://mega.nz/file/D2YXDLhR#Kz4NGS_rRzMOM9ymuawPGe9e_jI16j4G36ip6JsW44s)
