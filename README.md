@@ -27,7 +27,7 @@
 
 # V1.7.0 Overview
 
-#### [V1.7.0 Overview](https://mega.nz/file/r2YwySbS#a1Fw_Z4ASlkXIVBmLQFHAbEzFxpWGGVmyEMrVNplt6I)
+#### [V1.7.0 Overview Video](https://mega.nz/file/r2YwySbS#a1Fw_Z4ASlkXIVBmLQFHAbEzFxpWGGVmyEMrVNplt6I)
 
 <div align="left">
 
