@@ -1,8 +1,8 @@
 {
   "id": "cd4d8b23-c2f1-4f41-b28f-b13b2b63a361",
   "revision": 0,
-  "last_node_id": 302,
-  "last_link_id": 955,
+  "last_node_id": 303,
+  "last_link_id": 957,
   "nodes": [
     {
       "id": 152,
@@ -22,9 +22,6 @@
         {
           "name": "text",
           "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
           "link": 920
         }
       ],
@@ -42,7 +39,6 @@
       },
       "widgets_values": [
         "",
-        "****** WarpedSamplerCustomAdv: Total Images Generated 129 ******",
         [
           false,
           true
@@ -108,7 +104,6 @@
       "outputs": [
         {
           "name": "CONDITIONING",
-          "shape": 3,
           "type": "CONDITIONING",
           "slot_index": 0,
           "links": [
@@ -147,9 +142,6 @@
         {
           "name": "text",
           "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
           "link": 939
         }
       ],
@@ -184,7 +176,6 @@
         "Node name for S&R": "Text Find and Replace"
       },
       "widgets_values": [
-        "",
         ", dark skin,",
         ", tanned skin,"
       ]
@@ -220,7 +211,6 @@
       "outputs": [
         {
           "name": "GUIDER",
-          "shape": 3,
           "type": "GUIDER",
           "slot_index": 0,
           "links": [
@@ -339,7 +329,7 @@
           "links": [
             526,
             942,
-            948
+            956
           ]
         }
       ],
@@ -558,18 +548,12 @@
           "name": "prompt1",
           "shape": 7,
           "type": "STRING",
-          "widget": {
-            "name": "prompt1"
-          },
           "link": 933
         },
         {
           "name": "prompt2",
           "shape": 7,
           "type": "STRING",
-          "widget": {
-            "name": "prompt2"
-          },
           "link": 934
         }
       ],
@@ -589,8 +573,6 @@
         "Node name for S&R": "easy promptConcat"
       },
       "widgets_values": [
-        "",
-        "",
         ""
       ],
       "color": "#233",
@@ -834,9 +816,6 @@
         {
           "name": "text",
           "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
           "link": 936
         }
       ],
@@ -871,7 +850,6 @@
         "Node name for S&R": "Text Find and Replace"
       },
       "widgets_values": [
-        "",
         ", censored,",
         ","
       ]
@@ -896,9 +874,6 @@
         {
           "name": "text",
           "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
           "link": 946
         }
       ],
@@ -933,7 +908,6 @@
         "Node name for S&R": "Text Find and Replace"
       },
       "widgets_values": [
-        "",
         ", dark-skinned female,",
         ","
       ]
@@ -958,9 +932,6 @@
         {
           "name": "text",
           "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
           "link": 938
         }
       ],
@@ -995,7 +966,6 @@
         "Node name for S&R": "Text Find and Replace"
       },
       "widgets_values": [
-        "",
         "1girl,",
         "A video of a beautiful gorgeous stunning young woman who is straddling a man's penis and fucking him cowgirl style,"
       ]
@@ -1020,7 +990,6 @@
       "outputs": [
         {
           "name": "SAMPLER",
-          "shape": 3,
           "type": "SAMPLER",
           "slot_index": 0,
           "links": [
@@ -1101,9 +1070,6 @@
         {
           "name": "text",
           "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
           "link": 945
         }
       ],
@@ -1138,7 +1104,6 @@
         "Node name for S&R": "Text Find and Replace"
       },
       "widgets_values": [
-        "",
         ", small_breasts,",
         ", (((large_breasts:1.3))),"
       ]
@@ -1215,9 +1180,6 @@
         {
           "name": "text",
           "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
           "link": 944
         }
       ],
@@ -1252,61 +1214,8 @@
         "Node name for S&R": "Text Find and Replace"
       },
       "widgets_values": [
-        "",
         ", medium_breasts,",
         ", (((large_breasts:1.3))),"
-      ]
-    },
-    {
-      "id": 258,
-      "type": "HunyuanMultiLoraLoader",
-      "pos": [
-        -482.0614929199219,
-        -28.159400939941406
-      ],
-      "size": [
-        315,
-        322
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 872
-        }
-      ],
-      "outputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "slot_index": 0,
-          "links": [
-            921
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "Hunyuan-Multi-Lora-Loader",
-        "ver": "dd009a9d44b47bfaf01a4ffa38d7098f523e2cce",
-        "Node name for S&R": "HunyuanMultiLoraLoader",
-        "rejects_ue_links": true
-      },
-      "widgets_values": [
-        "Hunyuan\\RsmFunbags2Hy.safetensors",
-        0.75,
-        "all",
-        "Hunyuan\\HYVrewardMPS_epoch40.safetensors",
-        1,
-        "double_blocks",
-        "None",
-        1,
-        "all",
-        "None",
-        1,
-        "all"
       ]
     },
     {
@@ -1403,9 +1312,6 @@
         {
           "name": "text",
           "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
           "link": 935
         }
       ],
@@ -1440,7 +1346,6 @@
         "Node name for S&R": "Text Find and Replace"
       },
       "widgets_values": [
-        "",
         ", black_hair,",
         ", brown_hair,"
       ]
@@ -1465,9 +1370,6 @@
         {
           "name": "text",
           "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
           "link": 903
         }
       ],
@@ -1502,7 +1404,6 @@
         "Node name for S&R": "Text Find and Replace"
       },
       "widgets_values": [
-        "",
         ", blonde_hair,",
         ", brown_hair,"
       ]
@@ -1565,9 +1466,6 @@
         {
           "name": "text",
           "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
           "link": 890
         }
       ],
@@ -1588,7 +1486,6 @@
       },
       "widgets_values": [
         "",
-        "A video of a beautiful gorgeous stunning young woman who is straddling a man's penis and fucking him cowgirl style, long_hair, breasts, looking_at_viewer, brown_hair, hair_ornament, 1boy, navel, brown_eyes, nipples, hetero, nude, (((large_breasts:1.3))), penis, pussy, solo_focus, socks, spread_legs, sex, vaginal, lips, kneehighs, pubic_hair, uncensored, pov, female_pubic_hair, straddling, girl_on_top, realistic, cowgirl sex, sex, vaginal penetration, penis, uncensored, makeup, eyelioner, mascara, lipstick, thin silver pendant necklace, realistic, red nail_polish.",
         [
           false,
           true
@@ -1641,95 +1538,6 @@
         true,
         true
       ]
-    },
-    {
-      "id": 300,
-      "type": "WarpedTeaCache",
-      "pos": [
-        -143.18751525878906,
-        31.289152145385742
-      ],
-      "size": [
-        315,
-        106
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 21,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 948
-        }
-      ],
-      "outputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "links": [
-            949
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-WarpedToolset",
-        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
-        "Node name for S&R": "WarpedTeaCache"
-      },
-      "widgets_values": [
-        "hunyuan_video",
-        0.4,
-        1
-      ],
-      "color": "#323",
-      "bgcolor": "#535"
-    },
-    {
-      "id": 67,
-      "type": "ModelSamplingSD3",
-      "pos": [
-        48.302276611328125,
-        31.061674118041992
-      ],
-      "size": [
-        210,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 23,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 949
-        }
-      ],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "slot_index": 0,
-          "links": [
-            195
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "ModelSamplingSD3"
-      },
-      "widgets_values": [
-        12
-      ],
-      "color": "#222",
-      "bgcolor": "#000"
     },
     {
       "id": 280,
@@ -1800,19 +1608,24 @@
       "inputs": [],
       "outputs": [
         {
-          "name": "VAE",
+          "name": "vae",
           "type": "VAE",
           "links": [
             954,
             955
           ]
+        },
+        {
+          "name": "vae_state_dict",
+          "type": "DICT",
+          "links": null
         }
       ],
       "properties": {
         "cnr_id": "ComfyUI-WarpedToolset",
         "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
-        "widget_ue_connectable": {},
-        "Node name for S&R": "WarpedVAELoader"
+        "Node name for S&R": "WarpedVAELoader",
+        "widget_ue_connectable": {}
       },
       "widgets_values": [
         "hunyuan_video_vae_bf16.safetensors"
@@ -1829,7 +1642,7 @@
       ],
       "size": [
         315,
-        190
+        214
       ],
       "flags": {},
       "order": 8,
@@ -1876,10 +1689,153 @@
         512,
         288,
         "lanczos",
-        "center"
+        "center",
+        false
       ],
       "color": "#323",
       "bgcolor": "#535"
+    },
+    {
+      "id": 67,
+      "type": "ModelSamplingSD3",
+      "pos": [
+        7.041263103485107,
+        41.70968246459961
+      ],
+      "size": [
+        210,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 957
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            195
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "ModelSamplingSD3"
+      },
+      "widgets_values": [
+        12
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 303,
+      "type": "MagCache",
+      "pos": [
+        10.688987731933594,
+        -4.716006278991699
+      ],
+      "size": [
+        270,
+        178
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 21,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 956
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            957
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Zehong-Ma/ComfyUI-MagCache",
+        "ver": "7d4e982bf7955498afca891c7094c48a70985537",
+        "Node name for S&R": "MagCache"
+      },
+      "widgets_values": [
+        "hunyuan_video",
+        0.12000000000000002,
+        0.2,
+        3,
+        0,
+        -1
+      ]
+    },
+    {
+      "id": 258,
+      "type": "HunyuanMultiLoraLoader",
+      "pos": [
+        -482.0614929199219,
+        -28.159400939941406
+      ],
+      "size": [
+        315,
+        322
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 872
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            921
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "Hunyuan-Multi-Lora-Loader",
+        "ver": "dd009a9d44b47bfaf01a4ffa38d7098f523e2cce",
+        "Node name for S&R": "HunyuanMultiLoraLoader",
+        "rejects_ue_links": true
+      },
+      "widgets_values": [
+        "RsmHy\\RsmFunbagsHy.safetensors",
+        0.75,
+        "all",
+        "Hunyuan\\HYVrewardMPS_epoch40.safetensors",
+        1,
+        "double_blocks",
+        "None",
+        1,
+        "all",
+        "None",
+        1,
+        "all"
+      ]
     }
   ],
   "links": [
@@ -2140,22 +2096,6 @@
       "IMAGE"
     ],
     [
-      948,
-      81,
-      0,
-      300,
-      0,
-      "MODEL"
-    ],
-    [
-      949,
-      300,
-      0,
-      67,
-      0,
-      "MODEL"
-    ],
-    [
       950,
       296,
       0,
@@ -2202,6 +2142,22 @@
       195,
       0,
       "*"
+    ],
+    [
+      956,
+      81,
+      0,
+      303,
+      0,
+      "MODEL"
+    ],
+    [
+      957,
+      303,
+      0,
+      67,
+      0,
+      "MODEL"
     ]
   ],
   "groups": [
@@ -2224,14 +2180,14 @@
     "ds": {
       "scale": 0.7513148009015777,
       "offset": [
-        634.8460000000013,
-        -278.78700000000777
+        540.3449999999999,
+        148.46399999999193
       ]
     },
     "groupNodes": {},
     "ue_links": [],
     "VHS_latentpreview": true,
-    "VHS_latentpreviewrate": 10,
+    "VHS_latentpreviewrate": 15,
     "node_versions": {
       "ComfyUI_Custom_Nodes_AlekPet": "7b3d6f190aeca261422bdfb74b5af37937e5bf68",
       "comfy-core": "0.3.26",
@@ -2245,7 +2201,8 @@
       "Hunyuan-Multi-Lora-Loader": "dd009a9d44b47bfaf01a4ffa38d7098f523e2cce"
     },
     "VHS_MetadataImage": true,
-    "VHS_KeepIntermediate": true
+    "VHS_KeepIntermediate": true,
+    "frontendVersion": "1.20.5"
   },
   "version": 0.4
 }
