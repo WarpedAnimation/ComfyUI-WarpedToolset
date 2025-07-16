@@ -6,12 +6,13 @@ NODE_CLASS_MAPPINGS = {
     "WarpedHunyuanLoraMerge": WarpedHunyuanLoraMerge,
     "WarpedHunyuanMultiLoraMixer": WarpedHunyuanMultiLoraMixer,
     "WarpedHunyuanMultiLoraMixerExt": WarpedHunyuanMultiLoraMixerExt,
-    "WarpedHunyuanMultiLoraMixerExt2": WarpedHunyuanMultiLoraMixerExt2,
+    # "WarpedHunyuanMultiLoraMixerExt2": WarpedHunyuanMultiLoraMixerExt2,
     "WarpedHunyuanLoraAvgMerge": WarpedHunyuanLoraAvgMerge,
     "WarpedHunyuanLoraBatchMerge": WarpedHunyuanLoraBatchMerge,
     "WarpedWanLoraMerge": WarpedWanLoraMerge,
     "WarpedSamplerCustomAdv": WarpedSamplerCustomAdv,
     "WarpedSamplerCustomAdvLatent": WarpedSamplerCustomAdvLatent,
+    # "WarpedAdvancedSamplerBatch": WarpedAdvancedSamplerBatch,
     "WarpedFramepackSampler": WarpedFramepackSampler,
     "WarpedCreateSpecialImageBatch": WarpedCreateSpecialImageBatch,
     "WarpedCreateEmptyImageBatch": WarpedCreateEmptyImageBatch,
@@ -48,6 +49,7 @@ NODE_CLASS_MAPPINGS = {
     "WarpedCheckpointLoader": WarpedCheckpointLoader,
     "WarpedReverseImageBatch": WarpedReverseImageBatch,
     "WarpedMultiLoraLoader": WarpedMultiLoraLoader,
+    "WarpedHunyuanImageToVideo": WarpedHunyuanImageToVideo,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -56,12 +58,13 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WarpedHunyuanLoraMerge": "Warped Hunyuan Lora Merge",
     "WarpedHunyuanMultiLoraMixer": "Warped Hunyuan Multi Lora Mixer",
     "WarpedHunyuanMultiLoraMixerExt": "Warped Hunyuan Multi Lora Mixer Ext",
-    "WarpedHunyuanMultiLoraMixerExt2": "Warped Hunyuan Multi Lora Mixer Ext 2",
+    # "WarpedHunyuanMultiLoraMixerExt2": "Warped Hunyuan Multi Lora Mixer Ext 2",
     "WarpedHunyuanLoraAvgMerge": "Warped Hunyuan Lora Avg Merge",
     "WarpedHunyuanLoraBatchMerge": "Warped Hunyuan Lora Batch Merge",
     "WarpedWanLoraMerge": "Warped Wan Lora Merge",
     "WarpedSamplerCustomAdv": "Warped Sampler Custom Advanced (Image)",
     "WarpedSamplerCustomAdvLatent": "Warped Sampler Custom Advanced (Latent)",
+    # "WarpedAdvancedSamplerBatch": "Warped Advanced Sampler Batch",
     "WarpedFramepackSampler": "Warped Framepack Sampler",
     "WarpedCreateSpecialImageBatch": "Warped Create Special Image Batch",
     "WarpedCreateEmptyImageBatch": "Warped Create Empty Image Batch",
@@ -98,6 +101,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WarpedCheckpointLoader": "Warped Checkpoint Loader",
     "WarpedReverseImageBatch": "Warped Reverse Image Batch",
     "WarpedMultiLoraLoader": "Warped Multi Lora Loader",
+    "WarpedHunyuanImageToVideo": "Warped Hunyuan Image To Video",
 }
 
 WEB_DIRECTORY = "./web"
