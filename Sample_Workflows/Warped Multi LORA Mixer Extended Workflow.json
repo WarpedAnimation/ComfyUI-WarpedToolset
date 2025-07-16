@@ -1,19 +1,19 @@
 {
   "id": "00000000-0000-0000-0000-000000000000",
   "revision": 0,
-  "last_node_id": 1,
+  "last_node_id": 2,
   "last_link_id": 0,
   "nodes": [
     {
-      "id": 1,
+      "id": 2,
       "type": "WarpedHunyuanMultiLoraMixerExt",
       "pos": [
-        708,
-        225
+        496.5042419433594,
+        196.2649383544922
       ],
       "size": [
-        441,
-        562
+        515.6026000976562,
+        639.281982421875
       ],
       "flags": {},
       "order": 0,
@@ -21,12 +21,12 @@
       "inputs": [],
       "outputs": [],
       "properties": {
-        "cnr_id": "ComfyUI-WarpedToolset",
-        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.0",
         "Node name for S&R": "WarpedHunyuanMultiLoraMixerExt"
       },
       "widgets_values": [
-        "M:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\MergedHunyuanLoras",
+        "N:\\Projects\\ComfyUI_windows_portable\\ComfyUI\\output\\MergedHunyuanLoras",
         "new_model_hy",
         0,
         "randomize",
@@ -47,7 +47,9 @@
         1,
         "None",
         1,
-        true
+        true,
+        "diffusion_model",
+        32
       ],
       "color": "#323",
       "bgcolor": "#535"
@@ -66,9 +68,10 @@
     },
     "ue_links": [],
     "VHS_latentpreview": true,
-    "VHS_latentpreviewrate": 10,
+    "VHS_latentpreviewrate": 15,
     "VHS_MetadataImage": true,
-    "VHS_KeepIntermediate": true
+    "VHS_KeepIntermediate": true,
+    "frontendVersion": "1.20.5"
   },
   "version": 0.4
 }

@@ -1,3 +1,4 @@
 accelerate
 safetensors
 peft
+einops

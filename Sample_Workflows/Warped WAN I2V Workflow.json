@@ -1,8 +1,8 @@
 {
   "id": "2fac44f1-8935-4d17-8233-fe2dcaee9ba8",
   "revision": 0,
-  "last_node_id": 139,
-  "last_link_id": 295,
+  "last_node_id": 140,
+  "last_link_id": 296,
   "nodes": [
     {
       "id": 38,
@@ -13,7 +13,7 @@
       ],
       "size": [
         376.05950927734375,
-        100.8628921508789
+        106
       ],
       "flags": {},
       "order": 0,
@@ -86,7 +86,7 @@
         90.64099884033203
       ],
       "flags": {},
-      "order": 10,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
@@ -209,7 +209,7 @@
         134.78460693359375
       ],
       "flags": {},
-      "order": 6,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
@@ -304,7 +304,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 8,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -346,7 +346,7 @@
         284.9806823730469
       ],
       "flags": {},
-      "order": 9,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -377,48 +377,6 @@
       ],
       "color": "#232",
       "bgcolor": "#353"
-    },
-    {
-      "id": 110,
-      "type": "ModelSamplingSD3",
-      "pos": [
-        195.28842163085938,
-        -359.64794921875
-      ],
-      "size": [
-        315,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 18,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 262
-        }
-      ],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "slot_index": 0,
-          "links": [
-            259
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "ModelSamplingSD3"
-      },
-      "widgets_values": [
-        12
-      ]
     },
     {
       "id": 109,
@@ -480,7 +438,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 15,
+      "order": 17,
       "mode": 0,
       "inputs": [
         {
@@ -605,52 +563,6 @@
       "bgcolor": "#335"
     },
     {
-      "id": 133,
-      "type": "WarpedTeaCache",
-      "pos": [
-        3.7849433422088623,
-        -360.75299072265625
-      ],
-      "size": [
-        315,
-        106
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 17,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 274
-        }
-      ],
-      "outputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "slot_index": 0,
-          "links": [
-            262
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-WarpedToolset",
-        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
-        "Node name for S&R": "WarpedTeaCache"
-      },
-      "widgets_values": [
-        "wan2.1_i2v_720p_14B",
-        0.4,
-        1
-      ],
-      "color": "#323",
-      "bgcolor": "#535"
-    },
-    {
       "id": 135,
       "type": "WanVideoEnhanceAVideoKJ",
       "pos": [
@@ -664,7 +576,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 16,
+      "order": 18,
       "mode": 0,
       "inputs": [
         {
@@ -683,9 +595,7 @@
           "name": "model",
           "type": "MODEL",
           "slot_index": 0,
-          "links": [
-            274
-          ]
+          "links": []
         }
       ],
       "properties": {
@@ -753,7 +663,7 @@
         517.2369384765625
       ],
       "flags": {},
-      "order": 12,
+      "order": 14,
       "mode": 0,
       "inputs": [
         {
@@ -782,7 +692,7 @@
         126
       ],
       "flags": {},
-      "order": 11,
+      "order": 13,
       "mode": 0,
       "inputs": [
         {
@@ -832,10 +742,10 @@
       ],
       "size": [
         315,
-        190
+        214
       ],
       "flags": {},
-      "order": 7,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -883,7 +793,8 @@
         400,
         720,
         "lanczos",
-        "center"
+        "center",
+        false
       ],
       "color": "#323",
       "bgcolor": "#535"
@@ -902,7 +813,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 13,
+      "order": 15,
       "mode": 0,
       "inputs": [
         {
@@ -947,7 +858,7 @@
         250
       ],
       "flags": {},
-      "order": 14,
+      "order": 16,
       "mode": 0,
       "inputs": [
         {
@@ -984,14 +895,6 @@
             "name": "width"
           },
           "link": 285
-        },
-        {
-          "name": "height",
-          "type": "INT",
-          "widget": {
-            "name": "height"
-          },
-          "link": null
         },
         {
           "name": "height",
@@ -1068,7 +971,7 @@
       "inputs": [],
       "outputs": [
         {
-          "name": "CLIP_VISION",
+          "name": "clip_vision",
           "type": "CLIP_VISION",
           "links": [
             289
@@ -1078,8 +981,8 @@
       "properties": {
         "cnr_id": "ComfyUI-WarpedToolset",
         "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
-        "widget_ue_connectable": {},
-        "Node name for S&R": "WarpedCLIPVisionLoader"
+        "Node name for S&R": "WarpedCLIPVisionLoader",
+        "widget_ue_connectable": {}
       },
       "widgets_values": [
         "clip_vision_h_fp8_e4m3fn.safetensors"
@@ -1106,25 +1009,118 @@
       "inputs": [],
       "outputs": [
         {
-          "name": "VAE",
+          "name": "vae",
           "type": "VAE",
           "links": [
             290,
             291
           ]
+        },
+        {
+          "name": "vae_state_dict",
+          "type": "DICT",
+          "links": null
         }
       ],
       "properties": {
         "cnr_id": "ComfyUI-WarpedToolset",
         "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
-        "widget_ue_connectable": {},
-        "Node name for S&R": "WarpedVAELoader"
+        "Node name for S&R": "WarpedVAELoader",
+        "widget_ue_connectable": {}
       },
       "widgets_values": [
         "wan_2.1_vae_fp8_e4m3fn.safetensors"
       ],
       "color": "#323",
       "bgcolor": "#535"
+    },
+    {
+      "id": 140,
+      "type": "MagCache",
+      "pos": [
+        -13.26900863647461,
+        -361.42431640625
+      ],
+      "size": [
+        270,
+        178
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            296
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Zehong-Ma/ComfyUI-MagCache",
+        "ver": "7d4e982bf7955498afca891c7094c48a70985537",
+        "Node name for S&R": "MagCache"
+      },
+      "widgets_values": [
+        "wan2.1_i2v_720p_14B",
+        0.12000000000000002,
+        0.2,
+        3,
+        0,
+        -1
+      ]
+    },
+    {
+      "id": 110,
+      "type": "ModelSamplingSD3",
+      "pos": [
+        189.9645538330078,
+        -359.64776611328125
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 296
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            259
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "ModelSamplingSD3"
+      },
+      "widgets_values": [
+        12
+      ]
     }
   ],
   "links": [
@@ -1185,14 +1181,6 @@
       "MODEL"
     ],
     [
-      262,
-      133,
-      0,
-      110,
-      0,
-      "MODEL"
-    ],
-    [
       263,
       6,
       0,
@@ -1245,14 +1233,6 @@
       116,
       0,
       135,
-      0,
-      "MODEL"
-    ],
-    [
-      274,
-      135,
-      0,
-      133,
       0,
       "MODEL"
     ],
@@ -1341,7 +1321,7 @@
       137,
       3,
       134,
-      7,
+      6,
       "INT"
     ],
     [
@@ -1383,6 +1363,14 @@
       134,
       2,
       "VAE"
+    ],
+    [
+      296,
+      140,
+      0,
+      110,
+      0,
+      "MODEL"
     ]
   ],
   "groups": [],
@@ -1391,10 +1379,11 @@
     "ds": {
       "scale": 0.7513148009015777,
       "offset": [
-        158.34800000000385,
-        168.428999999993
+        159.67900000000375,
+        451.9319999999936
       ]
     },
+    "frontendVersion": "1.20.5",
     "node_versions": {
       "comfyui-easy-use": "1.2.7",
       "comfy-core": "0.3.26",
@@ -1405,7 +1394,7 @@
     },
     "ue_links": [],
     "VHS_latentpreview": true,
-    "VHS_latentpreviewrate": 10,
+    "VHS_latentpreviewrate": 15,
     "VHS_MetadataImage": true,
     "VHS_KeepIntermediate": true
   },

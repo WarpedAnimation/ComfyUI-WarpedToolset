@@ -23,7 +23,6 @@ def get_flux_sigmas_from_mu(n, mu):
     sigmas = flux_time_shift(sigmas, mu=mu)
     return sigmas
 
-
 @torch.inference_mode()
 def sample_hunyuan2(
         transformer,

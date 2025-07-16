@@ -61,11 +61,22 @@ from .diffusers_helper.k_diffusion_hunyuan import sample_hunyuan, sample_hunyuan
 from .diffusers_helper.utils import crop_or_pad_yield_mask, soft_append_bcthw
 import math
 
+import threading
+import copy
+
+import safetensors
+import einops
+
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 ALLOWED_VIDEO_EXT = ('mp4', 'flv', 'mov', 'avi', 'mpg', 'webm', 'mkv')
+
+class VideoGenerationType(Enum):
+    T2V = "t2v"
+    I2V = "i2v"
+    V2V = "v2v"
 
 def get_offload_device():
     return torch.device("cpu")
@@ -86,7 +97,6 @@ def pil2tensorSwap(image: Union[Image.Image, List[Image.Image]], device=None) ->
             return torch.cat([pil2tensor(img) for img in image], dim=0)
 
         new_tensor = torch.cat([pil2tensor(img, device=device) for img in image], dim=0)
-        # new_tensor = new_tensor.to(get_offload_device())
 
         return new_tensor
 
@@ -94,7 +104,6 @@ def pil2tensorSwap(image: Union[Image.Image, List[Image.Image]], device=None) ->
         return torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0)
 
     new_tensor = torch.from_numpy(np.array(image).astype(np.float32) / 255.0).to(device).unsqueeze(0)
-    # new_tensor = new_tensor.to(get_offload_device())
 
     return new_tensor
 
@@ -122,12 +131,24 @@ def get_lora_list():
 
     return templist
 
+def get_default_gen_output_path():
+    default_path = "{}\\MyLoras\\new_lora_hy.safetensors".format(folder_paths.output_directory)
+    return default_path
+
+def get_default_pt_st_output_folder():
+    default_path = "{}\\pt_conversions".format(folder_paths.output_directory)
+    return default_path
+
 def get_default_output_path():
     default_path = "{}\\MergedHunyuanLoras\\new_lora_hy.safetensors".format(folder_paths.output_directory)
     return default_path
 
 def get_default_output_folder():
     default_folder = "{}\\MergedHunyuanLoras".format(folder_paths.output_directory)
+    return default_folder
+
+def get_default_xl_output_folder():
+    default_folder = "{}\\MergedXLLoras".format(folder_paths.output_directory)
     return default_folder
 
 def get_default_wan_output_path():
@@ -247,6 +268,123 @@ def partial_decode_tiled(vae, latents, tile_size, overlap=64, temporal_size=64, 
 
     return images
 
+def convert_key_format(key: str) -> str:
+    """Standardize LoRA key format by removing prefixes."""
+    prefixes = ["diffusion_model.", "transformer."]
+    for prefix in prefixes:
+        if key.startswith(prefix):
+            key = key[len(prefix):]
+            break
+    return key
+
+def filter_lora_keys(lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
+    """Filter LoRA weights based on block type."""
+    if blocks_type == "all":
+        return lora
+    filtered_lora = {}
+    for key, value in lora.items():
+        base_key = convert_key_format(key)
+        if blocks_type in base_key:
+            filtered_lora[key] = value
+    return filtered_lora
+
+def check_for_musubi(lora: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    """Checks for and converts from Musubi Tuner format which supports Network Alpha and uses different naming. Largely copied from that project"""
+    prefix = "lora_unet_"
+    musubi = False
+    lora_alphas = {}
+    for key, value in lora.items():
+        if key.startswith(prefix):
+            lora_name = key.split(".", 1)[0]  # before first dot
+            if lora_name not in lora_alphas and "alpha" in key:
+                lora_alphas[lora_name] = value
+                musubi = True
+    if musubi:
+        print("Loading Musubi Tuner format LoRA...")
+        converted_lora = {}
+        for key, weight in lora.items():
+            if key.startswith(prefix):
+                if "alpha" in key:
+                    continue
+            lora_name = key.split(".", 1)[0]  # before first dot
+            # HunyuanVideo lora name to module name: ugly but works
+            module_name = lora_name[len(prefix) :]  # remove "lora_unet_"
+            module_name = module_name.replace("_", ".")  # replace "_" with "."
+            module_name = module_name.replace("double.blocks.", "double_blocks.")  # fix double blocks
+            module_name = module_name.replace("single.blocks.", "single_blocks.")  # fix single blocks
+            module_name = module_name.replace("img.", "img_")  # fix img
+            module_name = module_name.replace("txt.", "txt_")  # fix txt
+            module_name = module_name.replace("attn.", "attn_")  # fix attn
+            diffusers_prefix = "diffusion_model"
+            if "lora_down" in key:
+                new_key = f"{diffusers_prefix}.{module_name}.lora_A.weight"
+                dim = weight.shape[0]
+            elif "lora_up" in key:
+                new_key = f"{diffusers_prefix}.{module_name}.lora_B.weight"
+                dim = weight.shape[1]
+            else:
+                print(f"unexpected key: {key} in Musubi LoRA format")
+                continue
+            # scale weight by alpha
+            if lora_name in lora_alphas:
+                # we scale both down and up, so scale is sqrt
+                scale = lora_alphas[lora_name] / dim
+                scale = scale.sqrt()
+                weight = weight * scale
+            else:
+                print(f"missing alpha for {lora_name}")
+
+            converted_lora[new_key] = weight
+        return converted_lora
+    else:
+        print("Loading Diffusers format LoRA...")
+        return lora
+
+def convert_lora(lora, convert_to="diffusion_model"):
+    # Load the LoRA weights
+    temp_lora = check_for_musubi(lora)
+
+    new_lora = {}
+
+    for key in lora.keys():
+        if convert_to in key:
+            new_lora = lora
+            break
+
+        if key.startswith("transformer.") and (convert_to == "diffusion_model"):
+            new_key = key.replace("transformer.", "diffusion_model.")
+            new_lora[new_key] = lora[key]
+            continue
+
+        if key.startswith("diffusion_model.") and  (convert_to == "transformer"):
+            new_key = key.replace("diffusion_model.", "transformer.")
+            new_lora[new_key] = lora[key]
+            continue
+
+        if key.startswith("lora_unet_"):
+            new_key = key.replace("lora_unet_", "{}.".format(convert_to))
+
+            if "double" in new_key:
+                new_key = new_key.replace("double_blocks_", "double_blocks.")
+                new_key = new_key.replace("_img_attn", ".img_attn")
+                new_key = new_key.replace("_img_mlp", ".img_mlp")
+                new_key = new_key.replace("_txt_attn", ".txt_attn")
+                new_key = new_key.replace("_txt_mlp", ".txt_mlp")
+                new_key = new_key.replace(".lora_up.", ".lora_A.")
+                new_key = new_key.replace(".lora_down.", ".lora_B.")
+
+                continue
+
+            if "single" in new_key:
+                new_key = new_key.replace("single_blocks_", "single_blocks.")
+                new_key = new_key.replace("_linear", ".linear")
+                new_key = new_key.replace(".lora_up.", ".lora_A.")
+                new_key = new_key.replace(".lora_down.", ".lora_B.")
+
+                continue
+
+    return new_lora
+
 class HyVideoModel(comfy.model_base.BaseModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -259,7 +397,6 @@ class HyVideoModel(comfy.model_base.BaseModel):
     def __setitem__(self, k, v):
         self.pipeline[k] = v
 
-
 class HyVideoModelConfig:
     def __init__(self, dtype):
         self.unet_config = {}
@@ -270,32 +407,6 @@ class HyVideoModelConfig:
         self.sampling_settings = {"multiplier": 1.0}
         self.memory_usage_factor = 2.0
         self.unet_config["disable_unet_model_creation"] = True
-
-# def partial_decode_tiled(vae, latents, tile_size, overlap=64, temporal_size=64, temporal_overlap=8, unload_after=True):
-#     if tile_size < overlap * 4:
-#         overlap = tile_size // 4
-#     if temporal_size < temporal_overlap * 2:
-#         temporal_overlap = temporal_overlap // 2
-#     temporal_compression = vae.temporal_compression_decode()
-#     if temporal_compression is not None:
-#         temporal_size = max(2, temporal_size // temporal_compression)
-#         temporal_overlap = max(1, min(temporal_size // 2, temporal_overlap // temporal_compression))
-#     else:
-#         temporal_size = None
-#         temporal_overlap = None
-#
-#     compression = vae.spacial_compression_decode()
-#     images = vae.decode_tiled(latents, tile_x=tile_size // compression, tile_y=tile_size // compression, overlap=overlap // compression, tile_t=temporal_size, overlap_t=temporal_overlap)
-#     if len(images.shape) == 5: #Combine batches
-#         images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
-#
-#     if unload_after:
-#         mm.unload_all_models()
-#         mm.soft_empty_cache()
-#         gc.collect()
-#         time.sleep(1)
-#
-#     return images
 
 def warped_prepare_noise(latent_image, seed, generator=None):
     """
@@ -351,28 +462,8 @@ class WarpedHunyuanLoraMerge:
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (True,)
     FUNCTION = "merge_multiple_loras"
-    CATEGORY = "Warped/HunyuanTools"
+    CATEGORY = "Warped/Hunyuan/Merge"
     DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
-
-    def convert_key_format(self, key: str) -> str:
-        """Standardize LoRA key format by removing prefixes."""
-        prefixes = ["diffusion_model.", "transformer."]
-        for prefix in prefixes:
-            if key.startswith(prefix):
-                key = key[len(prefix):]
-                break
-        return key
-
-    def filter_lora_keys(self, lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
-        """Filter LoRA weights based on block type."""
-        if blocks_type == "all":
-            return lora
-        filtered_lora = {}
-        for key, value in lora.items():
-            base_key = self.convert_key_format(key)
-            if blocks_type in base_key:
-                filtered_lora[key] = value
-        return filtered_lora
 
     def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         """Load and filter a single LoRA model."""
@@ -387,10 +478,7 @@ class WarpedHunyuanLoraMerge:
         # Load the LoRA weights
         lora_weights = utils.load_torch_file(lora_path)
 
-        # Filter the LoRA weights based on the block type
-        filtered_lora = self.filter_lora_keys(lora_weights, blocks_type)
-
-        return lora_weights, filtered_lora
+        return lora_weights
 
     def merge_multiple_loras(self, save_path, lora_1, strength_1, blocks_type_1, lora_2, strength_2, blocks_type_2, save_metadata=True):
         """Load and apply multiple LoRA models."""
@@ -401,12 +489,16 @@ class WarpedHunyuanLoraMerge:
 
         if lora_1 != "None" and strength_1 != 0:
             # Load and filter the LoRA weights
-            lora_weights, filtered_lora = self.load_lora(lora_1, 1.0, blocks_type_1)
+            lora_weights = self.load_lora(lora_1, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+            filtered_lora = filter_lora_keys(lora_weights, blocks_type_1)
             temp_loras["1"] = {"lora_weights": lora_weights, "strength": strength_1, "filtered_lora": filtered_lora}
 
         if lora_2 != "None" and strength_2 != 0:
             # Load and filter the LoRA weights
-            lora_weights, filtered_lora = self.load_lora(lora_2, 1.0, blocks_type_2)
+            lora_weights = self.load_lora(lora_2, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+            filtered_lora = filter_lora_keys(lora_weights, blocks_type_2)
             temp_loras["2"] = {"lora_weights": lora_weights, "strength": strength_2, "filtered_lora": filtered_lora}
 
         loras = {}
@@ -426,21 +518,12 @@ class WarpedHunyuanLoraMerge:
                     new_lora[key] = None
                 print("Lora: {}  | Key: {}  |  Shape: {}".format(lora_key, key, loras[lora_key]["lora_weights"][key].shape))
 
-        # print_it = True
-        #
-        # i = 0
-
         # Merge The Weighted Key Weights
         for key in new_lora.keys():
             for lora_key in loras.keys():
                 if key in loras[lora_key]["lora_weights"].keys():
                     if not new_lora[key] is None:
                         temp_weights = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
-
-                        # if print_it:
-                        #     print("\n--------------------------------------------------------------------")
-                        #     print("Before: New Lora Shape: {}  |  Temp Weights Shape: {}".format(new_lora[key].shape, temp_weights.shape))
-                        #     print("--------------------------------------------------------------------\n")
 
                         if new_lora[key].shape[0] < new_lora[key].shape[1]:
                             if temp_weights.shape[0] < new_lora[key].shape[0]:
@@ -474,20 +557,7 @@ class WarpedHunyuanLoraMerge:
                                 new_lora[key] = padding
 
                         try:
-                            # new_lora[key] = ((new_lora[key] + temp_weights) / 2.0)
                             new_lora[key] = torch.add(new_lora[key], temp_weights)
-
-                            # if print_it:
-                            #     if (i + 1) >= 10:
-                            #         print_it = False
-                            #
-                            #     i += 1
-                            #     print("\n--------------------------------------------------------------------")
-                            #     print("After: New Lora Shape: {}".format(new_lora[key].shape))
-                            #     print("--------------------------------------------------------------------\n")
-                                # print("\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-                                # print("After: New Lora Key Tensor: {}".format(new_lora[key]))
-                                # print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
                         except Exception as e:
                             raise(e)
                     else:
@@ -532,28 +602,8 @@ class WarpedHunyuanMultiLoraMerge:
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (True,)
     FUNCTION = "merge_multiple_loras"
-    CATEGORY = "Warped/HunyuanTools"
+    CATEGORY = "Warped/Hunyuan/Merge"
     DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
-
-    def convert_key_format(self, key: str) -> str:
-        """Standardize LoRA key format by removing prefixes."""
-        prefixes = ["diffusion_model.", "transformer."]
-        for prefix in prefixes:
-            if key.startswith(prefix):
-                key = key[len(prefix):]
-                break
-        return key
-
-    def filter_lora_keys(self, lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
-        """Filter LoRA weights based on block type."""
-        if blocks_type == "all":
-            return lora
-        filtered_lora = {}
-        for key, value in lora.items():
-            base_key = self.convert_key_format(key)
-            if blocks_type in base_key:
-                filtered_lora[key] = value
-        return filtered_lora
 
     def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         """Load and filter a single LoRA model."""
@@ -568,10 +618,7 @@ class WarpedHunyuanMultiLoraMerge:
         # Load the LoRA weights
         lora_weights = utils.load_torch_file(lora_path)
 
-        # Filter the LoRA weights based on the block type
-        filtered_lora = self.filter_lora_keys(lora_weights, blocks_type)
-
-        return lora_weights, filtered_lora
+        return lora_weights
 
     def merge_multiple_loras(self, save_path, lora_1, strength_1, blocks_type_1, lora_2, strength_2, blocks_type_2, lora_3, strength_3, blocks_type_3, lora_4, strength_4, blocks_type_4, save_metadata=True):
         temp_loras = {}
@@ -581,22 +628,30 @@ class WarpedHunyuanMultiLoraMerge:
 
         if lora_1 != "None" and strength_1 != 0:
             # Load and filter the LoRA weights
-            lora_weights, filtered_lora = self.load_lora(lora_1, 1.0, blocks_type_1)
+            lora_weights = self.load_lora(lora_1, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+            filtered_lora = filter_lora_keys(lora_weights, blocks_type_1)
             temp_loras["1"] = {"lora_weights": lora_weights, "strength": strength_1, "filtered_lora": filtered_lora}
 
         if lora_2 != "None" and strength_2 != 0:
             # Load and filter the LoRA weights
-            lora_weights, filtered_lora = self.load_lora(lora_2, 1.0, blocks_type_2)
+            lora_weights = self.load_lora(lora_2, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+            filtered_lora = filter_lora_keys(lora_weights, blocks_type_2)
             temp_loras["2"] = {"lora_weights": lora_weights, "strength": strength_2, "filtered_lora": filtered_lora}
 
         if lora_3 != "None" and strength_3 != 0:
             # Load and filter the LoRA weights
-            lora_weights, filtered_lora = self.load_lora(lora_3, 1.0, blocks_type_3)
+            lora_weights = self.load_lora(lora_3, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+            filtered_lora = filter_lora_keys(lora_weights, blocks_type_3)
             temp_loras["3"] = {"lora_weights": lora_weights, "strength": strength_3, "filtered_lora": filtered_lora}
 
         if lora_4 != "None" and strength_4 != 0:
             # Load and filter the LoRA weights
-            lora_weights, filtered_lora = self.load_lora(lora_4, 1.0, blocks_type_4)
+            lora_weights = self.load_lora(lora_4, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+            filtered_lora = filter_lora_keys(lora_weights, blocks_type_4)
             temp_loras["4"] = {"lora_weights": lora_weights, "strength": strength_4, "filtered_lora": filtered_lora}
 
         loras = {}
@@ -616,21 +671,12 @@ class WarpedHunyuanMultiLoraMerge:
                     new_lora[key] = None
                 print("Lora: {}  | Key: {}".format(lora_key, key))
 
-        # print_it = True
-        #
-        # i = 0
-
         # Merge The Weighted Key Weights
         for key in new_lora.keys():
             for lora_key in loras.keys():
                 if key in loras[lora_key]["lora_weights"].keys():
                     if not new_lora[key] is None:
                         temp_weights = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
-
-                        # if print_it:
-                        #     print("\n--------------------------------------------------------------------")
-                        #     print("Before: New Lora Shape: {}  |  Temp Weights Shape: {}".format(new_lora[key].shape, temp_weights.shape))
-                        #     print("--------------------------------------------------------------------\n")
 
                         if new_lora[key].shape[0] < new_lora[key].shape[1]:
                             if temp_weights.shape[0] < new_lora[key].shape[0]:
@@ -690,10 +736,8 @@ class WarpedHunyuanLoraAvgMerge:
             "required": {
                 "save_path": ("STRING", {"default": get_default_output_path()}),
                 "lora_1": (['None'] + get_lora_list(),),
-                # "strength_1": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                 "blocks_type_1": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
                 "lora_2": (['None'] + get_lora_list(),),
-                # "strength_2": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                 "blocks_type_2": (["all", "single_blocks", "double_blocks"], {"default": "all"}),
                 "save_metadata": ("BOOLEAN", {"default": True}),
             },
@@ -703,28 +747,8 @@ class WarpedHunyuanLoraAvgMerge:
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (True,)
     FUNCTION = "merge_multiple_loras"
-    CATEGORY = "Warped/HunyuanTools"
+    CATEGORY = "Warped/Hunyuan/Merge"
     DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
-
-    def convert_key_format(self, key: str) -> str:
-        """Standardize LoRA key format by removing prefixes."""
-        prefixes = ["diffusion_model.", "transformer."]
-        for prefix in prefixes:
-            if key.startswith(prefix):
-                key = key[len(prefix):]
-                break
-        return key
-
-    def filter_lora_keys(self, lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
-        """Filter LoRA weights based on block type."""
-        if blocks_type == "all":
-            return lora
-        filtered_lora = {}
-        for key, value in lora.items():
-            base_key = self.convert_key_format(key)
-            if blocks_type in base_key:
-                filtered_lora[key] = value
-        return filtered_lora
 
     def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         """Load and filter a single LoRA model."""
@@ -739,10 +763,7 @@ class WarpedHunyuanLoraAvgMerge:
         # Load the LoRA weights
         lora_weights = utils.load_torch_file(lora_path)
 
-        # Filter the LoRA weights based on the block type
-        filtered_lora = self.filter_lora_keys(lora_weights, blocks_type)
-
-        return lora_weights, filtered_lora
+        return lora_weights
 
     def merge_multiple_loras(self, save_path, lora_1, blocks_type_1, lora_2, blocks_type_2, save_metadata=True):
         """Load and apply multiple LoRA models."""
@@ -754,12 +775,16 @@ class WarpedHunyuanLoraAvgMerge:
 
         if lora_1 != "None":
             # Load and filter the LoRA weights
-            lora_weights, filtered_lora = self.load_lora(lora_1, 1.0, blocks_type_1)
+            lora_weights = self.load_lora(lora_1, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+            filtered_lora = filter_lora_keys(lora_weights, blocks_type_1)
             temp_loras["1"] = {"lora_weights": lora_weights, "strength": strength, "filtered_lora": filtered_lora}
 
         if lora_2 != "None":
             # Load and filter the LoRA weights
-            lora_weights, filtered_lora = self.load_lora(lora_2, 1.0, blocks_type_2)
+            lora_weights = self.load_lora(lora_2, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+            filtered_lora = filter_lora_keys(lora_weights, blocks_type_2)
             temp_loras["2"] = {"lora_weights": lora_weights, "strength": strength, "filtered_lora": filtered_lora}
 
         loras = {}
@@ -860,28 +885,8 @@ class WarpedHunyuanMultiLoraAvgMerge:
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (True,)
     FUNCTION = "merge_multiple_loras"
-    CATEGORY = "Warped/HunyuanTools"
+    CATEGORY = "Warped/Hunyuan/Merge"
     DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
-
-    def convert_key_format(self, key: str) -> str:
-        """Standardize LoRA key format by removing prefixes."""
-        prefixes = ["diffusion_model.", "transformer."]
-        for prefix in prefixes:
-            if key.startswith(prefix):
-                key = key[len(prefix):]
-                break
-        return key
-
-    def filter_lora_keys(self, lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
-        """Filter LoRA weights based on block type."""
-        if blocks_type == "all":
-            return lora
-        filtered_lora = {}
-        for key, value in lora.items():
-            base_key = self.convert_key_format(key)
-            if blocks_type in base_key:
-                filtered_lora[key] = value
-        return filtered_lora
 
     def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         """Load and filter a single LoRA model."""
@@ -896,10 +901,7 @@ class WarpedHunyuanMultiLoraAvgMerge:
         # Load the LoRA weights
         lora_weights = utils.load_torch_file(lora_path)
 
-        # Filter the LoRA weights based on the block type
-        filtered_lora = self.filter_lora_keys(lora_weights, blocks_type)
-
-        return lora_weights, filtered_lora
+        return lora_weights
 
     def merge_multiple_loras(self, save_path, lora_1, blocks_type_1, lora_2, blocks_type_2, lora_3, blocks_type_3, lora_4, blocks_type_4, save_metadata=True):
         strength = 1.0000
@@ -910,22 +912,30 @@ class WarpedHunyuanMultiLoraAvgMerge:
 
         if lora_1 != "None":
             # Load and filter the LoRA weights
-            lora_weights, filtered_lora = self.load_lora(lora_1, 1.0, blocks_type_1)
+            lora_weights = self.load_lora(lora_1, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+            filtered_lora = filter_lora_keys(lora_weights, blocks_type_1)
             temp_loras["1"] = {"lora_weights": lora_weights, "strength": strength, "filtered_lora": filtered_lora}
 
         if lora_2 != "None":
             # Load and filter the LoRA weights
-            lora_weights, filtered_lora = self.load_lora(lora_2, 1.0, blocks_type_2)
+            lora_weights = self.load_lora(lora_2, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+            filtered_lora = filter_lora_keys(lora_weights, blocks_type_2)
             temp_loras["2"] = {"lora_weights": lora_weights, "strength": strength, "filtered_lora": filtered_lora}
 
         if lora_3 != "None":
             # Load and filter the LoRA weights
-            lora_weights, filtered_lora = self.load_lora(lora_3, 1.0, blocks_type_3)
+            lora_weights = self.load_lora(lora_3, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+            filtered_lora = filter_lora_keys(lora_weights, blocks_type_3)
             temp_loras["3"] = {"lora_weights": lora_weights, "strength": strength, "filtered_lora": filtered_lora}
 
         if lora_4 != "None":
             # Load and filter the LoRA weights
-            lora_weights, filtered_lora = self.load_lora(lora_4, 1.0, blocks_type_4)
+            lora_weights = self.load_lora(lora_4, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+            filtered_lora = filter_lora_keys(lora_weights, blocks_type_4)
             temp_loras["4"] = {"lora_weights": lora_weights, "strength": strength, "filtered_lora": filtered_lora}
 
         loras = {}
@@ -1031,7 +1041,7 @@ class WarpedHunyuanMultiLoraMixer:
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (True,)
     FUNCTION = "merge_multiple_loras"
-    CATEGORY = "Warped/HunyuanTools"
+    CATEGORY = "Warped/Hunyuan/Merge"
     DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
 
     def convert_key_format(self, key: str) -> str:
@@ -1134,48 +1144,56 @@ class WarpedHunyuanMultiLoraMixer:
             print(lora_1)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_1, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
             temp_loras["1"] = {"lora_weights": lora_weights}
 
         if lora_2 != "None":
             print(lora_2)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_2, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
             temp_loras["2"] = {"lora_weights": lora_weights}
 
         if lora_3 != "None":
             print(lora_3)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_3, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
             temp_loras["3"] = {"lora_weights": lora_weights}
 
         if lora_4 != "None":
             print(lora_4)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_4, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
             temp_loras["4"] = {"lora_weights": lora_weights}
 
         if lora_5 != "None":
             print(lora_5)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_5, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
             temp_loras["5"] = {"lora_weights": lora_weights}
 
         if lora_6 != "None":
             print(lora_6)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_6, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
             temp_loras["6"] = {"lora_weights": lora_weights}
 
         if lora_7 != "None":
             print(lora_7)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_7, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
             temp_loras["7"] = {"lora_weights": lora_weights}
 
         if lora_8 != "None":
             print(lora_8)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_8, 1.0, "all")
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
             temp_loras["8"] = {"lora_weights": lora_weights}
 
         loras = {}
@@ -1243,6 +1261,302 @@ class WarpedHunyuanMultiLoraMixer:
 
         return {"ui": {"tags": ["save_message"]}}
 
+# class WarpedHunyuanMultiLoraMixerExt:
+#     @classmethod
+#     def INPUT_TYPES(s):
+#         return {
+#             "required": {
+#                 "save_folder": ("STRING", {"default": get_default_output_folder()}),
+#                 "model_prefix": ("STRING", {"default": "new_model_hy"}),
+#                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+#                 "num_output": ("INT", {"default": 1, "min": 1, "max": 100}),
+#                 "lora_1": (['None'] + get_lora_list(),),
+#                 "strength_1": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+#                 "lora_2": (['None'] + get_lora_list(),),
+#                 "strength_2": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+#                 "lora_3": (['None'] + get_lora_list(),),
+#                 "strength_3": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+#                 "lora_4": (['None'] + get_lora_list(),),
+#                 "strength_4": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+#                 "lora_5": (['None'] + get_lora_list(),),
+#                 "strength_5": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+#                 "lora_6": (['None'] + get_lora_list(),),
+#                 "strength_6": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+#                 "lora_7": (['None'] + get_lora_list(),),
+#                 "strength_7": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+#                 "lora_8": (['None'] + get_lora_list(),),
+#                 "strength_8": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+#                 "save_metadata": ("BOOLEAN", {"default": True}),
+#             },
+#         }
+#
+#     RETURN_TYPES = ()
+#     OUTPUT_NODE = True
+#     OUTPUT_IS_LIST = (True,)
+#     FUNCTION = "merge_multiple_loras"
+#     CATEGORY = "Warped/Hunyuan/Merge"
+#     DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
+#
+#     def convert_key_format(self, key: str) -> str:
+#         """Standardize LoRA key format by removing prefixes."""
+#         prefixes = ["diffusion_model.", "transformer."]
+#         for prefix in prefixes:
+#             if key.startswith(prefix):
+#                 key = key[len(prefix):]
+#                 break
+#         return key
+#
+#     def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+#         """Load and filter a single LoRA model."""
+#         if not lora_name or strength == 0:
+#             return {}, {}
+#
+#         # Get the full path to the LoRA file
+#         lora_path = folder_paths.get_full_path("loras", lora_name)
+#         if not os.path.exists(lora_path):
+#             raise ValueError(f"LoRA file not found: {lora_path}")
+#
+#         # Load the LoRA weights
+#         lora_weights = utils.load_torch_file(lora_path)
+#
+#         return lora_weights
+#
+#     def get_random_key(self, keys):
+#         if len(keys) > 0:
+#             random_key = random.randint(0, len(keys) - 1)
+#             # print("Keys: {}  |  Random Key: {}".format(random_key))
+#             return keys[random_key]
+#
+#         return -1
+#
+#     def get_mixtures(self, seed, num_output, lora_keys, block_types):
+#         random.seed(seed)
+#         mixtures = {}
+#
+#         for i in range(num_output):
+#             mixtures["{}".format(i + 1)] = {}
+#
+#         single_block_loras = []
+#         double_block_loras = []
+#
+#         for key in lora_keys:
+#             for mixture_key in mixtures.keys():
+#                 mixtures[mixture_key][key] = {"single": [], "double": []}
+#
+#                 if block_types[key]["has_single_blocks"]:
+#                     single_block_loras.append(int(key))
+#
+#                 if block_types[key]["has_double_blocks"]:
+#                     double_block_loras.append(int(key))
+#
+#         for mixture_key in mixtures.keys():
+#             if len(single_block_loras) > 0:
+#                 for j in range(40):
+#                     random_key = self.get_random_key(single_block_loras)
+#                     temp_key = "{}".format(random_key)
+#                     mixtures[mixture_key][temp_key]["single"].append(j)
+#
+#             if len(double_block_loras) > 0:
+#                 for j in range(20):
+#                     random_key = self.get_random_key(double_block_loras)
+#                     temp_key = "{}".format(random_key)
+#                     mixtures[mixture_key][temp_key]["double"].append(j)
+#
+#             i += 1
+#
+#         print("\nMixtures\n")
+#
+#         block_metadata = ""
+#
+#         for mixture_key in mixtures.keys():
+#             for key in mixtures[mixture_key]:
+#                 print("{} | {}: {}".format(mixture_key, key, mixtures[mixture_key][key]))
+#
+#                 if len(block_metadata) > 0:
+#                     block_metadata = "{}  |  {}".format(block_metadata, "{}: {}: {}".format(mixture_key, key, mixtures[mixture_key][key]))
+#                 else:
+#                     block_metadata = "{}: {}: {}".format(mixture_key, key, mixtures[mixture_key][key])
+#
+#             print("\n")
+#
+#         return mixtures, block_metadata
+#
+#     def determine_lora_block_types(self, loras):
+#         block_types = {}
+#
+#         for lora_key in loras.keys():
+#             block_types[lora_key] = { "has_single_blocks": False, "has_double_blocks": False }
+#
+#             for key in loras[lora_key]["lora_weights"].keys():
+#                 if "single_blocks" in key:
+#                     block_types[lora_key]["has_single_blocks"] = True
+#                 elif "double_blocks" in key:
+#                     block_types[lora_key]["has_double_blocks"] = True
+#
+#                 if block_types[lora_key]["has_single_blocks"] and block_types[lora_key]["has_double_blocks"]:
+#                     break
+#
+#         return block_types
+#
+#     def convert_lora_dimensions(self, max_dimension, lora):
+#         new_lora = {}
+#
+#         for key in lora.keys():
+#             temp_weights = lora[key]
+#
+#             if temp_weights.shape[0] < temp_weights.shape[1]:
+#                 if temp_weights.shape[0] < max_dimension:
+#                     padding = torch.zeros([max_dimension, temp_weights.shape[1]])
+#                     padding[:temp_weights.shape[0],:] = temp_weights
+#                     new_lora[key] = padding
+#                 else:
+#                     new_lora[key] = temp_weights
+#             else:
+#                 if temp_weights.shape[1] < max_dimension:
+#                     padding = torch.zeros([temp_weights.shape[0], max_dimension])
+#                     padding[:,:temp_weights.shape[1]] = temp_weights
+#                     new_lora[key] = padding
+#                 else:
+#                     new_lora[key] = temp_weights
+#         lora = None
+#
+#         return new_lora
+#
+#     def merge_multiple_loras(self, save_folder, model_prefix, seed, num_output, lora_1, strength_1, lora_2, strength_2, lora_3, strength_3, lora_4, strength_4,
+#                             lora_5, strength_5, lora_6, strength_6, lora_7, strength_7, lora_8, strength_8, save_metadata=True):
+#         print("Save_folder: {}".format(save_folder))
+#         os.makedirs(save_folder, exist_ok = True)
+#
+#         temp_loras = {}
+#         metadata = {"loras": "{} and {} and {} and {} and {} and {} and {} and {}".format(lora_1, lora_2, lora_3, lora_4, lora_5, lora_6, lora_7, lora_8)}
+#         metadata["strengths"] = "{} and {} and {} and {} and {} and {} and {} and {}".format(strength_1, strength_2, strength_3, strength_4, strength_5, strength_6, strength_7, strength_8)
+#         metadata["seed"] = "{}".format(seed)
+#         metadata["num_output"] = "{}".format(num_output)
+#
+#         if (lora_1 != "None") and (strength_1 > 0.0):
+#             print(lora_1)
+#             # Load and filter the LoRA weights
+#             lora_weights = self.load_lora(lora_1, 1.0, "all")
+#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+#             temp_loras["1"] = {"lora_weights": lora_weights, "strength": strength_1}
+#
+#         if (lora_2 != "None") and (strength_2 > 0.0):
+#             print(lora_2)
+#             # Load and filter the LoRA weights
+#             lora_weights = self.load_lora(lora_2, 1.0, "all")
+#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+#             temp_loras["2"] = {"lora_weights": lora_weights, "strength": strength_2}
+#
+#         if (lora_3 != "None") and (strength_3 > 0.0):
+#             print(lora_3)
+#             # Load and filter the LoRA weights
+#             lora_weights = self.load_lora(lora_3, 1.0, "all")
+#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+#             temp_loras["3"] = {"lora_weights": lora_weights, "strength": strength_3}
+#
+#         if (lora_4 != "None") and (strength_4 > 0.0):
+#             print(lora_4)
+#             # Load and filter the LoRA weights
+#             lora_weights = self.load_lora(lora_4, 1.0, "all")
+#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+#             temp_loras["4"] = {"lora_weights": lora_weights, "strength": strength_4}
+#
+#         if (lora_5 != "None") and (strength_5 > 0.0):
+#             print(lora_5)
+#             # Load and filter the LoRA weights
+#             lora_weights = self.load_lora(lora_5, 1.0, "all")
+#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+#             temp_loras["5"] = {"lora_weights": lora_weights, "strength": strength_5}
+#
+#         if (lora_6 != "None") and (strength_6 > 0.0):
+#             print(lora_6)
+#             # Load and filter the LoRA weights
+#             lora_weights = self.load_lora(lora_6, 1.0, "all")
+#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+#             temp_loras["6"] = {"lora_weights": lora_weights, "strength": strength_6}
+#
+#         if (lora_7 != "None") and (strength_7 > 0.0):
+#             print(lora_7)
+#             # Load and filter the LoRA weights
+#             lora_weights = self.load_lora(lora_7, 1.0, "all")
+#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+#             temp_loras["7"] = {"lora_weights": lora_weights, "strength": strength_7}
+#
+#         if (lora_8 != "None") and (strength_8 > 0.0):
+#             print(lora_8)
+#             # Load and filter the LoRA weights
+#             lora_weights = self.load_lora(lora_8, 1.0, "all")
+#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+#             temp_loras["8"] = {"lora_weights": lora_weights, "strength": strength_8}
+#
+#         loras = {}
+#         max_dimension = 0
+#
+#         for lora_key in temp_loras.keys():
+#             # print(lora_key)
+#             loras[lora_key] = {"lora_weights": {}, "strength": temp_loras[lora_key]["strength"]}
+#
+#             for key in temp_loras[lora_key]["lora_weights"].keys():
+#                 new_key = key.replace("transformer.", "diffusion_model.")
+#                 loras[lora_key]["lora_weights"][new_key] = temp_loras[lora_key]["lora_weights"][key]
+#
+#                 temp_dimension = min(loras[lora_key]["lora_weights"][new_key].shape[0], loras[lora_key]["lora_weights"][new_key].shape[1])
+#
+#                 if temp_dimension > max_dimension:
+#                     max_dimension = temp_dimension
+#
+#         block_types = self.determine_lora_block_types(loras)
+#         merge_mixtures, block_metadata = self.get_mixtures(seed, num_output, loras.keys(), block_types)
+#
+#         metadata["max_dimension"] = "{}".format(max_dimension)
+#         metadata["block_types"] = "{}".format(block_types)
+#
+#         print("Max Dimension: {}".format(max_dimension))
+#
+#         save_message = ""
+#
+#         for mixture_key in merge_mixtures:
+#             new_lora = {}
+#             output_filename = os.path.join(save_folder, "{}_{:05}.safetensors".format(model_prefix, int(mixture_key)))
+#
+#             metadata["merge_mixture"] = "{}".format(merge_mixtures[mixture_key])
+#             # metadata["block_metadata"] = "{}".format(block_metadata[int(mixture_key)])
+#
+#             for lora_key in loras.keys():
+#                 mixture_single_blocks = merge_mixtures[mixture_key][lora_key]["single"]
+#                 mixture_double_blocks = merge_mixtures[mixture_key][lora_key]["double"]
+#
+#                 for key in loras[lora_key]["lora_weights"].keys():
+#                     temp_strings = str(key).split('.')
+#                     temp_block_num = int(temp_strings[2])
+#
+#                     if temp_strings[1] == "single_blocks":
+#                         if temp_block_num in mixture_single_blocks:
+#                             new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
+#                         continue
+#
+#                     if temp_strings[1] == "double_blocks":
+#                         if temp_block_num in mixture_double_blocks:
+#                             new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
+#
+#             new_lora = self.convert_lora_dimensions(max_dimension, new_lora)
+#
+#             if not save_metadata:
+#                 metadata = None
+#
+#             print("Saving Model To: {}...".format(output_filename))
+#             utils.save_torch_file(new_lora, output_filename, metadata=metadata)
+#             print("Saving Model To: {}...Done.".format(output_filename))
+#
+#             save_message = "{}\n{}".format(save_message, "Weights Saved To: {}".format(output_filename))
+#
+#             new_lora = None
+#             mm.soft_empty_cache()
+#             gc.collect()
+#             time.sleep(1)
+#
+#         return {"ui": {"tags": ["save_message"]}}
+
 class WarpedHunyuanMultiLoraMixerExt:
     @classmethod
     def INPUT_TYPES(s):
@@ -1269,6 +1583,8 @@ class WarpedHunyuanMultiLoraMixerExt:
                 "lora_8": (['None'] + get_lora_list(),),
                 "strength_8": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
                 "save_metadata": ("BOOLEAN", {"default": True}),
+                "convert_to": (["diffusion_model", "transformer"], {"default": "diffusion_model"}),
+                "max_dimension": ([32, 64, 128], {"default": 32}),
             },
         }
 
@@ -1276,17 +1592,8 @@ class WarpedHunyuanMultiLoraMixerExt:
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (True,)
     FUNCTION = "merge_multiple_loras"
-    CATEGORY = "Warped/HunyuanTools"
+    CATEGORY = "Warped/Hunyuan/Merge"
     DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
-
-    def convert_key_format(self, key: str) -> str:
-        """Standardize LoRA key format by removing prefixes."""
-        prefixes = ["diffusion_model.", "transformer."]
-        for prefix in prefixes:
-            if key.startswith(prefix):
-                key = key[len(prefix):]
-                break
-        return key
 
     def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         """Load and filter a single LoRA model."""
@@ -1300,6 +1607,8 @@ class WarpedHunyuanMultiLoraMixerExt:
 
         # Load the LoRA weights
         lora_weights = utils.load_torch_file(lora_path)
+
+        lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
 
         return lora_weights
 
@@ -1387,25 +1696,29 @@ class WarpedHunyuanMultiLoraMixerExt:
             temp_weights = lora[key]
 
             if temp_weights.shape[0] < temp_weights.shape[1]:
-                if temp_weights.shape[0] < max_dimension:
-                    padding = torch.zeros([max_dimension, temp_weights.shape[1]])
+                padding = torch.zeros([max_dimension, temp_weights.shape[1]])
+
+                if temp_weights.shape[0] <= max_dimension:
                     padding[:temp_weights.shape[0],:] = temp_weights
                     new_lora[key] = padding
                 else:
-                    new_lora[key] = temp_weights
+                    padding[:max_dimension,:] = temp_weights[:max_dimension,:]
+                    new_lora[key] = padding
             else:
-                if temp_weights.shape[1] < max_dimension:
-                    padding = torch.zeros([temp_weights.shape[0], max_dimension])
+                padding = torch.zeros([temp_weights.shape[0], max_dimension])
+
+                if temp_weights.shape[1] <= max_dimension:
                     padding[:,:temp_weights.shape[1]] = temp_weights
                     new_lora[key] = padding
                 else:
-                    new_lora[key] = temp_weights
+                    padding[:,:max_dimension] = temp_weights[:,:max_dimension]
+                    new_lora[key] = padding
         lora = None
 
         return new_lora
 
     def merge_multiple_loras(self, save_folder, model_prefix, seed, num_output, lora_1, strength_1, lora_2, strength_2, lora_3, strength_3, lora_4, strength_4,
-                            lora_5, strength_5, lora_6, strength_6, lora_7, strength_7, lora_8, strength_8, save_metadata=True):
+                            lora_5, strength_5, lora_6, strength_6, lora_7, strength_7, lora_8, strength_8, save_metadata=True, convert_to="diffusion_model", max_dimension=32):
         print("Save_folder: {}".format(save_folder))
         os.makedirs(save_folder, exist_ok = True)
 
@@ -1421,11 +1734,23 @@ class WarpedHunyuanMultiLoraMixerExt:
             lora_weights = self.load_lora(lora_1, 1.0, "all")
             temp_loras["1"] = {"lora_weights": lora_weights, "strength": strength_1}
 
+            for key in lora_weights.keys():
+                print("LORA 1: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
+
         if (lora_2 != "None") and (strength_2 > 0.0):
             print(lora_2)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_2, 1.0, "all")
             temp_loras["2"] = {"lora_weights": lora_weights, "strength": strength_2}
+
+            for key in lora_weights.keys():
+                print("LORA 2: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
 
         if (lora_3 != "None") and (strength_3 > 0.0):
             print(lora_3)
@@ -1433,11 +1758,23 @@ class WarpedHunyuanMultiLoraMixerExt:
             lora_weights = self.load_lora(lora_3, 1.0, "all")
             temp_loras["3"] = {"lora_weights": lora_weights, "strength": strength_3}
 
+            for key in lora_weights.keys():
+                print("LORA 3: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
+
         if (lora_4 != "None") and (strength_4 > 0.0):
             print(lora_4)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_4, 1.0, "all")
             temp_loras["4"] = {"lora_weights": lora_weights, "strength": strength_4}
+
+            for key in lora_weights.keys():
+                print("LORA 4: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
 
         if (lora_5 != "None") and (strength_5 > 0.0):
             print(lora_5)
@@ -1445,11 +1782,23 @@ class WarpedHunyuanMultiLoraMixerExt:
             lora_weights = self.load_lora(lora_5, 1.0, "all")
             temp_loras["5"] = {"lora_weights": lora_weights, "strength": strength_5}
 
+            for key in lora_weights.keys():
+                print("LORA 5: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
+
         if (lora_6 != "None") and (strength_6 > 0.0):
             print(lora_6)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_6, 1.0, "all")
             temp_loras["6"] = {"lora_weights": lora_weights, "strength": strength_6}
+
+            for key in lora_weights.keys():
+                print("LORA 6: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
 
         if (lora_7 != "None") and (strength_7 > 0.0):
             print(lora_7)
@@ -1457,27 +1806,32 @@ class WarpedHunyuanMultiLoraMixerExt:
             lora_weights = self.load_lora(lora_7, 1.0, "all")
             temp_loras["7"] = {"lora_weights": lora_weights, "strength": strength_7}
 
+            for key in lora_weights.keys():
+                print("LORA 7: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
+
         if (lora_8 != "None") and (strength_8 > 0.0):
             print(lora_8)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_8, 1.0, "all")
             temp_loras["8"] = {"lora_weights": lora_weights, "strength": strength_8}
 
+            for key in lora_weights.keys():
+                print("LORA 8: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
+
         loras = {}
-        max_dimension = 0
 
         for lora_key in temp_loras.keys():
-            # print(lora_key)
             loras[lora_key] = {"lora_weights": {}, "strength": temp_loras[lora_key]["strength"]}
 
             for key in temp_loras[lora_key]["lora_weights"].keys():
                 new_key = key.replace("transformer.", "diffusion_model.")
                 loras[lora_key]["lora_weights"][new_key] = temp_loras[lora_key]["lora_weights"][key]
-
-                temp_dimension = min(loras[lora_key]["lora_weights"][new_key].shape[0], loras[lora_key]["lora_weights"][new_key].shape[1])
-
-                if temp_dimension > max_dimension:
-                    max_dimension = temp_dimension
 
         block_types = self.determine_lora_block_types(loras)
         merge_mixtures, block_metadata = self.get_mixtures(seed, num_output, loras.keys(), block_types)
@@ -1553,17 +1907,8 @@ class WarpedWanLoraMerge:
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (True,)
     FUNCTION = "merge_multiple_loras"
-    CATEGORY = "Warped/WanTools"
+    CATEGORY = "Warped/Wan/Merge"
     DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
-
-    def convert_key_format(self, key: str) -> str:
-        """Standardize LoRA key format by removing prefixes."""
-        prefixes = ["diffusion_model.", "transformer."]
-        for prefix in prefixes:
-            if key.startswith(prefix):
-                key = key[len(prefix):]
-                break
-        return key
 
     def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         """Load and filter a single LoRA model."""
@@ -1613,21 +1958,12 @@ class WarpedWanLoraMerge:
                     new_lora[key] = None
                 print("Lora: {}  | Key: {}  |  Shape: {}".format(lora_key, key, loras[lora_key]["lora_weights"][key].shape))
 
-        # print_it = True
-        #
-        # i = 0
-
         # Merge The Weighted Key Weights
         for key in new_lora.keys():
             for lora_key in loras.keys():
                 if key in loras[lora_key]["lora_weights"].keys():
                     if not new_lora[key] is None:
                         temp_weights = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
-                        #
-                        # if print_it:
-                        #     print("\n--------------------------------------------------------------------")
-                        #     print("Before: New Lora Shape: {}  |  Temp Weights Shape: {}".format(new_lora[key].shape, temp_weights.shape))
-                        #     print("--------------------------------------------------------------------\n")
 
                         if new_lora[key].shape[0] < new_lora[key].shape[1]:
                             if temp_weights.shape[0] < new_lora[key].shape[0]:
@@ -1661,20 +1997,7 @@ class WarpedWanLoraMerge:
                                 new_lora[key] = padding
 
                         try:
-                            # new_lora[key] = ((new_lora[key] + temp_weights) / 2.0)
                             new_lora[key] = torch.add(new_lora[key], temp_weights)
-
-                            # if print_it:
-                            #     if (i + 1) >= 10:
-                            #         print_it = False
-                            #
-                            #     i += 1
-                            #     print("\n--------------------------------------------------------------------")
-                            #     print("After: New Lora Shape: {}".format(new_lora[key].shape))
-                            #     print("--------------------------------------------------------------------\n")
-                                # print("\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-                                # print("After: New Lora Key Tensor: {}".format(new_lora[key]))
-                                # print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
                         except Exception as e:
                             raise(e)
                     else:
@@ -1706,7 +2029,7 @@ class WarpedCreateSpecialImageBatch:
     RETURN_NAMES = ("image", "num_images", )
     FUNCTION = "generate"
 
-    CATEGORY = "Warped/Image"
+    CATEGORY = "Warped/General/Image"
 
     def generate(self, image, color="#000000", batch_size=1, all_same_image=False):
         image_color = ImageColor.getrgb(color)
@@ -1789,7 +2112,7 @@ class WarpedCreateSpecialImageBatchExt:
     RETURN_NAMES = ("image", "num_images", )
     FUNCTION = "generate"
 
-    CATEGORY = "Warped/Image"
+    CATEGORY = "Warped/General/Image"
 
     def generate(self, image, color="#000000", batch_size=1, all_same_image=False, start_image=None):
         image_color = ImageColor.getrgb(color)
@@ -1836,7 +2159,7 @@ class WarpedCreateSpecialImageBatchExp:
     RETURN_NAMES = ("image", "num_images", )
     FUNCTION = "generate"
 
-    CATEGORY = "Warped/Image"
+    CATEGORY = "Warped/General/Image"
 
     def generate(self, image, batch_size=1, all_same_image=False):
         if len(image.shape) < 4:
@@ -1876,7 +2199,7 @@ class WarpedCreateEmptyImageBatch:
     RETURN_NAMES = ("image", "num_images", )
     FUNCTION = "generate"
 
-    CATEGORY = "Warped/Image"
+    CATEGORY = "Warped/General/Image"
 
     def generate(self, batch_size, width, height):
         color="#000000"
@@ -1918,7 +2241,7 @@ class WarpedCreateEmptyLatentBatch:
     RETURN_NAMES = ("latents", "num_images", )
     FUNCTION = "generate"
 
-    CATEGORY = "Warped/Latent"
+    CATEGORY = "Warped/General/Latent"
 
     def generate(self, batch_size, width, height):
         temp_latent = torch.zeros([1, 16, int(((batch_size - 1) / 4) + 1), int(height // 8), int(width // 8)], dtype=torch.float32, device=self.offload_device)
@@ -1962,7 +2285,7 @@ class WarpedSamplerCustomAdv:
 
     FUNCTION = "sample"
 
-    CATEGORY = "Warped/Sampling"
+    CATEGORY = "Warped/General/Sampling"
 
     def sample(self, image, vae, seed, guider, sampler, sigmas, enc_tile_size, enc_overlap, enc_temporal_size, enc_temporal_overlap,
                     dec_tile_size, dec_overlap, dec_temporal_size, dec_temporal_overlap, skip_frames, noise_scale, scaling_strength=1.0, output_latents=False):
@@ -2322,7 +2645,6 @@ class WarpedSamplerCustomAdvLatent:
                     },
                 "optional":
                     {"scaling_strength": ("FLOAT", {"default": 1.0}),
-                    # "block_swap_args": ("BLOCKSWAPARGS", ),
                     "output_latents": ("BOOLEAN", {"default": False}),
                     }
                 }
@@ -2332,7 +2654,7 @@ class WarpedSamplerCustomAdvLatent:
 
     FUNCTION = "sample"
 
-    CATEGORY = "Warped/Sampling"
+    CATEGORY = "Warped/General/Sampling"
 
     def sample(self, latent, vae, seed, guider, sampler, sigmas, dec_tile_size, dec_overlap, dec_temporal_size, dec_temporal_overlap,
                     skip_frames, noise_scale, scaling_strength=1.0, output_latents=False):
@@ -2360,7 +2682,7 @@ class WarpedSamplerCustomAdvLatent:
         latents = latent["samples"]
 
         if len(latents.shape) < 5:
-            latents = latents.unsqueeze (0)
+            latents = latents.unsqueeze(0)
 
         num_frames = int(((latents.shape[2] - 1) * 4) + 1)
 
@@ -2393,7 +2715,6 @@ class WarpedSamplerCustomAdvLatent:
             print("WarpedSamplerCustomAdvLatent: Generating {} Frames in {} Latents....".format(num_frames, latents.shape[2]))
 
             samples = guider.sample(noise_latents, latents, sampler, sigmas, denoise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=self.seed)
-
             samples = samples.to(mm.intermediate_device())
 
             mm.unload_all_models()
@@ -2631,7 +2952,7 @@ class WarpedCreateSpecialImageBatchFromVideo:
     RETURN_NAMES = ("image_batch", "first_image", "num_frames",)
     FUNCTION = "generate"
 
-    CATEGORY = "Warped/Video"
+    CATEGORY = "Warped/General/Video"
 
     def generate(self, video_path, last_n_frames, num_frames):
         cap = cv2.VideoCapture(video_path)
@@ -2718,7 +3039,7 @@ class WarpedBundleAllVideoImages:
     RETURN_NAMES = ("image_batch", "first_image", "last_image", "num_frames", "width", "height", "fps", )
     FUNCTION = "generate"
 
-    CATEGORY = "Warped/Video"
+    CATEGORY = "Warped/General/Video"
 
     def generate(self, video_path, use_gpu=False):
         if use_gpu:
@@ -2812,7 +3133,7 @@ class WarpedImageNoiseAugmentation:
     RETURN_NAMES = ("image", "seed", )
     FUNCTION = "add_noise"
 
-    CATEGORY = "Warped/Image"
+    CATEGORY = "Warped/General/Image"
 
     def add_noise(self, image, noise_aug_strength, seed):
         image_out = augmentation_add_noise(image, noise_aug_strength, seed)
@@ -2867,7 +3188,7 @@ class WarpedLeapfusionHunyuanI2V:
     RETURN_NAMES = ("model", "scale_factor", )
     FUNCTION = "patch"
 
-    CATEGORY = "Warped/HunyuanTools"
+    CATEGORY = "Warped/Hunyuan/LeapFusion"
 
     def patch(self, model, latent, index, strength, start_percent, end_percent):
         new_model, scaling_strength = augmentation_patch_model(model, latent, index, strength, start_percent, end_percent)
@@ -2893,7 +3214,7 @@ class WarpedSaveAnimatedPng:
     RETURN_TYPES = ()
     FUNCTION = "save_images"
     OUTPUT_NODE = True
-    CATEGORY = "Warped/Image/Animation"
+    CATEGORY = "Warped/General/Image/Animation"
 
     def save_images(self, images, fps, compress_level, png_filename=""):
         temp_filename = png_filename.split('.')
@@ -3072,7 +3393,7 @@ class WarpedBasicGuider:
     RETURN_TYPES = ("GUIDER",)
 
     FUNCTION = "get_guider"
-    CATEGORY = "Warped/Sampling/Guiders"
+    CATEGORY = "Warped/General/Sampling/Guiders"
 
     def get_guider(self, conditioning):
         guider = WarpedGuider_Basic()
@@ -3110,7 +3431,7 @@ class WarpedUpscaleWithModel:
     RETURN_NAMES = ("images",)
     FUNCTION = "upscale"
 
-    CATEGORY = "Warped/Image"
+    CATEGORY = "Warped/General/Image"
 
 
     def upscale(self, upscale_model, images, upscale_by, rescale_method):
@@ -3155,7 +3476,7 @@ class WarpedLoadVideosBatch:
 
     FUNCTION = "load_batch_videos"
 
-    CATEGORY = "Warped/Video"
+    CATEGORY = "Warped/General/Video"
 
     def load_batch_videos(self, path):
         if not os.path.exists(path):
@@ -3265,7 +3586,7 @@ class WarpedBundleVideoImages:
     RETURN_NAMES = ("image_batch", "first_image", "last_image", "num_frames", "width", "height", "fps", )
     FUNCTION = "generate"
 
-    CATEGORY = "Warped/Video"
+    CATEGORY = "Warped/General/Video"
 
     def generate(self, video_path, starting_index, num_frames, use_gpu=False):
         if use_gpu:
@@ -3348,6 +3669,144 @@ class WarpedBundleVideoImages:
 
         return (batched_images, first_image, last_image, int(batched_images.shape[0]), width, height, float(fps), )
 
+class WarpedGetImageFromVideo:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"video_path": ("STRING", {"default": ""}),
+                    "image_index": ("INT", {"default": 0}),
+                    },
+                }
+    RETURN_TYPES = ("IMAGE", "INT", "INT", )
+    RETURN_NAMES = ("image", "width", "height", )
+    FUNCTION = "generate"
+
+    CATEGORY = "Warped/General/Video"
+
+    def generate(self, video_path, image_index):
+        cap = cv2.VideoCapture(video_path)
+
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        print('WarpedGetImageFromVideo: width = %d' % width)
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print('WarpedGetImageFromVideo: height = %d' % height)
+        length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        print('WarpedGetImageFromVideo: length = %d' % length)
+
+        return_image = None
+
+        if image_index > length:
+            image_index = length - 1
+
+        try:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, image_index)
+
+            # Take each frame
+            _, frameorig = cap.read()
+
+            color_coverted = cv2.cvtColor(frameorig, cv2.COLOR_BGR2RGB)
+
+            pil_image = Image.fromarray(color_coverted)
+            return_image = pil2tensorSwap(pil_image, device=get_offload_device())
+
+            if len(return_image.shape) < 4:
+                return_image = return_image.unsqueeze(0)
+
+            print("return_image: Shape: {}".format(return_image.shape))
+
+            frameorig = None
+            color_coverted = None
+            pil_image = None
+        except:
+            print("WarpedGetImageFromVideo: Exception During Video File Read.")
+        finally:
+            cap.release()
+
+        mm.soft_empty_cache()
+        gc.collect()
+        time.sleep(1)
+
+        return (return_image, width, height, )
+
+class WarpedGetTwoImagesFromVideo:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"video_path": ("STRING", {"default": ""}),
+                    "first_image_index": ("INT", {"default": 0}),
+                    "second_image_index": ("INT", {"default": 1}),
+                    },
+                }
+    RETURN_TYPES = ("IMAGE", "INT", "INT", )
+    RETURN_NAMES = ("first_image", "second_image", "width", "height", )
+    FUNCTION = "generate"
+
+    CATEGORY = "Warped/General/Video"
+
+    def generate(self, video_path, first_image_index, second_image_index):
+        cap = cv2.VideoCapture(video_path)
+
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        print('WarpedGetImageFromVideo: width = %d' % width)
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print('WarpedGetImageFromVideo: height = %d' % height)
+        length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        print('WarpedGetImageFromVideo: length = %d' % length)
+
+        return_image_one = None
+        return_image_two = None
+
+        if first_image_index > length:
+            first_image_index = 0
+
+        if second_image_index > length:
+            second_image_index = length - 1
+
+        try:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, first_image_index)
+
+            # Take each frame
+            _, frameorig = cap.read()
+
+            color_coverted = cv2.cvtColor(frameorig, cv2.COLOR_BGR2RGB)
+
+            pil_image = Image.fromarray(color_coverted)
+            return_image_one = pil2tensorSwap(pil_image, device=get_offload_device())
+
+            if len(return_image_one.shape) < 4:
+                return_image_one = return_image_one.unsqueeze(0)
+
+            print("return_image_one: Shape: {}".format(return_image_one.shape))
+
+            cap.set(cv2.CAP_PROP_POS_FRAMES, second_image_index)
+
+            # Take each frame
+            _, frameorig = cap.read()
+
+            color_coverted = cv2.cvtColor(frameorig, cv2.COLOR_BGR2RGB)
+
+            pil_image = Image.fromarray(color_coverted)
+            return_image_two = pil2tensorSwap(pil_image, device=get_offload_device())
+
+            if len(return_image_two.shape) < 4:
+                return_image_two = return_image_two.unsqueeze(0)
+
+            print("return_image_two: Shape: {}".format(return_image_two.shape))
+
+            frameorig = None
+            color_coverted = None
+            pil_image = None
+        except:
+            print("WarpedGetImageFromVideo: Exception During Video File Read.")
+        finally:
+            cap.release()
+
+        mm.soft_empty_cache()
+        gc.collect()
+        time.sleep(1)
+
+        return (return_image_one, return_image_two, width, height, )
+
 class WarpedWanImageToVideo:
     @classmethod
     def INPUT_TYPES(s):
@@ -3367,7 +3826,7 @@ class WarpedWanImageToVideo:
     RETURN_NAMES = ("positive", "negative", "latent", "num_frames", )
     FUNCTION = "encode"
 
-    CATEGORY = "Warped/Video/Conditioning"
+    CATEGORY = "Warped/Wan/Conditioning"
 
     def encode(self, positive, negative, vae, width, height, length, batch_size, start_image=None, clip_vision_output=None):
         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
@@ -3392,6 +3851,85 @@ class WarpedWanImageToVideo:
         out_latent["samples"] = latent
         return (positive, negative, out_latent, length, )
 
+class WarpedHunyuanImageToVideo:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                    "images": ("IMAGE", ),
+                    "positive": ("CONDITIONING", ),
+                    "vae": ("VAE", ),
+                    "num_frames": ("INT", {"default": 53, "min": 1, "max": nodes.MAX_RESOLUTION, "step": 4}),
+                    "guidance_type": (["v1 (concat)", "v2 (replace)"], )
+                    },
+                }
+
+    RETURN_TYPES = ("CONDITIONING", "LATENT")
+    RETURN_NAMES = ("positive", "latent")
+    FUNCTION = "encode"
+
+    CATEGORY = "Warped/Hunyuan/Conditioning"
+
+    def encode(self, images, positive, vae, num_frames, guidance_type):
+        images.to(dtype=torch.float32, device=get_offload_device())
+
+        if len(images.shape) < 4:
+            images = images.unsqueeze()
+
+        height = images.shape[1]
+        width  = images.shape[2]
+
+        out_latent = {}
+
+        if images.shape[0] == 1:
+            print("Single Image")
+            latent = torch.zeros([1, 16, ((num_frames - 1) // 4) + 1, height // 8, width // 8], dtype=torch.float32, device=get_offload_device())
+
+            images = comfy.utils.common_upscale(images[:num_frames, :, :, :3].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+
+            concat_latent_image = vae.encode(images)
+            mask = torch.ones((1, 1, latent.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=images.device, dtype=images.dtype)
+            mask[:, :, :((images.shape[0] - 1) // 4) + 1] = 0.0
+
+            if guidance_type == "v1 (concat)":
+                cond = {"concat_latent_image": concat_latent_image, "concat_mask": mask}
+            else:
+                cond = {'guiding_frame_index': 0}
+                latent[:, :, :concat_latent_image.shape[2]] = concat_latent_image
+                out_latent["noise_mask"] = mask
+
+            positive = node_helpers.conditioning_set_values(positive, cond)
+
+            out_latent["samples"] = latent
+
+            return (positive, out_latent)
+
+        print("Shape Before: {}".format(images.shape))
+
+        images = comfy.utils.common_upscale(images.movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+        # images = torch.mul(torch.ones((num_frames, height, width, images.shape[-1]), device=images.device, dtype=images.dtype), 0.5)
+
+        print("Shape After: {}".format(images.shape))
+
+        concat_latent_image = partial_encode_tiled(vae, images)
+
+        if len(concat_latent_image.shape) < 5:
+            concat_latent_image = concat_latent_image.unsqueeze(0)
+
+        mask = torch.ones((1, 1, concat_latent_image.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=images.device, dtype=images.dtype)
+        # mask[:, :, :((images.shape[0] - 1) // 4) + 1] = 0.0
+
+        out_latent["samples"] = concat_latent_image
+
+        if guidance_type == "v1 (concat)":
+            cond = {"concat_latent_image": concat_latent_image, "concat_mask": mask}
+        else:
+            cond = {'guiding_frame_index': 0}
+            # out_latent["noise_mask"] = mask
+
+        positive = node_helpers.conditioning_set_values(positive, cond)
+
+        return (positive, out_latent)
+
 class WarpedImageFromBatch:
     @classmethod
     def INPUT_TYPES(s):
@@ -3402,12 +3940,12 @@ class WarpedImageFromBatch:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "frombatch"
 
-    CATEGORY = "Warped/Image"
+    CATEGORY = "Warped/General/Image"
 
     def frombatch(self, image, batch_index, length):
-        print("\n-------------------------------------------------------------------------------")
-        print(image)
-        print("-------------------------------------------------------------------------------\n")
+        # print("\n-------------------------------------------------------------------------------")
+        # print(image)
+        # print("-------------------------------------------------------------------------------\n")
 
         s_in = image
 
@@ -3418,353 +3956,6 @@ class WarpedImageFromBatch:
         length = min(s_in.shape[0] - batch_index, length)
         s = s_in[batch_index:batch_index + length].clone()
         return (s,)
-
-def teacache_hunyuanvideo_forward(
-        self,
-        img: Tensor,
-        img_ids: Tensor,
-        txt: Tensor,
-        txt_ids: Tensor,
-        txt_mask: Tensor,
-        timesteps: Tensor,
-        y: Tensor,
-        guidance: Tensor = None,
-        guiding_frame_index=None,
-        control=None,
-        transformer_options={},
-    ) -> Tensor:
-        patches_replace = transformer_options.get("patches_replace", {})
-        rel_l1_thresh = transformer_options.get("rel_l1_thresh")
-        coefficients = transformer_options.get("coefficients")
-        max_skip_steps = transformer_options.get("max_skip_steps")
-
-        initial_shape = list(img.shape)
-        # running on sequences img
-        img = self.img_in(img)
-        vec = self.time_in(timestep_embedding(timesteps, 256, time_factor=1.0).to(img.dtype))
-
-        if guiding_frame_index is not None:
-            token_replace_vec = self.time_in(timestep_embedding(guiding_frame_index, 256, time_factor=1.0))
-            vec_ = self.vector_in(y[:, :self.params.vec_in_dim])
-            vec = torch.cat([(vec_ + token_replace_vec).unsqueeze(1), (vec_ + vec).unsqueeze(1)], dim=1)
-            frame_tokens = (initial_shape[-1] // self.patch_size[-1]) * (initial_shape[-2] // self.patch_size[-2])
-            modulation_dims = [(0, frame_tokens, 0), (frame_tokens, None, 1)]
-            modulation_dims_txt = [(0, None, 1)]
-        else:
-            vec = vec + self.vector_in(y[:, :self.params.vec_in_dim])
-            modulation_dims = None
-            modulation_dims_txt = None
-
-        if self.params.guidance_embed:
-            if guidance is not None:
-                vec = vec + self.guidance_in(timestep_embedding(guidance, 256).to(img.dtype))
-
-        if txt_mask is not None and not torch.is_floating_point(txt_mask):
-            txt_mask = (txt_mask - 1).to(img.dtype) * torch.finfo(img.dtype).max
-
-        txt = self.txt_in(txt, timesteps, txt_mask)
-
-        ids = torch.cat((img_ids, txt_ids), dim=1)
-        pe = self.pe_embedder(ids)
-
-        img_len = img.shape[1]
-        if txt_mask is not None:
-            attn_mask_len = img_len + txt.shape[1]
-            attn_mask = torch.zeros((1, 1, attn_mask_len), dtype=img.dtype, device=img.device)
-            attn_mask[:, 0, img_len:] = txt_mask
-        else:
-            attn_mask = None
-
-        blocks_replace = patches_replace.get("dit", {})
-
-        # enable teacache
-        img_mod1, _ = self.double_blocks[0].img_mod(vec)
-        modulated_inp = self.double_blocks[0].img_norm1(img)
-        modulated_inp = apply_mod(modulated_inp, (1 + img_mod1.scale), img_mod1.shift, modulation_dims)
-
-        if not hasattr(self, 'accumulated_rel_l1_distance'):
-            should_calc = True
-            self.accumulated_rel_l1_distance = 0
-            self.skip_steps = 0
-        elif self.skip_steps == max_skip_steps:
-            should_calc = True
-            self.accumulated_rel_l1_distance = 0
-            self.skip_steps = 0
-        else:
-            try:
-                self.accumulated_rel_l1_distance += poly1d(coefficients, ((modulated_inp-self.previous_modulated_input).abs().mean() / self.previous_modulated_input.abs().mean()))
-                if self.accumulated_rel_l1_distance < rel_l1_thresh:
-                    should_calc = False
-                    self.skip_steps += 1
-                else:
-                    should_calc = True
-                    self.accumulated_rel_l1_distance = 0
-                    self.skip_steps = 0
-            except:
-                should_calc = True
-                self.accumulated_rel_l1_distance = 0
-                self.skip_steps = 0
-
-        self.previous_modulated_input = modulated_inp
-
-        if not should_calc:
-            img += self.previous_residual.to(img.device)
-        else:
-            ori_img = img.clone()
-            for i, block in enumerate(self.double_blocks):
-                if ("double_block", i) in blocks_replace:
-                    def block_wrap(args):
-                        out = {}
-                        out["img"], out["txt"] = block(img=args["img"], txt=args["txt"], vec=args["vec"], pe=args["pe"], attn_mask=args["attention_mask"], modulation_dims_img=args["modulation_dims_img"], modulation_dims_txt=args["modulation_dims_txt"])
-                        return out
-
-                    out = blocks_replace[("double_block", i)]({"img": img, "txt": txt, "vec": vec, "pe": pe, "attention_mask": attn_mask, 'modulation_dims_img': modulation_dims, 'modulation_dims_txt': modulation_dims_txt}, {"original_block": block_wrap})
-                    txt = out["txt"]
-                    img = out["img"]
-                else:
-                    img, txt = block(img=img, txt=txt, vec=vec, pe=pe, attn_mask=attn_mask, modulation_dims_img=modulation_dims, modulation_dims_txt=modulation_dims_txt)
-
-                if control is not None: # Controlnet
-                    control_i = control.get("input")
-                    if i < len(control_i):
-                        add = control_i[i]
-                        if add is not None:
-                            img += add
-
-            img = torch.cat((img, txt), 1)
-
-            for i, block in enumerate(self.single_blocks):
-                if ("single_block", i) in blocks_replace:
-                    def block_wrap(args):
-                        out = {}
-                        out["img"] = block(args["img"], vec=args["vec"], pe=args["pe"], attn_mask=args["attention_mask"], modulation_dims=args["modulation_dims"])
-                        return out
-
-                    out = blocks_replace[("single_block", i)]({"img": img, "vec": vec, "pe": pe, "attention_mask": attn_mask, 'modulation_dims': modulation_dims}, {"original_block": block_wrap})
-                    img = out["img"]
-                else:
-                    img = block(img, vec=vec, pe=pe, attn_mask=attn_mask, modulation_dims=modulation_dims)
-
-                if control is not None: # Controlnet
-                    control_o = control.get("output")
-                    if i < len(control_o):
-                        add = control_o[i]
-                        if add is not None:
-                            img[:, : img_len] += add
-
-            img = img[:, : img_len]
-            self.previous_residual = (img - ori_img).to(mm.unet_offload_device())
-
-        img = self.final_layer(img, vec, modulation_dims=modulation_dims)  # (N, T, patch_size ** 2 * out_channels)
-
-        shape = initial_shape[-3:]
-        for i in range(len(shape)):
-            shape[i] = shape[i] // self.patch_size[i]
-        img = img.reshape([img.shape[0]] + shape + [self.out_channels] + self.patch_size)
-        img = img.permute(0, 4, 1, 5, 2, 6, 3, 7)
-        img = img.reshape(initial_shape[0], self.out_channels, initial_shape[2], initial_shape[3], initial_shape[4])
-        return img
-
-def teacache_wanmodel_forward(self, x, timestep, context, clip_fea=None, transformer_options={}, **kwargs):
-        bs, c, t, h, w = x.shape
-        x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
-        patch_size = self.patch_size
-        t_len = ((t + (patch_size[0] // 2)) // patch_size[0])
-        h_len = ((h + (patch_size[1] // 2)) // patch_size[1])
-        w_len = ((w + (patch_size[2] // 2)) // patch_size[2])
-        img_ids = torch.zeros((t_len, h_len, w_len, 3), device=x.device, dtype=x.dtype)
-        img_ids[:, :, :, 0] = img_ids[:, :, :, 0] + torch.linspace(0, t_len - 1, steps=t_len, device=x.device, dtype=x.dtype).reshape(-1, 1, 1)
-        img_ids[:, :, :, 1] = img_ids[:, :, :, 1] + torch.linspace(0, h_len - 1, steps=h_len, device=x.device, dtype=x.dtype).reshape(1, -1, 1)
-        img_ids[:, :, :, 2] = img_ids[:, :, :, 2] + torch.linspace(0, w_len - 1, steps=w_len, device=x.device, dtype=x.dtype).reshape(1, 1, -1)
-        img_ids = repeat(img_ids, "t h w c -> b (t h w) c", b=bs)
-
-        freqs = self.rope_embedder(img_ids).movedim(1, 2)
-        return self.forward_orig(x, timestep, context, clip_fea, freqs, transformer_options)[:, :, :t, :h, :w]
-
-def teacache_wanmodel_forward_orig(
-        self,
-        x,
-        t,
-        context,
-        clip_fea=None,
-        freqs=None,
-        transformer_options={},
-    ):
-        rel_l1_thresh = transformer_options.get("rel_l1_thresh")
-        coefficients = transformer_options.get("coefficients")
-        max_skip_steps = transformer_options.get("max_skip_steps")
-        cond_or_uncond = transformer_options.get("cond_or_uncond")
-
-        # embeddings
-        x = self.patch_embedding(x.float()).to(x.dtype)
-        grid_sizes = x.shape[2:]
-        x = x.flatten(2).transpose(1, 2)
-
-        # time embeddings
-        e = self.time_embedding(
-            sinusoidal_embedding_1d(self.freq_dim, t).to(dtype=x[0].dtype))
-        e0 = self.time_projection(e).unflatten(1, (6, self.dim))
-
-        # context
-        context = self.text_embedding(context)
-
-        if clip_fea is not None and self.img_emb is not None:
-            context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
-            context = torch.concat([context_clip, context], dim=1)
-
-        # arguments
-        kwargs = dict(
-            e=e0,
-            freqs=freqs,
-            context=context)
-
-        # enable teacache
-        modulated_inp = e.to(mm.unet_offload_device())
-        if not hasattr(self, 'teacache_state'):
-            self.teacache_state = {
-                0: {'should_calc': True, 'accumulated_rel_l1_distance': 0, 'previous_modulated_input': None, 'previous_residual': None, 'skip_steps': 0},
-                1: {'should_calc': True, 'accumulated_rel_l1_distance': 0, 'previous_modulated_input': None, 'previous_residual': None, 'skip_steps': 0}
-            }
-
-        def update_cache_state(cache, modulated_inp):
-            if cache['skip_steps'] == max_skip_steps:
-                cache['should_calc'] = True
-                cache['accumulated_rel_l1_distance'] = 0
-                cache['skip_steps'] = 0
-            elif cache['previous_modulated_input'] is not None:
-                try:
-                    if not self.teacache_state[0]["previous_residual"] is None:
-                        cache['accumulated_rel_l1_distance'] += poly1d(coefficients, ((modulated_inp-cache['previous_modulated_input']).abs().mean() / cache['previous_modulated_input'].abs().mean()))
-                    else:
-                        cache['accumulated_rel_l1_distance'] += poly1d(INITIAL_COEFFICIENTS, ((modulated_inp-cache['previous_modulated_input']).abs().mean() / cache['previous_modulated_input'].abs().mean()))
-
-                    if cache['accumulated_rel_l1_distance'] < rel_l1_thresh:
-                        cache['should_calc'] = False
-                        cache['skip_steps'] += 1
-                    else:
-                        cache['should_calc'] = True
-                        cache['accumulated_rel_l1_distance'] = 0
-                        cache['skip_steps'] = 0
-                except:
-                    cache['should_calc'] = True
-                    cache['accumulated_rel_l1_distance'] = 0
-                    cache['skip_steps'] = 0
-            cache['previous_modulated_input'] = modulated_inp
-
-        b = int(len(x) / len(cond_or_uncond))
-
-        for i, k in enumerate(cond_or_uncond):
-            update_cache_state(self.teacache_state[k], modulated_inp[i*b:(i+1)*b])
-
-        should_calc = False
-        for k in cond_or_uncond:
-            should_calc = (should_calc or self.teacache_state[k]['should_calc'])
-
-        if not should_calc:
-            for i, k in enumerate(cond_or_uncond):
-                x[i*b:(i+1)*b] += self.teacache_state[k]['previous_residual'].to(x.device)
-        else:
-            ori_x = x.clone()
-            for block in self.blocks:
-                x = block(x, **kwargs)
-            for i, k in enumerate(cond_or_uncond):
-                self.teacache_state[k]['previous_residual'] = (x - ori_x)[i*b:(i+1)*b].to(mm.unet_offload_device())
-
-        # head
-        x = self.head(x, e)
-
-        # unpatchify
-        x = self.unpatchify(x, grid_sizes)
-        return x
-
-def clear_teacache_state(self):
-    self.teacache_state = {
-        0: {'should_calc': True, 'accumulated_rel_l1_distance': 0, 'previous_modulated_input': None, 'previous_residual': None, 'skip_steps': 0},
-        1: {'should_calc': True, 'accumulated_rel_l1_distance': 0, 'previous_modulated_input': None, 'previous_residual': None, 'skip_steps': 0}
-    }
-
-class WarpedTeaCache:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "model": ("MODEL", {"tooltip": "The diffusion model the TeaCache will be applied to."}),
-                "model_type": (["wan2.1_t2v_1.3B", "wan2.1_t2v_14B", "wan2.1_i2v_480p_14B", "wan2.1_i2v_720p_14B", "hunyuan_video"], {"default": "wan2.1_i2v_720p_14B", "tooltip": "Supported diffusion model."}),
-                "rel_l1_thresh": ("FLOAT", {"default": 0.4, "min": 0.0, "max": 10.0, "step": 0.01, "tooltip": "How strongly to cache the output of diffusion model. This value must be non-negative."}),
-                "max_skip_steps": ([1, 2, 3], {"default": 3, "tooltip": "Max continuous skip steps."})
-            }
-        }
-
-    RETURN_TYPES = ("MODEL",)
-    RETURN_NAMES = ("model",)
-    FUNCTION = "apply_teacache"
-    CATEGORY = "Warped/TeaCache"
-    TITLE = "Warped TeaCache"
-
-    def apply_teacache(self, model, model_type: str, rel_l1_thresh: float, max_skip_steps: int):
-        if rel_l1_thresh == 0:
-            return (model,)
-
-        new_model = model.clone()
-        if 'transformer_options' not in new_model.model_options:
-            new_model.model_options['transformer_options'] = {}
-        new_model.model_options["transformer_options"]["rel_l1_thresh"] = rel_l1_thresh
-        new_model.model_options["transformer_options"]["max_skip_steps"] = max_skip_steps
-        new_model.model_options["transformer_options"]["coefficients"] = SUPPORTED_MODELS_COEFFICIENTS[model_type]
-        diffusion_model = new_model.get_model_object("diffusion_model")
-
-        if "hunyuan_video" in model_type:
-            is_cfg = False
-            context = patch.multiple(
-                diffusion_model,
-                forward_orig=teacache_hunyuanvideo_forward.__get__(diffusion_model, diffusion_model.__class__)
-            )
-        elif "wan2.1" in model_type:
-            is_cfg = True
-            context = patch.multiple(
-                diffusion_model,
-                forward=teacache_wanmodel_forward.__get__(diffusion_model, diffusion_model.__class__),
-                forward_orig=teacache_wanmodel_forward_orig.__get__(diffusion_model, diffusion_model.__class__)
-            )
-        else:
-            raise ValueError(f"Unknown type {model_type}")
-
-        if hasattr(diffusion_model, 'teacache_state'):
-            delattr(diffusion_model, 'teacache_state')
-
-        def unet_wrapper_function(model_function, kwargs):
-            input = kwargs["input"]
-            timestep = kwargs["timestep"]
-            c = kwargs["c"]
-            cond_or_uncond = kwargs["cond_or_uncond"]
-            # referenced from https://github.com/kijai/ComfyUI-KJNodes/blob/d126b62cebee81ea14ec06ea7cd7526999cb0554/nodes/model_optimization_nodes.py#L868
-            sigmas = c["transformer_options"]["sample_sigmas"]
-            matched_step_index = (sigmas == timestep[0]).nonzero()
-            if len(matched_step_index) > 0:
-                current_step_index = matched_step_index.item()
-            else:
-                current_step_index = 0
-                for i in range(len(sigmas) - 1):
-                    # walk from beginning of steps until crossing the timestep
-                    if (sigmas[i] - timestep) * (sigmas[i + 1] - timestep) <= 0:
-                        current_step_index = i
-                        break
-
-            if current_step_index == 0:
-                if is_cfg:
-                    # uncond first
-                    if (1 in cond_or_uncond) and hasattr(diffusion_model, 'teacache_state'):
-                        delattr(diffusion_model, 'teacache_state')
-                else:
-                    if hasattr(diffusion_model, 'accumulated_rel_l1_distance'):
-                        delattr(diffusion_model, 'accumulated_rel_l1_distance')
-
-            with context:
-                return model_function(input, timestep, **c)
-
-        new_model.set_model_unet_function_wrapper(unet_wrapper_function)
-
-        return (new_model,)
 
 class WarpedBaseWanLoraLoader:
     """Base class for Wan LoRA loading functionality"""
@@ -3885,28 +4076,10 @@ class WarpedBaseWanLoraLoader:
             filtered_lora = self.filter_lora_keys(lora, block_settings)
             new_model, new_clip = load_lora_for_models(model, clip, filtered_lora, strength_model, strength_clip)
 
-            # print("\n=============================================================")
-            # print("Normal")
-            # print(new_model)
-            # print("=============================================================\n")
-            #
-            # print("\n=============================================================")
-            # print(new_clip)
-            # print("=============================================================\n")
-
             return (new_model, new_clip,)
 
         except Exception as e:
             logger.error(f"Error applying LoRA {lora_name}: {str(e)}")
-
-            # print("\n=============================================================")
-            # print("Exception")
-            # print(model)
-            # print("=============================================================\n")
-            #
-            # print("\n=============================================================")
-            # print(clip)
-            # print("=============================================================\n")
 
             return (model, clip, )
 
@@ -3934,7 +4107,7 @@ class WarpedWanLoadAndEditLoraBlocks(WarpedBaseWanLoraLoader):
     RETURN_TYPES = ("MODEL", "CLIP", )
     RETURN_NAMES = ("model", "clip", )
     FUNCTION = "load_lora"
-    CATEGORY = "Warped/WanTools"
+    CATEGORY = "Warped/Wan/Lora"
 
     @classmethod
     def IS_CHANGED(s, model, clip, lora_name: str, strength_model: float, strength_clip: float, save_settings: bool, **kwargs):
@@ -3958,498 +4131,379 @@ class WarpedWanLoadAndEditLoraBlocks(WarpedBaseWanLoraLoader):
 
         return (return_model, return_clip,)
 
-class WarpedHunyuanImageToVideo:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {
-                    "images": ("IMAGE", ),
-                    "positive": ("CONDITIONING", ),
-                    "vae": ("VAE", ),
-                    "num_frames": ("INT", {"default": 53, "min": 1, "max": nodes.MAX_RESOLUTION, "step": 4}),
-                    "guidance_type": (["v1 (concat)", "v2 (replace)"], )
-                    },
-                }
-
-    RETURN_TYPES = ("CONDITIONING", "LATENT")
-    RETURN_NAMES = ("positive", "latent")
-    FUNCTION = "encode"
-
-    CATEGORY = "Warped/Video/Conditioning"
-
-    def encode(self, images, positive, vae, num_frames, guidance_type):
-        images.to(dtype=torch.float32, device=get_offload_device())
-
-        if len(images.shape) < 4:
-            images = images.unsqueeze()
-
-        height = images.shape[1]
-        width  = images.shape[2]
-
-        out_latent = {}
-
-        if images.shape[0] == 1:
-            print("Single Image")
-            latent = torch.zeros([1, 16, ((num_frames - 1) // 4) + 1, height // 8, width // 8], dtype=torch.float32, device=get_offload_device())
-
-            images = comfy.utils.common_upscale(images[:num_frames, :, :, :3].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-
-            concat_latent_image = vae.encode(images)
-            mask = torch.ones((1, 1, latent.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=images.device, dtype=images.dtype)
-            mask[:, :, :((images.shape[0] - 1) // 4) + 1] = 0.0
-
-            if guidance_type == "v1 (concat)":
-                cond = {"concat_latent_image": concat_latent_image, "concat_mask": mask}
-            else:
-                cond = {'guiding_frame_index': 0}
-                latent[:, :, :concat_latent_image.shape[2]] = concat_latent_image
-                out_latent["noise_mask"] = mask
-
-            positive = node_helpers.conditioning_set_values(positive, cond)
-
-            out_latent["samples"] = latent
-
-            return (positive, out_latent)
-
-        print("Shape Before: {}".format(images.shape))
-
-        images = comfy.utils.common_upscale(images.movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-        # images = torch.mul(torch.ones((num_frames, height, width, images.shape[-1]), device=images.device, dtype=images.dtype), 0.5)
-
-        print("Shape After: {}".format(images.shape))
-
-        concat_latent_image = partial_encode_tiled(vae, images)
-
-        if len(concat_latent_image.shape) < 5:
-            concat_latent_image = concat_latent_image.unsqueeze(0)
-
-        mask = torch.ones((1, 1, concat_latent_image.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=images.device, dtype=images.dtype)
-        # mask[:, :, :((images.shape[0] - 1) // 4) + 1] = 0.0
-
-        out_latent["samples"] = concat_latent_image
-
-        if guidance_type == "v1 (concat)":
-            cond = {"concat_latent_image": concat_latent_image, "concat_mask": mask}
-        else:
-            cond = {'guiding_frame_index': 0}
-            # out_latent["noise_mask"] = mask
-
-        positive = node_helpers.conditioning_set_values(positive, cond)
-
-        return (positive, out_latent)
-
-class WarpedImageResizeKJStyle:
-    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-                "width": ("INT", { "default": 512, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, }),
-                "height": ("INT", { "default": 512, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, }),
-                "upscale_method": (s.upscale_methods,),
-                "keep_proportion": ("BOOLEAN", { "default": False }),
-                "divisible_by": ("INT", { "default": 2, "min": 0, "max": 512, "step": 1, }),
-            },
-            "optional" : {
-                "width_input": ("INT", { "forceInput": True}),
-                "height_input": ("INT", { "forceInput": True}),
-                "get_image_size": ("IMAGE",),
-                "crop": (["disabled","center"],),
-            }
-        }
-
-    RETURN_TYPES = ("IMAGE", "INT", "INT",)
-    RETURN_NAMES = ("IMAGE", "width", "height",)
-    FUNCTION = "resize"
-    CATEGORY = "Warped/Image"
-    DESCRIPTION = """
-Resizes the image to the specified width and height.
-Size can be retrieved from the inputs, and the final scale
-is  determined in this order of importance:
-- get_image_size
-- width_input and height_input
-- width and height widgets
-
-Keep proportions keeps the aspect ratio of the image, by
-highest dimension.
-"""
-
-    def resize(self, image, width, height, keep_proportion, upscale_method, divisible_by,
-               width_input=None, height_input=None, get_image_size=None, crop="disabled"):
-        B, H, W, C = image.shape
-
-        if width_input:
-            width = width_input
-        if height_input:
-            height = height_input
-        if get_image_size is not None:
-            _, height, width, _ = get_image_size.shape
-
-        if keep_proportion and get_image_size is None:
-                # If one of the dimensions is zero, calculate it to maintain the aspect ratio
-                if width == 0 and height != 0:
-                    ratio = height / H
-                    width = round(W * ratio)
-                elif height == 0 and width != 0:
-                    ratio = width / W
-                    height = round(H * ratio)
-                elif width != 0 and height != 0:
-                    # Scale based on which dimension is smaller in proportion to the desired dimensions
-                    ratio = min(width / W, height / H)
-                    width = round(W * ratio)
-                    height = round(H * ratio)
-        else:
-            if width == 0:
-                width = W
-            if height == 0:
-                height = H
-
-        if divisible_by > 1 and get_image_size is None:
-            width = width - (width % divisible_by)
-            height = height - (height % divisible_by)
-
-        image = image.movedim(-1,1)
-        image = utils.common_upscale(image, width, height, upscale_method, crop)
-        image = image.movedim(1,-1)
-
-        return(image, image.shape[2], image.shape[1],)
-
-class WarpedImageResize:
-    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
-    @classmethod
-    def INPUT_TYPES(self):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-                "width": ("INT", { "default": 400, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, }),
-                "height": ("INT", { "default": 720, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, }),
-                "upscale_method": (self.upscale_methods, {"default": "lanczos"}),
-                "crop": (["center", "top_left", "top_right", "bottom_left", "bottom_right", "top_center", "bottom_center"], {"default": "center"}),
-            },
-        }
-
-    RETURN_TYPES = ("IMAGE", "IMAGE", "INT", "INT",)
-    RETURN_NAMES = ("IMAGE", "scale_orig_image", "width", "height",)
-    FUNCTION = "resize"
-    CATEGORY = "Warped/Image"
-    DESCRIPTION = """
-                Resizes the image to the specified width and height.
-                Size can be retrieved from the inputs, and the final scale
-                is  determined in this order of importance:
-                - get_image_size
-                - width_input and height_input
-                - width and height widgets
-
-                Keep proportions keeps the aspect ratio of the image, by
-                highest dimension.
-                """
-
-    def resize(self, image, width, height, upscale_method, crop="center"):
-        print("Original Image Shape: {}".format(image.shape))
-
-        B, H, W, C = image.shape
-        self.is_downsize = False
-
-        scaled_image = image.clone().detach()
-        test_image1  = image.clone().detach()
-        test_image2  = image.clone().detach()
-
-        is_long_side, orig_is_landscape, new_is_landscape, upscale_required = self.determine_side_to_scale(H, W, width, height)
-
-        print("Automatic Value Determination: is_long_side: {}  |  original_is_landscape: {}  |  new_is_landscape: {}  | upscale_required {}".format(is_long_side, orig_is_landscape, new_is_landscape, upscale_required))
-
-        if upscale_required:
-            W = int(W / 16) * 16
-            H = int(H / 16) * 16
-
-            print("Modified Width: {}  |  Height: {}".format(W, H))
-
-            # Scale based on which dimension is smaller in proportion to the desired dimensions
-            ratio = max(width / W, height / H)
-            temp_width = round(W * ratio)
-            temp_height = round(H * ratio)
-
-            print("Aspect Ratio Change Required: temp_width: {}  |  temp_height: {}".format(temp_width, temp_height))
-
-            image = image.movedim(-1,1)
-            image = self.upscale(image, temp_width, temp_height, upscale_method, crop)
-            image = image.movedim(1,-1)
-
-            if orig_is_landscape:
-                if is_long_side:
-                    image = self.scale_to_side(image, width, is_long_side)
-                else:
-                    image = self.scale_to_side(image, height, is_long_side)
-            else:
-                if is_long_side:
-                    image = self.scale_to_side(image, height, is_long_side)
-                else:
-                    image = self.scale_to_side(image, width, is_long_side)
-
-            scaled_image = image.clone().detach()
-
-            image = self.crop(image, width, height, crop)
-
-            return(image, scaled_image, image.shape[2], image.shape[1],)
-
-        if (width < W) or (height < H):
-            # if same orientation
-            if (orig_is_landscape and new_is_landscape) or (not orig_is_landscape and not new_is_landscape):
-                if is_long_side:
-                    if not new_is_landscape:
-                        image = self.scale_to_side(image, height, is_long_side)
-                    else:
-                        image = self.scale_to_side(image, width, is_long_side)
-                else:
-                    if new_is_landscape:
-                        image = self.scale_to_side(image, height, is_long_side)
-                    else:
-                        image = self.scale_to_side(image, width, is_long_side)
-            # if original is landscape and new is portrait or original is portrait and new is landscape
-            else:
-                if is_long_side:
-                    image = self.scale_to_side(image, width, is_long_side)
-                else:
-                    image = self.scale_to_side(image, height, is_long_side)
-
-            scaled_image = image.clone().detach()
-
-            B, H, W, C = image.shape
-            self.is_downsize = True
-
-        if self.is_downsize:
-            image = self.crop(image, width, height, crop)
-            return(image, scaled_image, image.shape[2], image.shape[1],)
-
-        if (orig_is_landscape and new_is_landscape) or ((not orig_is_landscape) and (not new_is_landscape)):
-            image = image.movedim(-1,1)
-            image = self.upscale(image, width, height, upscale_method, crop)
-            image = image.movedim(1,-1)
-
-            return(image, image, image.shape[2], image.shape[1],)
-
-        if orig_is_landscape:
-            temp_ratio = round(height // H)
-            temp_width = round(W * temp_ratio)
-
-            image = image.movedim(-1,1)
-            image = self.upscale(image, temp_width, height, upscale_method, "disabled")
-            image = image.movedim(1,-1)
-
-            scaled_image = image.clone().detach()
-            image = self.crop(image, width, height, crop)
-
-            return(image, scaled_image, image.shape[2], image.shape[1],)
-
-        temp_ratio = round(width // W)
-        temp_height = round(H * temp_ratio)
-
-        image = image.movedim(-1,1)
-        image = self.upscale(image, width, temp_height, upscale_method, "disabled")
-        image = image.movedim(1,-1)
-
-        scaled_image = image.clone().detach()
-        image = self.crop(image, width, height, crop)
-
-        return(image, scaled_image, image.shape[2], image.shape[1],)
-
-    def determine_side_to_scale(self, original_height, original_width, width, height):
-        original_is_landscape = False
-        new_is_landscape = False
-
-        if original_width > original_height:
-            original_is_landscape = True
-
-        if width > height:
-            new_is_landscape = True
-
-        if (original_width == original_height):
-            if width <= height:
-                original_is_landscape = True
-
-                if width < height:
-                    new_is_landscape = True
-                else:
-                    new_is_landscape = original_is_landscape
-            else:
-                original_is_landscape = True
-                new_is_landscape = True
-
-        is_long_side = True
-        upscale_required = False
-
-        if (not new_is_landscape and original_is_landscape) or (new_is_landscape and not original_is_landscape):
-            is_long_side = False
-        else:
-            if original_is_landscape:
-                temp_ratio  = round(width // original_width)
-                temp_height = round(temp_ratio * height)
-
-                if temp_height < height:
-                    is_long_side = False
-                    upscale_required = True
-            else:
-                temp_ratio  = round(height // original_height)
-                temp_width = round(temp_ratio * width)
-
-                if temp_width < width:
-                    is_long_side = False
-                    upscale_required = True
-
-        return is_long_side, original_is_landscape, new_is_landscape, upscale_required
-
-    def crop(self, image, width, height, crop_type):
-        new_image = tensor2pilSwap(image)
-        new_image = new_image[0]
-
-        print("Image width: {} height: {}  |  New width: {} height: {}".format(new_image.width, new_image.height, width, height))
-
-        #(left, upper, right, lower)
-        if crop_type == "top_left":
-            left = 0
-            upper = 0
-            right = width
-            lower = height
-        elif crop_type == "top_right":
-            left = new_image.width - width
-            upper = 0
-            right = new_image.width
-            lower = height
-        elif crop_type == "top_center":
-            left = int(new_image.width // 2) - int(width // 2)
-            upper = 0
-            right = (int(new_image.width // 2) - int(width // 2)) + width
-            lower = height
-        elif crop_type == "bottom_left":
-            left = 0
-            upper = new_image.height - height
-            right = width
-            lower = new_image.height
-        elif crop_type == "bottom_right":
-            left = new_image.width - width
-            upper = new_image.height - height
-            right = new_image.width
-            lower = new_image.height
-        elif crop_type == "bottom_center":
-            left = int(new_image.width // 2) - int(width // 2)
-            upper = new_image.height - height
-            right = (int(new_image.width // 2) - int(width // 2)) + width
-            lower = new_image.height
-        elif crop_type == "center":
-            left = int(new_image.width // 2) - int(width // 2)
-            upper = int(new_image.height // 2) - int(height // 2)
-            right = (int(new_image.width // 2) - int(width // 2)) + width
-            lower = (int(new_image.height // 2) - int(height // 2)) + height
-
-        print("Crop Locations: Left: {}  |  Upper: {}  |  Right: {}  |  Lower: {}".format(int(new_image.width // 2) - int(width // 2), 0, width, height))
-        new_image = new_image.crop((left, upper, right, lower))
-
-        new_image = pil2tensorSwap(new_image)
-
-        return new_image
-
-    def upscale(self, samples, width, height, upscale_method, crop):
-            orig_shape = tuple(samples.shape)
-            if len(orig_shape) > 4:
-                samples = samples.reshape(samples.shape[0], samples.shape[1], -1, samples.shape[-2], samples.shape[-1])
-                samples = samples.movedim(2, 1)
-                samples = samples.reshape(-1, orig_shape[1], orig_shape[-2], orig_shape[-1])
-
-            s = samples
-            if crop != "disabed":
-                old_width = samples.shape[-1]
-                old_height = samples.shape[-2]
-                old_aspect = old_width / old_height
-                new_aspect = width / height
-                x = 0
-                y = 0
-
-                # ["disabled","center", "top_left", "top_right", "bottom_left", "bottom_right", "top_center", "bottom_center"]
-                # narrow(dim, start, length)
-                if crop == "center":
-                    if old_aspect > new_aspect:
-                        x = round((old_width - old_width * (new_aspect / old_aspect)) / 2)
-                    elif old_aspect < new_aspect:
-                        y = round((old_height - old_height * (old_aspect / new_aspect)) / 2)
-
-                    s = samples.narrow(-2, y, old_height - y * 2).narrow(-1, x, old_width - x * 2)
-                elif (s.shape[2] != height) or (s.shape[3] != width):
-                    if self.is_downsize:
-                        if len(s.shape) < 4:
-                            s = s.unsqueeze(0)
-
-                        print("s.shape: {}".format(s.shape))
-
-                        if crop == "top_left":
-                            if width < height:
-                                s = s.narrow(-1, 0, width)
-                            else:
-                                s = s.narrow(-2, 0, height)
-                        elif crop == "top_right":
-                            if width < height:
-                                s = s.narrow(-1, s.shape[3] - width, width)
-                            else:
-                                s = s.narrow(-2, 0, height)
-                        elif crop == "bottom_left":
-                            if width < height:
-                                s = s.narrow(-1, 0, width)
-                            else:
-                                s = s.narrow(-2, s.shape[2] - height, height)
-                        elif crop == "bottom_right":
-                            if width < height:
-                                s = s.narrow(-1, s.shape[3] -  width, width)
-                            else:
-                                s = s.narrow(-2, s.shape[2] - height, height)
-                        elif crop == "top_center":
-                            if width < height:
-                                s = s.narrow(-1, round((s.shape[3] / 2) - (width / 2) - 1), width)
-                            else:
-                                s = s.narrow(-1, 0, height)
-                        elif crop == "bottom_center":
-                            if width < height:
-                                s = s.narrow(-1, round((s.shape[3] / 2) - (width / 2) - 1), width)
-                                print("s.shape 1: {}".format(s.shape))
-                            else:
-                                s = s.narrow(-2, s.shape[2] - height, height)
-                                print("s.shape 2: {}".format(s.shape))
-
-            if upscale_method == "bislerp":
-                out = utils.bislerp(s, width, height)
-            elif upscale_method == "lanczos":
-                out = utils.lanczos(s, width, height)
-            else:
-                out = torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
-
-            if len(orig_shape) == 4:
-                return out
-
-            out = out.reshape((orig_shape[0], -1, orig_shape[1]) + (height, width))
-            return out.movedim(2, 1).reshape(orig_shape[:-2] + (height, width))
-
-    def scale_to_side(self, image, length=1024, scale_long_side=True):
-        img = tensor2pilSwap(image)
-        img = img[0]
-
-        if scale_long_side:
-            if img.height >= img.width:
-                newHeight = length
-                newWidth = int(float(length / img.height) * img.width)
-            else:
-                newWidth = length
-                newHeight = int(float(length / img.width) * img.height)
-        else:
-            if img.height <= img.width:
-                newHeight = length
-                newWidth = int(float(length / img.height) * img.width)
-            else:
-                newWidth = length
-                newHeight = int(float(length / img.width) * img.height)
-
-        tempImage = img.resize((newWidth, newHeight), resample=Image.BILINEAR)
-
-        newImage = pil2tensorSwap([tempImage])
-
-        return newImage
+# class WarpedImageResize:
+#     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
+#     @classmethod
+#     def INPUT_TYPES(self):
+#         return {
+#             "required": {
+#                 "image": ("IMAGE",),
+#                 "width": ("INT", { "default": 400, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, }),
+#                 "height": ("INT", { "default": 720, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, }),
+#                 "upscale_method": (self.upscale_methods, {"default": "lanczos"}),
+#                 "crop": (["center", "top_left", "top_right", "bottom_left", "bottom_right", "top_center", "bottom_center"], {"default": "center"}),
+#                 "use_gpu": ("BOOLEAN", {"default": False}),
+#             },
+#         }
+#
+#     RETURN_TYPES = ("IMAGE", "IMAGE", "INT", "INT",)
+#     RETURN_NAMES = ("IMAGE", "scale_orig_image", "width", "height",)
+#     FUNCTION = "resize"
+#     CATEGORY = "Warped/General/Image"
+#     DESCRIPTION = """
+#                 Resizes the image to the specified width and height.
+#                 Size can be retrieved from the inputs, and the final scale
+#                 is  determined in this order of importance:
+#                 - get_image_size
+#                 - width_input and height_input
+#                 - width and height widgets
+#
+#                 Keep proportions keeps the aspect ratio of the image, by
+#                 highest dimension.
+#                 """
+#
+#     def resize(self, image, width, height, upscale_method, crop="center", use_gpu=False):
+#         print("Original Image Shape: {}".format(image.shape))
+#
+#         B, H, W, C = image.shape
+#         self.is_downsize = False
+#
+#         if use_gpu:
+#             self.device = mm.get_torch_device()
+#         else:
+#             self.device = get_offload_device()
+#
+#         scaled_image = image.clone().detach()
+#         test_image1  = image.clone().detach()
+#         test_image2  = image.clone().detach()
+#
+#         is_long_side, orig_is_landscape, new_is_landscape, upscale_required = self.determine_side_to_scale(H, W, width, height)
+#
+#         print("Automatic Value Determination: is_long_side: {}  |  original_is_landscape: {}  |  new_is_landscape: {}  | upscale_required {}".format(is_long_side, orig_is_landscape, new_is_landscape, upscale_required))
+#
+#         if upscale_required:
+#             W = int(W / 16) * 16
+#             H = int(H / 16) * 16
+#
+#             print("Modified Width: {}  |  Height: {}".format(W, H))
+#
+#             # Scale based on which dimension is smaller in proportion to the desired dimensions
+#             ratio = max(width / W, height / H)
+#             temp_width = round(W * ratio)
+#             temp_height = round(H * ratio)
+#
+#             print("Aspect Ratio Change Required: temp_width: {}  |  temp_height: {}".format(temp_width, temp_height))
+#
+#             image = image.movedim(-1,1)
+#             image = self.upscale(image, temp_width, temp_height, upscale_method, crop)
+#             image = image.movedim(1,-1)
+#
+#             if orig_is_landscape:
+#                 if is_long_side:
+#                     image = self.scale_to_side(image, width, is_long_side)
+#                 else:
+#                     image = self.scale_to_side(image, height, is_long_side)
+#             else:
+#                 if is_long_side:
+#                     image = self.scale_to_side(image, height, is_long_side)
+#                 else:
+#                     image = self.scale_to_side(image, width, is_long_side)
+#
+#             scaled_image = image.clone().detach()
+#
+#             image = self.crop(image, width, height, crop)
+#
+#             return(image, scaled_image, image.shape[2], image.shape[1],)
+#
+#         if (width < W) or (height < H):
+#             # if same orientation
+#             if (orig_is_landscape and new_is_landscape) or (not orig_is_landscape and not new_is_landscape):
+#                 if is_long_side:
+#                     if not new_is_landscape:
+#                         image = self.scale_to_side(image, height, is_long_side)
+#                     else:
+#                         image = self.scale_to_side(image, width, is_long_side)
+#                 else:
+#                     if new_is_landscape:
+#                         image = self.scale_to_side(image, height, is_long_side)
+#                     else:
+#                         image = self.scale_to_side(image, width, is_long_side)
+#             # if original is landscape and new is portrait or original is portrait and new is landscape
+#             else:
+#                 if is_long_side:
+#                     image = self.scale_to_side(image, width, is_long_side)
+#                 else:
+#                     image = self.scale_to_side(image, height, is_long_side)
+#
+#             scaled_image = image.clone().detach()
+#
+#             B, H, W, C = image.shape
+#             self.is_downsize = True
+#
+#         if self.is_downsize:
+#             image = self.crop(image, width, height, crop)
+#             return(image, scaled_image, image.shape[2], image.shape[1],)
+#
+#         if (orig_is_landscape and new_is_landscape) or ((not orig_is_landscape) and (not new_is_landscape)):
+#             image = image.movedim(-1,1)
+#             image = self.upscale(image, width, height, upscale_method, crop)
+#             image = image.movedim(1,-1)
+#
+#             return(image, image, image.shape[2], image.shape[1],)
+#
+#         if orig_is_landscape:
+#             temp_ratio = round(height // H)
+#             temp_width = round(W * temp_ratio)
+#
+#             image = image.movedim(-1,1)
+#             image = self.upscale(image, temp_width, height, upscale_method, "disabled")
+#             image = image.movedim(1,-1)
+#
+#             scaled_image = image.clone().detach()
+#             image = self.crop(image, width, height, crop)
+#
+#             return(image, scaled_image, image.shape[2], image.shape[1],)
+#
+#         temp_ratio = round(width // W)
+#         temp_height = round(H * temp_ratio)
+#
+#         image = image.movedim(-1,1)
+#         image = self.upscale(image, width, temp_height, upscale_method, "disabled")
+#         image = image.movedim(1,-1)
+#
+#         scaled_image = image.clone().detach()
+#         image = self.crop(image, width, height, crop)
+#
+#         return(image, scaled_image, image.shape[2], image.shape[1],)
+#
+#     def determine_side_to_scale(self, original_height, original_width, width, height):
+#         original_is_landscape = False
+#         new_is_landscape = False
+#
+#         if original_width > original_height:
+#             original_is_landscape = True
+#
+#         if width > height:
+#             new_is_landscape = True
+#
+#         if (original_width == original_height):
+#             if width <= height:
+#                 original_is_landscape = True
+#
+#                 if width < height:
+#                     new_is_landscape = True
+#                 else:
+#                     new_is_landscape = original_is_landscape
+#             else:
+#                 original_is_landscape = True
+#                 new_is_landscape = True
+#
+#         is_long_side = True
+#         upscale_required = False
+#
+#         if (not new_is_landscape and original_is_landscape) or (new_is_landscape and not original_is_landscape):
+#             is_long_side = False
+#         else:
+#             if original_is_landscape:
+#                 temp_ratio  = round(width // original_width)
+#                 temp_height = round(temp_ratio * height)
+#
+#                 if temp_height < height:
+#                     is_long_side = False
+#                     upscale_required = True
+#             else:
+#                 temp_ratio  = round(height // original_height)
+#                 temp_width = round(temp_ratio * width)
+#
+#                 if temp_width < width:
+#                     is_long_side = False
+#                     upscale_required = True
+#
+#         return is_long_side, original_is_landscape, new_is_landscape, upscale_required
+#
+#     def crop(self, input_image, width, height, crop_type):
+#         image_batches_tuple = torch.split(input_image, 1, dim=0)
+#         image_batches_split = [item for item in image_batches_tuple]
+#
+#         result_images = None
+#         for image in image_batches_split:
+#             new_image = tensor2pilSwap(image)
+#             new_image = new_image[0]
+#
+#             print("Image width: {} height: {}  |  New width: {} height: {}".format(new_image.width, new_image.height, width, height))
+#
+#             #(left, upper, right, lower)
+#             if crop_type == "top_left":
+#                 left = 0
+#                 upper = 0
+#                 right = width
+#                 lower = height
+#             elif crop_type == "top_right":
+#                 left = new_image.width - width
+#                 upper = 0
+#                 right = new_image.width
+#                 lower = height
+#             elif crop_type == "top_center":
+#                 left = int(new_image.width // 2) - int(width // 2)
+#                 upper = 0
+#                 right = (int(new_image.width // 2) - int(width // 2)) + width
+#                 lower = height
+#             elif crop_type == "bottom_left":
+#                 left = 0
+#                 upper = new_image.height - height
+#                 right = width
+#                 lower = new_image.height
+#             elif crop_type == "bottom_right":
+#                 left = new_image.width - width
+#                 upper = new_image.height - height
+#                 right = new_image.width
+#                 lower = new_image.height
+#             elif crop_type == "bottom_center":
+#                 left = int(new_image.width // 2) - int(width // 2)
+#                 upper = new_image.height - height
+#                 right = (int(new_image.width // 2) - int(width // 2)) + width
+#                 lower = new_image.height
+#             elif crop_type == "center":
+#                 left = int(new_image.width // 2) - int(width // 2)
+#                 upper = int(new_image.height // 2) - int(height // 2)
+#                 right = (int(new_image.width // 2) - int(width // 2)) + width
+#                 lower = (int(new_image.height // 2) - int(height // 2)) + height
+#
+#             print("Crop Locations: Left: {}  |  Upper: {}  |  Right: {}  |  Lower: {}".format(int(new_image.width // 2) - int(width // 2), 0, width, height))
+#             new_image = new_image.crop((left, upper, right, lower))
+#
+#             newImage = pil2tensorSwap([newImage], device=self.device)
+#
+#             if not result_images is None:
+#                 result_images = torch.cat((result_images, new_image), 0)
+#             else:
+#                 result_images = new_image
+#
+#             new_image = None
+#
+#         mm.soft_empty_cache()
+#         gc.collect()
+#         time.sleep(1)
+#
+#         return result_images
+#
+#     def upscale(self, samples, width, height, upscale_method, crop):
+#             orig_shape = tuple(samples.shape)
+#             if len(orig_shape) > 4:
+#                 samples = samples.reshape(samples.shape[0], samples.shape[1], -1, samples.shape[-2], samples.shape[-1])
+#                 samples = samples.movedim(2, 1)
+#                 samples = samples.reshape(-1, orig_shape[1], orig_shape[-2], orig_shape[-1])
+#
+#             s = samples
+#             if crop != "disabed":
+#                 old_width = samples.shape[-1]
+#                 old_height = samples.shape[-2]
+#                 old_aspect = old_width / old_height
+#                 new_aspect = width / height
+#                 x = 0
+#                 y = 0
+#
+#                 if crop == "center":
+#                     if old_aspect > new_aspect:
+#                         x = round((old_width - old_width * (new_aspect / old_aspect)) / 2)
+#                     elif old_aspect < new_aspect:
+#                         y = round((old_height - old_height * (old_aspect / new_aspect)) / 2)
+#
+#                     s = samples.narrow(-2, y, old_height - y * 2).narrow(-1, x, old_width - x * 2)
+#                 elif (s.shape[2] != height) or (s.shape[3] != width):
+#                     if self.is_downsize:
+#                         if len(s.shape) < 4:
+#                             s = s.unsqueeze(0)
+#
+#                         print("s.shape: {}".format(s.shape))
+#
+#                         if crop == "top_left":
+#                             if width < height:
+#                                 s = s.narrow(-1, 0, width)
+#                             else:
+#                                 s = s.narrow(-2, 0, height)
+#                         elif crop == "top_right":
+#                             if width < height:
+#                                 s = s.narrow(-1, s.shape[3] - width, width)
+#                             else:
+#                                 s = s.narrow(-2, 0, height)
+#                         elif crop == "bottom_left":
+#                             if width < height:
+#                                 s = s.narrow(-1, 0, width)
+#                             else:
+#                                 s = s.narrow(-2, s.shape[2] - height, height)
+#                         elif crop == "bottom_right":
+#                             if width < height:
+#                                 s = s.narrow(-1, s.shape[3] -  width, width)
+#                             else:
+#                                 s = s.narrow(-2, s.shape[2] - height, height)
+#                         elif crop == "top_center":
+#                             if width < height:
+#                                 s = s.narrow(-1, round((s.shape[3] / 2) - (width / 2) - 1), width)
+#                             else:
+#                                 s = s.narrow(-1, 0, height)
+#                         elif crop == "bottom_center":
+#                             if width < height:
+#                                 s = s.narrow(-1, round((s.shape[3] / 2) - (width / 2) - 1), width)
+#                                 print("s.shape 1: {}".format(s.shape))
+#                             else:
+#                                 s = s.narrow(-2, s.shape[2] - height, height)
+#                                 print("s.shape 2: {}".format(s.shape))
+#
+#             if upscale_method == "bislerp":
+#                 out = utils.bislerp(s, width, height)
+#             elif upscale_method == "lanczos":
+#                 out = utils.lanczos(s, width, height)
+#             else:
+#                 out = torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
+#
+#             if len(orig_shape) == 4:
+#                 return out
+#
+#             out = out.reshape((orig_shape[0], -1, orig_shape[1]) + (height, width))
+#             return out.movedim(2, 1).reshape(orig_shape[:-2] + (height, width))
+#
+#     def scale_to_side(self, input_image, length=1024, scale_long_side=True):
+#         image_batches_tuple = torch.split(input_image, 1, dim=0)
+#         image_batches_split = [item for item in image_batches_tuple]
+#
+#         result_images = None
+#
+#         for image in image_batches_split:
+#             img = tensor2pilSwap(image)
+#             img = img[0]
+#
+#             if scale_long_side:
+#                 if img.height >= img.width:
+#                     newHeight = length
+#                     newWidth = int(float(length / img.height) * img.width)
+#                 else:
+#                     newWidth = length
+#                     newHeight = int(float(length / img.width) * img.height)
+#             else:
+#                 if img.height <= img.width:
+#                     newHeight = length
+#                     newWidth = int(float(length / img.height) * img.width)
+#                 else:
+#                     newWidth = length
+#                     newHeight = int(float(length / img.width) * img.height)
+#
+#             tempImage = img.resize((newWidth, newHeight), resample=Image.BILINEAR)
+#
+#             newImage = pil2tensorSwap([tempImage], device=self.device)
+#
+#             if not result_images is None:
+#                 result_images = torch.cat((result_images, new_image), 0)
+#             else:
+#                 result_images = new_image
+#
+#             new_image = None
+#
+#         mm.soft_empty_cache()
+#         gc.collect()
+#         time.sleep(1)
+#
+#         return result_images
 
 class WarpedImageScaleToSide:
     @classmethod
@@ -4462,7 +4516,7 @@ class WarpedImageScaleToSide:
                     },
                 }
 
-    CATEGORY = "Warped/Image"
+    CATEGORY = "Warped/General/Image"
 
     RETURN_TYPES = ("IMAGE", "INT", "INT", )
     RETURN_NAMES = ("image", "width", "height")
@@ -4527,171 +4581,8 @@ class WarpedImageScaleToSide:
 
         return (final_image, final_image.shape[1], final_image.shape[2],)
 
-class WarpedHunyuanLoraCheck:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "lora": (['None'] + get_lora_list(),),
-            },
-        }
-
-    RETURN_TYPES = ()
-    OUTPUT_NODE = True
-    OUTPUT_IS_LIST = (True,)
-    FUNCTION = "check_lora"
-    CATEGORY = "Warped/HunyuanTools"
-    DESCRIPTION = ""
-
-    def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
-        """Load and filter a single LoRA model."""
-        if not lora_name or strength == 0:
-            return {}, {}
-
-        # Get the full path to the LoRA file
-        lora_path = folder_paths.get_full_path("loras", lora_name)
-        if not os.path.exists(lora_path):
-            raise ValueError(f"LoRA file not found: {lora_path}")
-
-        # Load the LoRA weights
-        lora_weights = utils.load_torch_file(lora_path)
-
-        return lora_weights
-
-    def check_lora(self, lora):
-        if lora != "None":
-            # Load and filter the LoRA weights
-            lora_weights = self.load_lora(lora_1, 1.0, blocks_type_1)
-        else:
-            lora_weights = {}
-
-        for key in lora_weights:
-            print(key)
-
-        return {"ui": {"tags": [save_message]}}
-
 def get_base_lora_dirs():
     return folder_paths.get_folder_paths("loras")
-
-# class WarpedLoadLorasBatch:
-#     def __init__(self):
-#         self.index = 0
-#         self.base_lora_dir = ""
-#         self.sub_folder = ""
-#
-#     @classmethod
-#     def INPUT_TYPES(cls):
-#         return {
-#             "required": {
-#                 "base_lora_dir": (get_base_lora_dirs(), ),
-#                 "lora_subdirectory": ("STRING", {"default": '', "multiline": False}),
-#             },
-#         }
-#
-#     RETURN_TYPES = ("STRING", "STRING", )
-#     RETURN_NAMES = ("lora_name", "full_lora_path", )
-#     FUNCTION = "load_batch_loras"
-#
-#     CATEGORY = "Warped/LORA"
-#
-#     def load_batch_loras(self, base_lora_dir, lora_subdirectory):
-#         self.sub_folder = lora_subdirectory
-#         self.base_lora_dir = base_lora_dir
-#         path = os.path.join(self.base_lora_dir, self.sub_folder)
-#         print(path)
-#
-#         if not os.path.exists(path):
-#             return ("", "", )
-#
-#         index=0
-#         mode="incremental_lora"
-#         label='Batch 001'
-#         suffix=""
-#
-#         retry = False
-#
-#         try:
-#             filename, full_filename = self.do_the_load(path, index, mode, label, suffix)
-#             print("WarpedLoadLorasBatch: Filename: {}  |  Full File Path: {}".format(filename, full_filename))
-#             return (filename, full_filename, )
-#         except:
-#             self.index = 0
-#             retry = True
-#
-#         if retry:
-#             filename, full_filename = self.do_the_load(path, index, mode, label, suffix)
-#             print("WarpedLoadLorasBatch: Retrying: Filename: {}  |  Full File Path: {}".format(filename, full_filename))
-#             return (filename, full_filename, )
-#
-#         return ("", "", )
-#
-#
-#     def do_the_load(self, path, index, mode, label, suffix):
-#         fl = self.BatchLoraLoader(path, label, '*', index)
-#         new_paths = fl.lora_paths
-#
-#         filename = fl.lora_paths[self.index]
-#
-#         filename = os.path.join(self.sub_folder, filename)
-#         full_filename = os.path.join(self.base_lora_dir, filename)
-#
-#         self.index += 1
-#
-#         if self.index >= len(fl.lora_paths):
-#             self.index = 0
-#
-#         return filename, full_filename
-#
-#
-#     class BatchLoraLoader:
-#         def __init__(self, directory_path, label, pattern, index):
-#             self.lora_paths = []
-#             self.load_loras(directory_path, pattern)
-#             self.lora_paths.sort()
-#
-#             self.index = index
-#             self.label = label
-#
-#         def load_loras(self, directory_path, pattern):
-#             for file_name in glob.glob(os.path.join(directory_path, pattern), recursive=True):
-#                 temp_strings = file_name.split('\\')
-#                 file_name = temp_strings[len(temp_strings) - 1]
-#
-#                 if file_name.lower().endswith("safetensors"):
-#                     # abs_file_path = os.path.abspath(file_name)
-#                     self.lora_paths.append(file_name)
-#
-#         def get_lora_by_id(self, lora_id):
-#             if lora_id < 0 or lora_id >= len(self.lora_paths):
-#                 cstr(f"Invalid lora index `{lora_id}`").error.print()
-#                 return
-#
-#             return self.lora_paths[lora_id]
-#
-#         def get_next_lora(self):
-#             if self.index >= len(self.lora_paths):
-#                 self.index = 0
-#
-#             lora_path = self.lora_paths[self.index]
-#             self.index += 1
-#
-#             if self.index == len(self.lora_paths):
-#                 self.index = 0
-#
-#             cstr(f'{cstr.color.YELLOW}{self.label}{cstr.color.END} Index: {self.index}').msg.print()
-#
-#             return lora_path
-#
-#         def get_current_lora(self):
-#             if self.index >= len(self.lora_paths):
-#                 self.index = 0
-#             lora_path = self.lora_paths[self.index]
-#
-#             return lora_path
-#
-#     @classmethod
-#     def IS_CHANGED(cls, **kwargs):
-#         return float("NaN")
 
 def get_lora_directories():
     lora_dirs = get_base_lora_dirs()
@@ -4739,7 +4630,7 @@ class WarpedLoadLorasBatchByPrefix:
     RETURN_NAMES = ("lora_name", "full_lora_path", )
     FUNCTION = "load_batch_loras"
 
-    CATEGORY = "Warped/LORA"
+    CATEGORY = "Warped/General/Lora"
 
     def load_batch_loras(self, lora_dir, lora_prefix):
         self.lora_dir = lora_dir
@@ -4871,85 +4762,9 @@ class WarpedHunyuanVideoLoraLoader:
     RETURN_TYPES = ("MODEL",)
     RETURN_NAMES = ("model",)
     FUNCTION = "load_lora"
-    CATEGORY = "Warped/LORA/Hunyuan"
+    CATEGORY = "Warped/Hunyuan/Lora"
     OUTPUT_NODE = False
     DESCRIPTION = "LoRA, single blocks double blocks"
-
-    def convert_key_format(self, key: str) -> str:
-        prefixes = ["diffusion_model.", "transformer."]
-        for prefix in prefixes:
-            if key.startswith(prefix):
-                key = key[len(prefix):]
-                break
-
-        return key
-
-    def filter_lora_keys(self, lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
-        if blocks_type == "all":
-            return lora
-
-        filtered_lora = {}
-        for key, value in lora.items():
-            base_key = self.convert_key_format(key)
-
-            if blocks_type == "single_blocks" in base_key:
-                filtered_lora[key] = value
-            elif blocks_type == "double_blocks" in base_key:
-                filtered_lora[key] = value
-
-        return filtered_lora
-
-    def check_for_musubi(self, lora: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-        """Checks for and converts from Musubi Tuner format which supports Network Alpha and uses different naming. Largely copied from that project"""
-        prefix = "lora_unet_"
-        musubi = False
-        lora_alphas = {}
-        for key, value in lora.items():
-            if key.startswith(prefix):
-                lora_name = key.split(".", 1)[0]  # before first dot
-                if lora_name not in lora_alphas and "alpha" in key:
-                    lora_alphas[lora_name] = value
-                    musubi = True
-        if musubi:
-            print("Loading Musubi Tuner format LoRA...")
-            converted_lora = {}
-            for key, weight in lora.items():
-                if key.startswith(prefix):
-                    if "alpha" in key:
-                        continue
-                lora_name = key.split(".", 1)[0]  # before first dot
-                # HunyuanVideo lora name to module name: ugly but works
-                module_name = lora_name[len(prefix) :]  # remove "lora_unet_"
-                module_name = module_name.replace("_", ".")  # replace "_" with "."
-                module_name = module_name.replace("double.blocks.", "double_blocks.")  # fix double blocks
-                module_name = module_name.replace("single.blocks.", "single_blocks.")  # fix single blocks
-                module_name = module_name.replace("img.", "img_")  # fix img
-                module_name = module_name.replace("txt.", "txt_")  # fix txt
-                module_name = module_name.replace("attn.", "attn_")  # fix attn
-                diffusers_prefix = "diffusion_model"
-                if "lora_down" in key:
-                    new_key = f"{diffusers_prefix}.{module_name}.lora_A.weight"
-                    dim = weight.shape[0]
-                elif "lora_up" in key:
-                    new_key = f"{diffusers_prefix}.{module_name}.lora_B.weight"
-                    dim = weight.shape[1]
-                else:
-                    print(f"unexpected key: {key} in Musubi LoRA format")
-                    continue
-                # scale weight by alpha
-                if lora_name in lora_alphas:
-                    # we scale both down and up, so scale is sqrt
-                    scale = lora_alphas[lora_name] / dim
-                    scale = scale.sqrt()
-                    weight = weight * scale
-                else:
-                    print(f"missing alpha for {lora_name}")
-
-                converted_lora[new_key] = weight
-            return converted_lora
-        else:
-            print("Loading Diffusers format LoRA...")
-            return lora
 
     def load_lora(self, model, lora_name: str, strength: float, blocks_type: str):
         """
@@ -4987,8 +4802,8 @@ class WarpedHunyuanVideoLoraLoader:
             lora = load_torch_file(lora_path)
             self.loaded_lora = (lora_path, lora)
 
-        diffusers_lora = self.check_for_musubi(lora)
-        filtered_lora = self.filter_lora_keys(diffusers_lora, blocks_type)
+        diffusers_lora = convert_lora(lora, convert_to="diffusion_model")
+        filtered_lora = filter_lora_keys(diffusers_lora, blocks_type)
 
         new_model, _ = load_lora_for_models(model, None, filtered_lora, strength, 0)
         if new_model is not None:
@@ -5027,7 +4842,7 @@ class WarpedFramepackMultiLoraSelect:
     RETURN_NAMES = ("lora", )
     FUNCTION = "select_multiple_loras"
     CATEGORY = "Warped/Framepack/Lora"
-    DESCRIPTION = "Select a Hunyuan LoRA model"
+    DESCRIPTION = "Select a Hunyuan LoRA models"
 
     def select_multiple_loras(self, **kwargs):
         loras_list = []
@@ -5042,14 +4857,73 @@ class WarpedFramepackMultiLoraSelect:
             temp_strength = kwargs.get(f"strength_0{i}")
             temp_fuse_lora = kwargs.get(f"fuse_lora_0{i}")
 
-            # print("lora_name: {}".format(temp_lora_name))
-            # print("strength: {}".format(temp_strength))
-            # print("fuse_lora: {}".format(temp_fuse_lora))
+            if (temp_lora_name != "None") and (Decimal(temp_strength).compare(Decimal(0.0)) != 0):
+                lora = {
+                    "path": folder_paths.get_full_path("loras", temp_lora_name),
+                    "strength": temp_strength,
+                    "name": temp_lora_name.split(".")[0],
+                    "fuse_lora": temp_fuse_lora,
+                }
+
+                loras_list.append(lora)
+
+        if len(loras_list) > 0:
+            return (loras_list,)
+        else:
+            return (None,)
+
+class WarpedFramepackMultiLoraSelectExt:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+               "lora_01": (['None'] + folder_paths.get_filename_list("loras"), {"tooltip": "LORA models are expected to have .safetensors extension"}),
+                "strength_01": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.0001, "tooltip": "LORA strength, set to 0.0 to unmerge the LORA"}),
+                "blocks_01": (["all", "double_blocks", "single_blocks"], {"default": "all", "tooltip": "all, single only, or double only block."}),
+                "fuse_lora_01": ("BOOLEAN", {"default": False, "tooltip": "Fuse the LORA model with the base model. This is recommended for better performance."}),
+               "lora_02": (['None'] + folder_paths.get_filename_list("loras"), {"tooltip": "LORA models are expected to have .safetensors extension"}),
+                "strength_02": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.0001, "tooltip": "LORA strength, set to 0.0 to unmerge the LORA"}),
+                "blocks_02": (["all", "double_blocks", "single_blocks"], {"default": "all", "tooltip": "all, single only, or double only block."}),
+                "fuse_lora_02": ("BOOLEAN", {"default": False, "tooltip": "Fuse the LORA model with the base model. This is recommended for better performance."}),
+               "lora_03": (['None'] + folder_paths.get_filename_list("loras"), {"tooltip": "LORA models are expected to have .safetensors extension"}),
+                "strength_03": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.0001, "tooltip": "LORA strength, set to 0.0 to unmerge the LORA"}),
+                "blocks_03": (["all", "double_blocks", "single_blocks"], {"default": "all", "tooltip": "all, single only, or double only block."}),
+                "fuse_lora_03": ("BOOLEAN", {"default": False, "tooltip": "Fuse the LORA model with the base model. This is recommended for better performance."}),
+               "lora_04": (['None'] + folder_paths.get_filename_list("loras"), {"tooltip": "LORA models are expected to have .safetensors extension"}),
+                "strength_04": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.0001, "tooltip": "LORA strength, set to 0.0 to unmerge the LORA"}),
+                "blocks_04": (["all", "double_blocks", "single_blocks"], {"default": "all", "tooltip": "all, single only, or double only block."}),
+                "fuse_lora_04": ("BOOLEAN", {"default": False, "tooltip": "Fuse the LORA model with the base model. This is recommended for better performance."}),
+            },
+            "optional": {
+                "prev_lora":("FPLORA", {"default": None, "tooltip": "For loading multiple LoRAs"}),
+            }
+        }
+
+    RETURN_TYPES = ("FPLORA",)
+    RETURN_NAMES = ("lora", )
+    FUNCTION = "select_multiple_loras"
+    CATEGORY = "Warped/Framepack/Lora"
+    DESCRIPTION = "Select a Hunyuan LoRA models"
+
+    def select_multiple_loras(self, **kwargs):
+        loras_list = []
+
+        prev_lora = kwargs.get(f"prev_lora")
+
+        if prev_lora is not None:
+            loras_list.extend(prev_lora)
+
+        for i in range(1, 5):
+            temp_lora_name = kwargs.get(f"lora_0{i}")
+            temp_strength = kwargs.get(f"strength_0{i}")
+            temp_blocks =  kwargs.get(f"blocks_0{i}")
+            temp_fuse_lora = kwargs.get(f"fuse_lora_0{i}")
 
             if (temp_lora_name != "None") and (Decimal(temp_strength).compare(Decimal(0.0)) != 0):
                 lora = {
                     "path": folder_paths.get_full_path("loras", temp_lora_name),
                     "strength": temp_strength,
+                    "blocks": temp_blocks,
                     "name": temp_lora_name.split(".")[0],
                     "fuse_lora": temp_fuse_lora,
                 }
@@ -5097,7 +4971,7 @@ class WarpedHunyuanMultiLoraLoader:
     RETURN_NAMES = ("model", "lora_metadata")
     OUTPUT_IS_LIST = (False, True)
     FUNCTION = "load_multiple_loras"
-    CATEGORY = "Warped/LORA/Hunyuan"
+    CATEGORY = "Warped/Hunyuan/Lora"
     DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
 
     def convert_key_format(self, key: str) -> str:
@@ -5108,17 +4982,6 @@ class WarpedHunyuanMultiLoraLoader:
                 key = key[len(prefix):]
                 break
         return key
-
-    def filter_lora_keys(self, lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
-        """Filter LoRA weights based on block type."""
-        if blocks_type == "all":
-            return lora
-        filtered_lora = {}
-        for key, value in lora.items():
-            base_key = self.convert_key_format(key)
-            if blocks_type in base_key:
-                filtered_lora[key] = value
-        return filtered_lora
 
     def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         """Load and filter a single LoRA model."""
@@ -5133,12 +4996,13 @@ class WarpedHunyuanMultiLoraLoader:
         # Load the LoRA weights
         lora_weights = utils.load_torch_file(lora_path)
 
+        lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+
         # Filter the LoRA weights based on the block type
-        filtered_lora = self.filter_lora_keys(lora_weights, blocks_type)
+        filtered_lora = filter_lora_keys(lora_weights, blocks_type)
 
         return lora_weights, filtered_lora
 
-#    def load_multiple_loras(self, model, lora_name=None, strength=1.00, blocks_type="all", **kwargs):
     def load_multiple_loras(self, model, **kwargs):
         """Load and apply multiple LoRA models."""
         from comfy.sd import load_lora_for_models
@@ -5153,7 +5017,7 @@ class WarpedHunyuanMultiLoraLoader:
             print("Lora Name: {}  |  Strength: {}  |  Block Types: {}".format(temp_lora_name, temp_strength, temp_blocks_type))
             lora_metadata.append("{}".format("Lora: {} | Strength: {} | Block Types: {}".format(temp_lora_name, temp_strength, temp_blocks_type)))
 
-            lora_weights, filtered_lora = self.load_lora(temp_lora_name, temp_strength, temp_blocks_type)
+            lora_weights, filtered_lora = self.load_lora(temp_lora_name, 1.0, "all")
 
             # Apply the LoRA weights to the model
             if filtered_lora:
@@ -5167,13 +5031,121 @@ class WarpedHunyuanMultiLoraLoader:
             if temp_lora_name != "None" and temp_strength != 0:
                 lora_metadata.append("{}".format("Lora: {} | Strength: {} | Block Types: {}".format(temp_lora_name, temp_strength, temp_blocks_type)))
                 # Load and filter the LoRA weights
-                lora_weights, filtered_lora = self.load_lora(temp_lora_name, temp_strength, temp_blocks_type)
+                lora_weights, filtered_lora = self.load_lora(temp_lora_name, 1.0, "all")
+
 
                 # Apply the LoRA weights to the model
                 if filtered_lora:
                     model, _ = load_lora_for_models(model, None, filtered_lora, temp_strength, 0)
 
         return (model, lora_metadata, )
+
+    @classmethod
+    def IS_CHANGED(s, **kwargs):
+        return f"{kwargs.get('lora_name')}_{kwargs.get('strength')}_{kwargs.get('blocks_type')}_" \
+               f"{kwargs.get('lora_01')}_{kwargs.get('strength_01')}_{kwargs.get('blocks_type_01')}_" \
+               f"{kwargs.get('lora_02')}_{kwargs.get('strength_02')}_{kwargs.get('blocks_type_02')}_" \
+               f"{kwargs.get('lora_03')}_{kwargs.get('strength_03')}_{kwargs.get('blocks_type_03')}_" \
+               f"{kwargs.get('lora_04')}_{kwargs.get('strength_04')}_{kwargs.get('blocks_type_04')}"
+
+class WarpedMultiLoraLoader:
+    def __init__(self):
+        self.loaded_lora = None
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL", {"tooltip": "The diffusion model the LoRA will be applied to."}),
+                "clip": ("CLIP", {"tooltip": "The CLIP model the LoRA will be applied to."}),
+                "lora_01": (['None'] + folder_paths.get_filename_list("loras"),),
+                "strength_model_01": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                "strength_clip_01": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the CLIP model. This value can be negative."}),
+                "lora_02": (['None'] + folder_paths.get_filename_list("loras"),),
+                "strength_model_02": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                "strength_clip_02": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the CLIP model. This value can be negative."}),
+                "lora_03": (['None'] + folder_paths.get_filename_list("loras"),),
+                "strength_model_03": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                "strength_clip_03": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the CLIP model. This value can be negative."}),
+                "lora_04": (['None'] + folder_paths.get_filename_list("loras"),),
+                "strength_model_04": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                "strength_clip_04": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the CLIP model. This value can be negative."}),
+            },
+          "optional": {
+                "lora_name": ("STRING", {"default": None, "forceInput": True}),
+                "strength_model": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                "strength_clip": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the CLIP model. This value can be negative."}),
+            },
+        }
+
+    RETURN_TYPES = ("MODEL", "CLIP", "STRING", )
+    RETURN_NAMES = ("model", "clip", "lora_metadata",)
+    OUTPUT_IS_LIST = (False, False, True)
+    FUNCTION = "load_multiple_loras"
+    CATEGORY = "Warped/General/Loaders"
+    DESCRIPTION = "Load and apply multiple LoRA models with different strengths. Model input is required."
+
+    def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
+        if strength_model == 0 and strength_clip == 0:
+            return model, clip
+
+        lora_path = folder_paths.get_full_path("loras", lora_name)
+        lora_path = os.path.abspath(lora_path)
+
+        if not os.path.exists(lora_path):
+            raise ValueError(f"LoRA file not found: {lora_path}")
+
+        lora = None
+        if self.loaded_lora is not None:
+            if self.loaded_lora[0] == lora_path:
+                lora = self.loaded_lora[1]
+            else:
+                self.loaded_lora = None
+
+        if lora is None:
+            lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
+            self.loaded_lora = (lora_path, lora)
+
+        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+
+        return model_lora, clip_lora
+
+    def load_multiple_loras(self, model, clip, **kwargs):
+        """Load and apply multiple LoRA models."""
+        from comfy.sd import load_lora_for_models
+
+        temp_lora_name = kwargs.get(f"lora_name")
+        temp_strength_model = kwargs.get(f"strength_model")
+        temp_strength_clip = kwargs.get(f"strength_clip")
+
+        temp_model = model
+        temp_clip = clip
+
+        lora_metadata = []
+
+        if not temp_lora_name is None and ((temp_strength_model != 0) or (temp_strength_clip != 0)):
+            print("Lora Name: {}  |  Strength Model: {}  |  Strength Clip: {}".format(temp_lora_name, temp_strength_model, temp_strength_clip))
+            lora_metadata.append("Lora: {} | Strength Model: {}  |  Strength clip: {}".format(temp_lora_name, temp_strength_model, temp_strength_clip))
+
+            temp_model, temp_clip = self.load_lora(temp_model, temp_clip, temp_lora_name, temp_strength_model, temp_strength_clip)
+
+        for i in range(1, 5):
+            temp_lora_name = kwargs.get(f"lora_0{i}")
+
+            if temp_lora_name == "None":
+                continue
+
+            temp_strength_model = kwargs.get(f"strength_model_0{i}")
+            temp_strength_clip = kwargs.get(f"strength_clip_0{i}")
+
+            print("Lora Name: {}  |  Strength Model: {}  |  Strength Clip: {}".format(temp_lora_name, temp_strength_model, temp_strength_clip))
+
+            if not temp_lora_name is None and ((temp_strength_model != 0) or (temp_strength_clip != 0)):
+                lora_metadata.append("Lora: {} | Strength Model: {}  |  Strength clip: {}".format(temp_lora_name, temp_strength_model, temp_strength_clip))
+                # Load LoRA weights
+                temp_model, temp_clip = self.load_lora(temp_model, temp_clip, temp_lora_name, temp_strength_model, temp_strength_clip)
+
+        return (temp_model, temp_clip, lora_metadata, )
 
     @classmethod
     def IS_CHANGED(s, **kwargs):
@@ -5247,28 +5219,8 @@ class WarpedHunyuanLoraBatchMerge:
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (True,)
     FUNCTION = "merge_multiple_loras"
-    CATEGORY = "Warped/HunyuanTools"
+    CATEGORY = "Warped/Hunyuan/Merge"
     DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
-
-    def convert_key_format(self, key: str) -> str:
-        """Standardize LoRA key format by removing prefixes."""
-        prefixes = ["diffusion_model.", "transformer."]
-        for prefix in prefixes:
-            if key.startswith(prefix):
-                key = key[len(prefix):]
-                break
-        return key
-
-    def filter_lora_keys(self, lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[str, torch.Tensor]:
-        """Filter LoRA weights based on block type."""
-        if blocks_type == "all":
-            return lora
-        filtered_lora = {}
-        for key, value in lora.items():
-            base_key = self.convert_key_format(key)
-            if blocks_type in base_key:
-                filtered_lora[key] = value
-        return filtered_lora
 
     def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         """Load and filter a single LoRA model."""
@@ -5281,10 +5233,8 @@ class WarpedHunyuanLoraBatchMerge:
             raise ValueError(f"LoRA file not found: {lora_path}")
 
         # Load the LoRA weights
-        lora_weights = utils.load_torch_file(lora_path)
-
-        # Filter the LoRA weights based on the block type
-        filtered_lora = self.filter_lora_keys(lora_weights, blocks_type)
+        lora_weights = convert_lora(lora_name, convert_to="diffusion_model")
+        filtered_lora = filter_lora_keys(lora_weights, blocks_type)
 
         return lora_weights, filtered_lora
 
@@ -5307,29 +5257,19 @@ class WarpedHunyuanLoraBatchMerge:
             lora_weights, filtered_lora = self.load_lora(lora_2, 1.0, blocks_type_2)
             temp_loras["2"] = {"lora_weights": lora_weights, "strength": strength_2, "filtered_lora": filtered_lora}
 
-        loras = {}
-
-        for lora_key in temp_loras.keys():
-            loras[lora_key] = {"lora_weights": {}, "strength": temp_loras[lora_key]["strength"], "filtered_lora": temp_loras[lora_key]["filtered_lora"]}
-
-            for key in temp_loras[lora_key]["lora_weights"].keys():
-                new_key = key.replace("transformer.", "diffusion_model.")
-                loras[lora_key]["lora_weights"][new_key] = temp_loras[lora_key]["lora_weights"][key]
-
         new_lora = {}
 
-        for lora_key in loras.keys():
-            for key in loras[lora_key]["lora_weights"].keys():
+        for lora_key in temp_loras.keys():
+            for key in temp_loras[lora_key]["filtered_lora"].keys():
                 if not key in new_lora.keys():
                     new_lora[key] = None
-                # print("Lora: {}  | Key: {}  |  Shape: {}".format(lora_key, key, loras[lora_key]["lora_weights"][key].shape))
 
         # Merge The Weighted Key Weights
         for key in new_lora.keys():
-            for lora_key in loras.keys():
-                if key in loras[lora_key]["lora_weights"].keys():
+            for lora_key in temp_loras.keys():
+                if key in temp_loras[lora_key]["filtered_lora"].keys():
                     if not new_lora[key] is None:
-                        temp_weights = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
+                        temp_weights = torch.mul(temp_loras[lora_key]["filtered_lora"][key], temp_loras[lora_key]["strength"])
 
                         if new_lora[key].shape[0] < new_lora[key].shape[1]:
                             if temp_weights.shape[0] < new_lora[key].shape[0]:
@@ -5367,7 +5307,7 @@ class WarpedHunyuanLoraBatchMerge:
                         except Exception as e:
                             raise(e)
                     else:
-                        new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
+                        new_lora[key] = torch.mul(loras[lora_key]["filtered_lora"][key], loras[lora_key]["strength"])
 
         if not save_metadata:
             metadata = None
@@ -5402,60 +5342,8 @@ class WarpedHunyuanLoraConvertKeys:
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (True,)
     FUNCTION = "convert_lora"
-    CATEGORY = "Warped/HunyuanTools"
-    DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
-
-    def check_for_musubi(self, lora: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-        """Checks for and converts from Musubi Tuner format which supports Network Alpha and uses different naming. Largely copied from that project"""
-        prefix = "lora_unet_"
-        musubi = False
-        lora_alphas = {}
-        for key, value in lora.items():
-            if key.startswith(prefix):
-                lora_name = key.split(".", 1)[0]  # before first dot
-                if lora_name not in lora_alphas and "alpha" in key:
-                    lora_alphas[lora_name] = value
-                    musubi = True
-        if musubi:
-            print("Loading Musubi Tuner format LoRA...")
-            converted_lora = {}
-            for key, weight in lora.items():
-                if key.startswith(prefix):
-                    if "alpha" in key:
-                        continue
-                lora_name = key.split(".", 1)[0]  # before first dot
-                # HunyuanVideo lora name to module name: ugly but works
-                module_name = lora_name[len(prefix) :]  # remove "lora_unet_"
-                module_name = module_name.replace("_", ".")  # replace "_" with "."
-                module_name = module_name.replace("double.blocks.", "double_blocks.")  # fix double blocks
-                module_name = module_name.replace("single.blocks.", "single_blocks.")  # fix single blocks
-                module_name = module_name.replace("img.", "img_")  # fix img
-                module_name = module_name.replace("txt.", "txt_")  # fix txt
-                module_name = module_name.replace("attn.", "attn_")  # fix attn
-                diffusers_prefix = "diffusion_model"
-                if "lora_down" in key:
-                    new_key = f"{diffusers_prefix}.{module_name}.lora_A.weight"
-                    dim = weight.shape[0]
-                elif "lora_up" in key:
-                    new_key = f"{diffusers_prefix}.{module_name}.lora_B.weight"
-                    dim = weight.shape[1]
-                else:
-                    print(f"unexpected key: {key} in Musubi LoRA format")
-                    continue
-                # scale weight by alpha
-                if lora_name in lora_alphas:
-                    # we scale both down and up, so scale is sqrt
-                    scale = lora_alphas[lora_name] / dim
-                    scale = scale.sqrt()
-                    weight = weight * scale
-                else:
-                    print(f"missing alpha for {lora_name}")
-
-                converted_lora[new_key] = weight
-            return converted_lora
-        else:
-            print("Loading Diffusers format LoRA...")
-            return lora
+    CATEGORY = "Warped/Hunyuan/Lora"
+    DESCRIPTION = "Convert Keys For Hunyuan LORA and Save Modified LORA."
 
     def load_lora(self, lora_name: str) -> Tuple[Dict[str, torch.Tensor],]:
         """Load and filter a single LoRA model."""
@@ -5477,42 +5365,7 @@ class WarpedHunyuanLoraConvertKeys:
 
         # Load the LoRA weights
         temp_lora = self.load_lora(lora)
-        temp_lora = self.check_for_musubi(temp_lora)
-
-        new_lora = {}
-
-        for key in temp_lora.keys():
-            if key.startswith("transformer.") and  (convert_to == "diffusion_model"):
-                new_key = key.replace("transformer.", "diffusion_model.")
-                new_lora[new_key] = temp_lora[key]
-                continue
-
-            if key.startswith("diffusion_model.") and  (convert_to == "transformer"):
-                new_key = key.replace("diffusion_model.", "transformer.")
-                new_lora[new_key] = temp_lora[key]
-                continue
-
-            if key.startswith("lora_unet_"):
-                new_key = key.replace("lora_unet_", "{}.".format(convert_to))
-
-                if "double" in new_key:
-                    new_key = new_key.replace("double_blocks_", "double_blocks.")
-                    new_key = new_key.replace("_img_attn", ".img_attn")
-                    new_key = new_key.replace("_img_mlp", ".img_mlp")
-                    new_key = new_key.replace("_txt_attn", ".txt_attn")
-                    new_key = new_key.replace("_txt_mlp", ".txt_mlp")
-                    new_key = new_key.replace(".lora_up.", ".lora_A.")
-                    new_key = new_key.replace(".lora_down.", ".lora_B.")
-
-                    continue
-
-                if "single" in new_key:
-                    new_key = new_key.replace("single_blocks_", "single_blocks.")
-                    new_key = new_key.replace("_linear", ".linear")
-                    new_key = new_key.replace(".lora_up.", ".lora_A.")
-                    new_key = new_key.replace(".lora_down.", ".lora_B.")
-
-                    continue
+        new_lora = convert_lora(temp_lora, convert_to=convert_to)
 
         if not save_metadata:
             metadata = None
@@ -5542,7 +5395,7 @@ class WarpedLoraKeysAndMetadataReader:
     RETURN_NAMES = ("keys", "metadata", )
     OUTPUT_IS_LIST = (True, True, )
     FUNCTION = "read_data"
-    CATEGORY = "Warped/Utils"
+    CATEGORY = "Warped/General/Lora"
     DESCRIPTION = "Read Metadata From Lora."
 
     def get_metadata(self, lora_path):
@@ -5588,7 +5441,7 @@ class WarpedLoraKeysAndMetadataReader:
 
         lora_keys = []
         for key in lora_weights.keys():
-            lora_keys.append("{}".format(key))
+            lora_keys.append("{}  |  Shape: {}\n".format(key, lora_weights[key].shape))
             # print(key)
 
         lora_metadata = []
@@ -5604,7 +5457,6 @@ class WarpedLoraKeysAndMetadataReader:
         time.sleep(1)
 
         return { "ui": { "lora_keys": lora_keys, "lora_metadata": lora_metadata }, "result": (lora_keys, lora_metadata,), }
-
 
 class WarpedHunyuanLoraConvert:
     def __init__(self):
@@ -5626,8 +5478,8 @@ class WarpedHunyuanLoraConvert:
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (True,)
     FUNCTION = "convert_lora"
-    CATEGORY = "Warped/HunyuanTools"
-    DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
+    CATEGORY = "Warped/Hunyuan/Lora"
+    DESCRIPTION = "Convert Hunyuan Lora."
 
     def load_lora(self, lora_name: str) -> Tuple[Dict[str, torch.Tensor]]:
         if not lora_name:
@@ -5649,6 +5501,7 @@ class WarpedHunyuanLoraConvert:
         if lora != "None":
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora)
+            lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
 
         for key in lora_weights.keys():
             sample_shape = lora_weights[key].shape
@@ -5721,15 +5574,18 @@ class WarpedFramepackSampler:
                 "positive": ("CONDITIONING",),
                 "negative": ("CONDITIONING",),
                 "steps": ("INT", {"default": 25, "min": 1}),
-                "use_teacache": ("BOOLEAN", {"default": True, "tooltip": "Use teacache for faster sampling."}),
+                "cache_mode": (["disabled", "use_teacache", "use_magcache"], {"default": "use_magcache", "tooltip": "Whether or not to use magcache or teacache for faster sampling."}),
                 "teacache_rel_l1_thresh": ("FLOAT", {"default": 0.25, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "The threshold for the relative L1 loss."}),
+                "magcache_thresh": ("FLOAT", {"default": 0.1250, "min": 0.0000, "max": 0.3000, "step": 0.0010, "tooltip": "How strongly to cache the output of diffusion model. This value must be non-negative."}),
+                "magcache_retention_ratio": ("FLOAT", {"default": 0.225, "min": 0.100, "max": 0.300, "step": 0.001, "tooltip": "The start percentage of the steps that will apply MagCache."}),
+                "magcache_K": ("INT", {"default": 3, "min": 0, "max": 6, "step": 1, "tooltip": "The maxium skip steps of MagCache."}),
                 "cfg": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 30.0, "step": 0.01}),
                 "guidance_scale": ("FLOAT", {"default": 12.0, "min": 0.0, "max": 32.0, "step": 0.01}),
                 "shift": ("FLOAT", {"default": 24.0, "min": 0.0, "max": 1000.0, "step": 0.01}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "preferred_frame_count": ("INT", {"default": 301, "min": 33, "max": 1000001, "step": 4, "tooltip": "For I2V and T2V, The total frames in the video. Disreguarded for V2V"}),
                 "preferred_batch_size": ("INT", {"default": 61, "min": 37, "max": 161, "step": 4, "tooltip": "The preferred number of frames to use for sampling."}),
                 "use_batch_size": (["next_lowest", "next_highest", "closest", "exact"], {"default": "next_lowest", "tooltip": "Number of frames generated may be impacted by choice."}),
-                "total_second_length": ("FLOAT", {"default": 10, "min": 1, "max": 3600, "step": 0.1, "tooltip": "For I2V and T2V, The total length of the video in seconds. Disreguarded for V2V"}),
                 "gpu_memory_preservation": ("FLOAT", {"default": 12.0, "min": 0.0, "max": 128.0, "step": 0.1, "tooltip": "The amount of GPU memory to preserve."}),
                 "sampler": (["unipc_bh1", "unipc_bh2"],
                     {
@@ -5746,46 +5602,58 @@ class WarpedFramepackSampler:
                 "start_image": ("IMAGE", {"tooltip": "init image to use for image2video or video2video"} ),
                 "end_image": ("IMAGE", {"tooltip": "end image to use for image2video"} ),
                 "embed_interpolation": (["disabled", "weighted_average", "linear"], {"default": 'disabled', "tooltip": "Image embedding interpolation type. If linear, will smoothly interpolate with time, else it'll be weighted average with the specified weight."}),
-                "start_embed_strength": ("FLOAT", {"default": 0.50, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Weighted average constant for image embed interpolation. If end image is not set, the embed's strength won't be affected"}),
+                "start_embed_strength": ("FLOAT", {"default": 1.20, "min": 0.00, "max": 2.00, "step": 0.01, "tooltip": "Weighted average constant for image embed interpolation. If end image is not set, the embed's strength won't be affected"}),
+                "secondary_embed_strength": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01, "tooltip": "Weighted average constant for image embed interpolation. If end image is not set, the embed's strength won't be affected"}),
                 "video_image_batch": ("IMAGE", {"tooltip": "init Latents to use for video2video"} ),
-                "fps": ("FLOAT", {"default": 30.00}),
                 "denoise_strength": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 1.00, "step": 0.01}),
                 "noise_strength": ("FLOAT", {"default": 1.00, "min": 0.10, "max": 1.00, "step": 0.01}),
-                "blend_frames": ("INT", {"default":1, "min":0, "max": 3, "step": 1}),
-                "t2v_width": ("INT", {"default":640, "min":256, "max": 1280, "step": 8}),
-                "t2v_height": ("INT", {"default":640, "min":256, "max": 1280, "step": 8}),
+                "blend_frames": ("INT", {"default":5, "min":0, "max": 16, "step": 1}),
+                "t2v_width": ("INT", {"default":480, "min":256, "max": 1280, "step": 16}),
+                "t2v_height": ("INT", {"default":720, "min":256, "max": 1280, "step": 16}),
+                "dummy_frames": ("INT", {"default":17, "min":17, "max": 121, "step": 4, "tooltip": "Number of frames to generate in dummy batch."}),
+                "gen_dummy": ("BOOLEAN", {"default": False, "tooltip": "For t2v or i2v only. Will generate a dummy batch to obtain a starting image for main generation."}),
+                "gen_dummy_only": ("BOOLEAN", {"default": False, "tooltip": "Will generate dummy batch only."}),
+                "dummy_cache_mode": (["disabled", "use_teacache", "use_magcache"], {"default": "use_magcache", "tooltip": "Whether or not to use magcache or teacache on dummy generation for faster sampling."}),
+                "use_dummy_image": (["first", "middle", "last", "random", "all"], {"default": "last", "tooltip": "Which dummy batch image to start main generation."}),
                 "v2v_context_count": ("INT", {"default":5, "min":3, "max": 10, "step": 1}),
                 "verbose_messaging": ("BOOLEAN", {"default": False}),
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "STRING", "FLOAT", )
-    RETURN_NAMES = ("images", "generation_status", "fps", )
+    RETURN_TYPES = ("IMAGE", "STRING", "INT", )
+    RETURN_NAMES = ("images", "generation_status", "seed", )
     FUNCTION = "process"
     CATEGORY = "Warped/Framepack/Sampling"
 
-    def process(self, model, vae, shift, positive, negative, preferred_batch_size, use_batch_size, use_teacache, total_second_length, teacache_rel_l1_thresh, steps, cfg,
+    def process(self, model, vae, shift, positive, negative, preferred_frame_count, preferred_batch_size, use_batch_size, cache_mode, teacache_rel_l1_thresh,
+                magcache_thresh, magcache_retention_ratio, magcache_K, steps, cfg,
                 guidance_scale, seed, sampler, dec_tile_size, dec_overlap, dec_temporal_size, dec_temporal_overlap, skip_frames, clip_vision_model,
-                gpu_memory_preservation, start_image=None, end_image=None, embed_interpolation="linear", start_embed_strength=1.0, video_image_batch=None,
-                fps=30.00, denoise_strength=1.00, noise_strength=1.00, blend_frames=0, t2v_width=640, t2v_height=640, v2v_context_count=5, verbose_messaging=False):
+                gpu_memory_preservation, start_image=None, end_image=None, embed_interpolation="linear", start_embed_strength=1.0, secondary_embed_strength=1.0, video_image_batch=None,
+                denoise_strength=1.00, noise_strength=1.00, blend_frames=0, t2v_width=640, t2v_height=640, dummy_frames=5, gen_dummy=False, gen_dummy_only=False, dummy_cache_mode="disabled", use_dummy_image="last",
+                v2v_context_count=5, verbose_messaging=False):
         self.dec_tile_size = dec_tile_size
         self.dec_overlap = dec_overlap
         self.dec_temporal_size = dec_temporal_size
         self.dec_temporal_overlap = dec_temporal_overlap
         self.skip_frames = skip_frames
         self.vae = vae
-        self.total_second_length = total_second_length
+        self.preferred_frame_count = preferred_frame_count
         self.seed = seed
         self.steps = steps
         self.cfg = cfg
-        self.use_teacache = use_teacache
+        self.use_teacache = False
+        self.use_magcache = False
         self.teacache_rel_l1_thresh = teacache_rel_l1_thresh
+        self.magcache_thresh = magcache_thresh
+        self.magcache_retention_ratio = magcache_retention_ratio
+        self.magcache_K = magcache_K
         self.guidance_scale = guidance_scale
         self.sampler = sampler
         self.skip_frames = skip_frames
         self.gpu_memory_preservation = gpu_memory_preservation
         self.embed_interpolation = embed_interpolation
         self.start_embed_strength = start_embed_strength
+        self.secondary_embed_strength = secondary_embed_strength
         self.denoise_strength = denoise_strength
         self.noise_strength = noise_strength
         self.transformer = model["transformer"]
@@ -5799,53 +5667,87 @@ class WarpedFramepackSampler:
         self.shift = shift
         self.t2v_width=t2v_width
         self.t2v_height=t2v_height
-        self.fps = fps
+        self.dummy_latents = int((dummy_frames - 1) // 4) + 1
+        self.gen_dummy = gen_dummy
+        self.gen_dummy_only = gen_dummy_only
+        self.dummy_teacache = False
+        self.dummy_magcache = False
+        self.use_dummy_image = use_dummy_image
         self.v2v_context_count = v2v_context_count
         self.verbose_messaging = verbose_messaging
 
+        if cache_mode == "use_teacache":
+            self.use_teacache = True
+
+        if cache_mode == "use_magcache":
+            self.use_magcache = True
+
+        if dummy_cache_mode == "use_teacache":
+            self.dummy_teacache = True
+
+        if dummy_cache_mode == "use_magcache":
+            self.dummy_magcache = True
+
         print("Device: {}  | Offload Device: {}".format(self.device, self.offload_device))
+
+        self.llama_vec = self.positive[0][0].to(self.base_dtype).to(self.device)
+        self.clip_l_pooler = self.positive[0][1]["pooled_output"].to(self.base_dtype).to(self.device)
+
+        if not math.isclose(self.cfg, 1.0):
+            self.llama_vec_n = self.negative[0][0].to(self.base_dtype)
+            self.clip_l_pooler_n = self.negative[0][1]["pooled_output"].to(self.base_dtype).to(self.device)
+        else:
+            self.llama_vec_n = torch.zeros_like(self.llama_vec, device=self.device)
+            self.clip_l_pooler_n = torch.zeros_like(self.clip_l_pooler, device=self.device)
+
+        self.llama_vec, self.llama_attention_mask = crop_or_pad_yield_mask(self.llama_vec, length=512)
+        self.llama_vec_n, self.llama_attention_mask_n = crop_or_pad_yield_mask(self.llama_vec_n, length=512)
 
         if not video_image_batch is None:
             if len(video_image_batch.shape) < 4:
                 video_image_batch = video_image_batch.unsqueeze(0)
 
-            self.latent_window_size, self.batch_count, truncated_frame_count = self.get_latent_window_size(preferred_batch_size, video_image_batch.shape[0], use_batch_size=use_batch_size)
-            self.total_second_length = truncated_frame_count / self.fps
+            self.preferred_frame_count = video_image_batch.shape[0]
+
+            self.latent_window_size, self.batch_count, truncated_frame_count = self.get_latent_window_size(preferred_batch_size, self.preferred_frame_count, use_batch_size=use_batch_size)
 
             if video_image_batch.shape[0] != truncated_frame_count:
                 image_batches_tuple = torch.split(video_image_batch, truncated_frame_count, dim=0)
                 image_batches_split = [item for item in image_batches_tuple]
                 video_image_batch = image_batches_split[0]
         else:
-            frame_count = int(((total_second_length * self.fps) / 4) * 4) + 1
-            print("frame_count: {}".format(frame_count))
-            self.latent_window_size, self.batch_count, truncated_frame_count = self.get_latent_window_size(preferred_batch_size, frame_count, use_batch_size=use_batch_size)
-            self.total_second_length = truncated_frame_count / self.fps
+            print("preferred_frame_count: {}".format(self.preferred_frame_count))
+            self.latent_window_size, self.batch_count, truncated_frame_count = self.get_latent_window_size(preferred_batch_size, self.preferred_frame_count, use_batch_size=use_batch_size)
 
+        self.num_frames = self.encoded_to_decoded_length(self.latent_window_size)
         self.total_frames = truncated_frame_count
 
-        mm.unload_all_models()
-        mm.cleanup_models()
-        mm.soft_empty_cache()
-        gc.collect()
-        time.sleep(1)
+        if self.verbose_messaging:
+            print("num_frames: {}".format(self.num_frames))
+
+        self.cleanup(unload_models=True, cleanup_models=True, cleanup_cuda=True)
 
         if not video_image_batch is None:
+            self.mode = VideoGenerationType.V2V
+
             return self.process_v2v(video_image_batch)
 
         if not start_image is None:
-            return self.process_i2v(start_image, end_image, is_i2v=True)
+            self.mode = VideoGenerationType.I2V
+            return self.process_i2v(start_image, end_image)
+
+        self.mode = VideoGenerationType.T2V
 
         return self.process_t2v()
 
     def process_t2v(self):
-        return self.process_i2v(None, None, is_i2v=False)
+        return self.process_i2v(None, None)
 
-    def process_i2v(self, start_image, end_image, is_i2v=True):
+    def process_i2v(self, start_image, end_image):
         start_latent = None
         end_latent = None
 
-        if is_i2v:
+        if self.mode == VideoGenerationType.I2V:
             if not start_image is None:
                 image_embeds = self.clip_vision_encode(start_image)
                 start_latent = self.encode_batched(start_image, per_batch=self.latent_window_size)
@@ -5884,9 +5786,8 @@ class WarpedFramepackSampler:
 
         if self.verbose_messaging:
             print("process_i2v: Image Width: {}".format(self.width))
-            print("process_i2v: Image Width: {}".format(self.width))
+            print("process_i2v: Image Height: {}".format(self.height))
             print("process_i2v: total_frames: {}".format(self.total_frames))
-            print("process_i2v: total_second_length: {}".format(self.total_second_length))
             print("process_i2v: batch_count: {}".format(self.batch_count))
             print("process_i2v: latent_window_size: {}".format(self.latent_window_size))
 
@@ -5898,95 +5799,83 @@ class WarpedFramepackSampler:
         else:
             end_image_encoder_last_hidden_state = torch.zeros_like(start_image_encoder_last_hidden_state)
 
-        llama_vec = self.positive[0][0].to(self.base_dtype).to(self.device)
-        clip_l_pooler = self.positive[0][1]["pooled_output"].to(self.base_dtype).to(self.device)
-
-        if not math.isclose(self.cfg, 1.0):
-            llama_vec_n = self.negative[0][0].to(self.base_dtype)
-            clip_l_pooler_n = self.negative[0][1]["pooled_output"].to(self.base_dtype).to(self.device)
-        else:
-            llama_vec_n = torch.zeros_like(llama_vec, device=self.device)
-            clip_l_pooler_n = torch.zeros_like(clip_l_pooler, device=self.device)
-
-        llama_vec, llama_attention_mask = crop_or_pad_yield_mask(llama_vec, length=512)
-        llama_vec_n, llama_attention_mask_n = crop_or_pad_yield_mask(llama_vec_n, length=512)
-
         rnd = torch.Generator("cpu").manual_seed(self.seed)
-
-        num_frames = self.encoded_to_decoded_length(self.latent_window_size)
-
-        if self.verbose_messaging:
-            print("num_frames: {}".format(num_frames))
-
         total_generated_latent_frames = 0
 
-        if is_i2v:
+        if self.mode == VideoGenerationType.I2V:
             if start_latent is None:
                 raise ValueError("A start_image value is required for I2V.")
 
             cat_list = []
 
             history_latents = torch.zeros(size=(1, 16, 19, H, W), dtype=torch.float32).cpu()
+            original_history_latents = history_latents.clone().detach()
 
-            cat_list.append(start_latent.to(history_latents))
             cat_list.append(history_latents)
+            cat_list.append(start_latent.to(history_latents))
 
             history_latents = torch.cat(cat_list, dim=2)
         else:
             history_latents = torch.zeros(size=(1, 16, 20, H, W), dtype=torch.float32).cpu()
-
-        original_history_latents = history_latents.clone().detach()
+            original_history_latents = torch.zeros(size=(1, 16, 19, H, W), dtype=torch.float32).cpu()
 
         latent_paddings_list = list(range(total_latent_sections))
         latent_paddings = latent_paddings_list.copy()  # Create a copy for iteration
 
-        comfy_model = HyVideoModel(
-                HyVideoModelConfig(self.base_dtype),
-                model_type=comfy.model_base.ModelType.FLOW,
-                device=self.device,
-            )
-
-        patcher = comfy.model_patcher.ModelPatcher(comfy_model, self.device, torch.device("cpu"))
-        callback = latent_preview.prepare_callback(patcher, self.steps)
-
-        move_model_to_device_with_memory_preservation(self.transformer, target_device=self.device, preserved_memory_gb=self.gpu_memory_preservation)
-
-        if self.verbose_messaging:
-            print("latent_paddings: {}".format(latent_paddings))
+        comfy_model, patcher, callback = self.initialize_comfy_model()
 
         latent_batches_gend = []
 
-        temp_noise = torch.randn((int(llama_vec.shape[0]), 16, self.latent_window_size * self.batch_count, H, W), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
+        is_dummy_section = False
+        was_dummy_used = False
 
-        if Decimal(self.noise_strength).compare(Decimal(1.00)) != 0:
-            temp_noise = torch.mul(temp_noise, self.noise_strength)
+        noise, dummy_noise = self.setup_latent_noise(self.latent_window_size * self.batch_count, W, H)
 
-        temp_noise_tuple = torch.split(temp_noise, self.latent_window_size, dim=2)
-        noise = [item for item in temp_noise_tuple]
+        if self.gen_dummy:
+            # dummy_noise = self.setup_dummy_noise(W, H)
 
-        temp_noise = None
-        temp_noise_tuple = None
+            if not self.gen_dummy_only:
+                latent_paddings.insert(0, 0)
+            else:
+                latent_paddings = [0]
+                latent_paddings_list = latent_paddings.copy()
+                total_latent_sections = 1
+
+            is_dummy_section = True
+            dummy_frame_count = ((self.dummy_latents - 1) * 4) + 1
+
+        if self.verbose_messaging:
+            print("latent_paddings: {}".format(latent_paddings))
+            print("noise batches length: {}".format(len(noise)))
+
         generated_latents = None
         interrupted = False
         real_history_latents = None
         context_latents = None
         generation_status = ""
         temp_history_latents = None
+        dummy_images = None
+        dummy_gen_latents = None
+        generated_image_batches = []
 
-        mm.unload_all_models()
-        mm.soft_empty_cache()
-        gc.collect()
-        time.sleep(1)
+        self.cleanup(unload_models=True, cleanup_models=False, cleanup_cuda=True)
 
         try:
             for i, latent_padding in enumerate(latent_paddings):
-                is_first_section = latent_padding == min(latent_paddings)
-                is_last_section = latent_padding == max(latent_paddings)
+                if not self.gen_dummy_only:
+                    is_first_section = latent_padding == min(latent_paddings)
+                    is_last_section = latent_padding == max(latent_paddings)
+                else:
+                    is_first_section = True
+                    is_last_section = True
 
                 if self.verbose_messaging:
                     print("history_latents Shape: {}".format(history_latents.shape))
 
-                noise_latent = noise[latent_padding]
+                if not is_dummy_section:
+                    noise_latent = noise[latent_padding]
+                else:
+                    noise_latent = dummy_noise
 
                 latent_padding_size = latent_padding * self.latent_window_size
 
@@ -5998,23 +5887,32 @@ class WarpedFramepackSampler:
                         if total_latent_sections <= 1:
                             frac = 1.0  # Handle case with only one section
                         else:
-                            frac = 1 - (i / (total_latent_sections - 1))  # going backwards
+                            frac = 1 - (latent_padding / (total_latent_sections - 1))  # going backwards
                     else:
                         frac = self.start_embed_strength if has_end_image else 1.0
 
                     image_encoder_last_hidden_state = ((start_image_encoder_last_hidden_state * frac) + ((1 - frac) * end_image_encoder_last_hidden_state)) * self.start_embed_strength
                 else:
-                    image_encoder_last_hidden_state = start_image_encoder_last_hidden_state * self.start_embed_strength
+                    if is_dummy_section or (is_first_section and not self.gen_dummy):
+                        image_encoder_last_hidden_state = start_image_encoder_last_hidden_state * self.start_embed_strength
+                    else:
+                        image_encoder_last_hidden_state = start_image_encoder_last_hidden_state * self.secondary_embed_strength
 
                 start_latent_frames = T  # 0 or 1
 
                 if self.verbose_messaging:
-                    print(f'latent_padding_size = {latent_padding_size}, is_last_section = {is_last_section}, is_first_section = {is_first_section}')
+                    print(f'latent_padding_size = {latent_padding_size}, is_last_section = {is_last_section}, is_first_section = {is_first_section}, is_dummy_section = {is_dummy_section}')
 
-                indices = torch.arange(0, sum([1, 16, 2, 1, self.latent_window_size])).unsqueeze(0)
-                clean_latent_indices_start, clean_latent_4x_indices, clean_latent_2x_indices, clean_latent_1x_indices, latent_indices = indices.split([1, 16, 2, 1, self.latent_window_size], dim=1)
-                clean_latent_indices = torch.cat([clean_latent_indices_start, clean_latent_1x_indices], dim=1)
-                clean_latents_4x, clean_latents_2x, clean_latents_1x = history_latents[:, :, -sum([16, 2, 1]):, :, :].split([16, 2, 1], dim=2)
+                if not is_dummy_section:
+                    indices = torch.arange(0, sum([1, 16, 2, 1, self.latent_window_size])).unsqueeze(0)
+                    clean_latent_indices_start, clean_latent_4x_indices, clean_latent_2x_indices, clean_latent_1x_indices, latent_indices = indices.split([1, 16, 2, 1, self.latent_window_size], dim=1)
+                    clean_latent_indices = torch.cat([clean_latent_indices_start, clean_latent_1x_indices], dim=1)
+                    clean_latents_4x, clean_latents_2x, clean_latents_1x = history_latents[:, :, -sum([16, 2, 1]):, :, :].split([16, 2, 1], dim=2)
+                else:
+                    indices = torch.arange(0, sum([1, 16, 2, 1, self.dummy_latents])).unsqueeze(0)
+                    clean_latent_indices_start, clean_latent_4x_indices, clean_latent_2x_indices, clean_latent_1x_indices, latent_indices = indices.split([1, 16, 2, 1, self.dummy_latents], dim=1)
+                    clean_latent_indices = torch.cat([clean_latent_indices_start, clean_latent_1x_indices], dim=1)
+                    clean_latents_4x, clean_latents_2x, clean_latents_1x = history_latents[:, :, -sum([16, 2, 1]):, :, :].split([16, 2, 1], dim=2)
 
                 if is_last_section and (not end_latent is None):
                     clean_latents = torch.cat([start_latent.to(history_latents), end_latent.to(history_latents)], dim=2)
@@ -6033,32 +5931,139 @@ class WarpedFramepackSampler:
                     print("clean_latents_2x Shape: {}".format(clean_latents_2x.shape))
                     print("clean_latents_4x Shape: {}".format(clean_latents_4x.shape))
                     print("clean_latents Shape: {}\n".format(clean_latents.shape))
-                    print("noise Shape: {}\n".format(noise[latent_padding].shape))
+                    print("noise Shape: {}\n".format(noise_latent.shape))
 
-                if self.use_teacache:
-                    self.transformer.initialize_teacache(enable_teacache=True, num_steps=self.steps, rel_l1_thresh=self.teacache_rel_l1_thresh)
-                else:
+                if (self.use_teacache and not is_dummy_section) or (is_dummy_section and self.dummy_teacache):
+                    self.transformer.__class__.forward = self.transformer.orig_forward
+                    self.transformer.initialize_teacache(enable_teacache=True, num_steps=self.steps, rel_l1_thresh=self.teacache_rel_l1_thresh, verbose_messaging=self.verbose_messaging)
+                    self.transformer.initialize_magcache(enable_magcache=False)
+
+                    if self.verbose_messaging:
+                        print("TeaCache Enabled")
+                elif (self.use_magcache and not is_dummy_section) or (is_dummy_section and self.dummy_magcache):
+                    self.transformer.__class__.forward = self.transformer.__class__.magcache_framepack_forward
+                    self.transformer.initialize_magcache(enable_magcache=True, num_steps=self.steps, magcache_thresh=self.magcache_thresh, K=self.magcache_K, retention_ratio=self.magcache_retention_ratio, verbose_messaging=self.verbose_messaging)
                     self.transformer.initialize_teacache(enable_teacache=False)
 
-                print("Generating Batch {}".format(latent_padding))
+                    if self.verbose_messaging:
+                        print("MagCache Enabled")
+                else:
+                    self.transformer.__class__.forward = self.transformer.orig_forward
+                    self.transformer.initialize_teacache(enable_teacache=False)
+                    self.transformer.initialize_magcache(enable_magcache=False)
 
-                generated_latents = self.generate_video(W * 8, H * 8, num_frames, rnd, noise_latent, llama_vec, llama_attention_mask, clip_l_pooler, llama_vec_n, llama_attention_mask_n, clip_l_pooler_n, image_encoder_last_hidden_state,
-                                                        latent_indices, clean_latents, clean_latent_indices, clean_latents_2x, clean_latent_2x_indices, clean_latents_4x, clean_latent_4x_indices, callback)
+                    if self.verbose_messaging:
+                        print("Both TeaCache and MagCache Disabled")
 
-                noise[latent_padding] = None
+                if not is_dummy_section:
+                    print("Generating Batch {}".format(latent_padding))
+                else:
+                    print("Generating Dummy Batch.")
+
+                generated_latents = self.generate_video(W * 8, H * 8, self.num_frames if not is_dummy_section else dummy_frame_count, rnd, noise_latent, self.llama_vec, self.llama_attention_mask, self.clip_l_pooler, self.llama_vec_n,
+                                                        self.llama_attention_mask_n, self.clip_l_pooler_n, image_encoder_last_hidden_state, latent_indices, clean_latents, clean_latent_indices, clean_latents_2x, clean_latent_2x_indices,
+                                                        clean_latents_4x, clean_latent_4x_indices, callback)
+                if not is_dummy_section:
+                    noise[latent_padding] = None
+                else:
+                    dummy_noise = None
 
                 if self.verbose_messaging:
                     print("generated_latents {} | Shape: {}".format(latent_padding, generated_latents.shape))
 
-                if not is_last_section:
-                    history_latents = torch.cat([original_history_latents, generated_latents.to(original_history_latents)], dim=2)
+                if not is_dummy_section:
+                    offload_model_from_device_for_memory_preservation(self.transformer, self.device, preserved_memory_gb=0)
+                    self.cleanup(unload_models=True, cleanup_models=False, cleanup_cuda=True)
 
-                latent_batches_gend.append(generated_latents.clone().detach()  / vae_scaling_factor)
+                    decoded_images = partial_decode_tiled(self.vae, generated_latents.clone().detach()  / vae_scaling_factor, self.dec_tile_size, self.dec_overlap, self.dec_temporal_size, self.dec_temporal_overlap)
+                    generated_image_batches.append(decoded_images.clone().detach())
+
+                    decoded_tuple = torch.split(decoded_images, 1, dim=0)
+                    decoded_split = [item for item in decoded_tuple]
+                    decoded_images = decoded_images.to(get_offload_device())
+                    decoded_images = None
+
+                    start_image = decoded_split[len(decoded_split) - 1]
+                    image_embeds = self.clip_vision_encode(start_image)
+                    start_latent = self.encode_batched(start_image, per_batch=self.latent_window_size)
+
+                    start_latent = start_latent["samples"] * vae_scaling_factor
+
+                    if self.verbose_messaging:
+                        print("start_latent Shape: {}".format(start_latent.shape))
+
+                    start_image_encoder_last_hidden_state = image_embeds["last_hidden_state"].to(self.base_dtype).to(self.device)
+                    history_latents = torch.cat([start_latent.to(original_history_latents), original_history_latents], dim=2)
+
+                    decoded_tuple = None
+                    decoded_split = None
+
+                    self.cleanup(unload_models=True, cleanup_models=False, cleanup_cuda=True)
+
+                    if not is_last_section:
+                        history_latents = torch.cat([original_history_latents, generated_latents.to(original_history_latents)], dim=2)
+                        move_model_to_device_with_memory_preservation(self.transformer, target_device=self.device, preserved_memory_gb=self.gpu_memory_preservation)
+
+                    # latent_batches_gend.append(generated_latents.clone().detach()  / vae_scaling_factor)
+
+                    if self.verbose_messaging:
+                        print("history_latents {} | Shape: {}".format(latent_padding, history_latents.shape))
+
+                    total_generated_latent_frames += int(generated_latents.shape[2])
+                else:
+                    offload_model_from_device_for_memory_preservation(self.transformer, self.device, preserved_memory_gb=0)
+                    self.cleanup(unload_models=True, cleanup_models=False, cleanup_cuda=True)
+
+                    dummy_gen_latents = generated_latents.clone().detach()  / vae_scaling_factor
+                    dummy_decoded = partial_decode_tiled(self.vae, dummy_gen_latents, self.dec_tile_size, self.dec_overlap, self.dec_temporal_size, self.dec_temporal_overlap)
+
+                    if len(dummy_decoded) < 4:
+                        dummy_decoded = dummy_decoded.unsqueeze(0)
+
+                    dummy_images = dummy_decoded.clone().detach()
+
+                    if self.use_dummy_image == "all":
+                        generated_image_batches.append(dummy_images)
+
+                    if not self.gen_dummy_only:
+                        dummy_tuple = torch.split(dummy_decoded, 1, dim=0)
+                        dummy_split = [item for item in dummy_tuple]
+                        dummy_decoded = dummy_decoded.to(get_offload_device())
+                        dummy_decoded = None
+
+                        if (self.use_dummy_image == "last") or (self.use_dummy_image == "all"):
+                            start_image = dummy_split[len(dummy_split) - 1]
+                        elif self.use_dummy_image == "first":
+                            start_image = dummy_split[0]
+                        elif self.use_dummy_image == "middle":
+                            start_image = dummy_split[int(math.ceil(len(dummy_split) / 2))]
+                        else:
+                            random.seed(self.seed)
+                            start_image = dummy_split[random.randrange(0, len(dummy_split) - 1, 1)]
+
+                        image_embeds = self.clip_vision_encode(start_image)
+                        start_latent = self.encode_batched(start_image, per_batch=self.latent_window_size)
+
+                        start_latent = start_latent["samples"] * vae_scaling_factor
+                        print("start_latent Shape: {}".format(start_latent.shape))
+
+                        start_image_encoder_last_hidden_state = image_embeds["last_hidden_state"].to(self.base_dtype).to(self.device)
+                        history_latents = torch.cat([start_latent.to(original_history_latents), original_history_latents], dim=2)
+
+                        is_dummy_section = False
+                        dummy_tuple = None
+                        dummpy_split = None
+                        dummy_decoded = None
+
+                    self.cleanup(unload_models=True, cleanup_models=False, cleanup_cuda=True)
+
+                    if not self.gen_dummy_only:
+                        move_model_to_device_with_memory_preservation(self.transformer, target_device=self.device, preserved_memory_gb=self.gpu_memory_preservation)
+
+                generated_latents = None
 
                 if self.verbose_messaging:
                     print("history_latents {} | Shape: {}".format(latent_padding, history_latents.shape))
-
-                total_generated_latent_frames += int(generated_latents.shape[2])
 
                 if is_last_section:
                     break
@@ -6071,10 +6076,7 @@ class WarpedFramepackSampler:
 
             pass
         except BaseException as e:
-            mm.unload_all_models()
-            mm.soft_empty_cache()
-            gc.collect()
-            time.sleep(1)
+            self.cleanup(unload_models=True, cleanup_models=False, cleanup_cuda=True)
 
             print(f"\nWarpedFramepackSampler: Exception During Processing: {str(e)}")
             print("WarpedFramepackSampler: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned.\n")
@@ -6107,17 +6109,17 @@ class WarpedFramepackSampler:
         video_latent_batches = None
         video_image_batch = None
 
-        # self.transformer.to(self.offload_device)
-
+        # if not self.gen_dummy_only:
         offload_model_from_device_for_memory_preservation(self.transformer, self.device, preserved_memory_gb=0)
 
-        mm.unload_all_models()
-        mm.soft_empty_cache()
-        gc.collect()
-        time.sleep(1)
+        self.cleanup(unload_models=True, cleanup_models=False, cleanup_cuda=True)
 
-        if len(latent_batches_gend) > 0:
-            output_images = self.decode_batches(latent_batches_gend, self.skip_frames)
+        if (len(generated_image_batches) > 0):
+            output_images = self.assemble_final_result(generated_image_batches)
+        elif not dummy_images is None:
+            output_images = dummy_images
+        elif not dummy_gen_latents is None:
+            output_images = partial_decode_tiled(self.vae, dummy_gen_latents, self.dec_tile_size, self.dec_overlap, self.dec_temporal_size, self.dec_temporal_overlap)
         elif interrupted:
             temp_image = Image.new('RGB', (self.width, self.height), color = 'yellow')
             output_images = pil2tensorSwap(temp_image)
@@ -6132,7 +6134,7 @@ class WarpedFramepackSampler:
         if self.verbose_messaging:
             print("output_images Shape: {}".format(output_images.shape))
 
-        return (output_images, generation_status, self.fps, )
+        return (output_images, generation_status, self.seed, )
 
     def process_v2v(self, video_image_batch):
         if len(video_image_batch.shape) < 4:
@@ -6152,7 +6154,6 @@ class WarpedFramepackSampler:
             print("process_v2v: Video Context Images Shape: {}".format(video_image_batch.shape))
             print("process_v2v: image_batch_size: {}".format(image_batch_size))
             print("process_v2v: latent_batch_size: {}".format(latent_batch_size))
-            print("process_v2v: Total Seconds Length: {}".format(self.total_second_length))
 
         total_latent_sections = self.batch_count
 
@@ -6163,21 +6164,8 @@ class WarpedFramepackSampler:
         B, C, _, H, W = video_latent_batches[0].shape
         T = 1
 
-        llama_vec = self.positive[0][0].to(self.base_dtype).to(self.device)
-        clip_l_pooler = self.positive[0][1]["pooled_output"].to(self.base_dtype).to(self.device)
-
-        if not math.isclose(self.cfg, 1.0):
-            llama_vec_n = self.negative[0][0].to(self.base_dtype)
-            clip_l_pooler_n = self.negative[0][1]["pooled_output"].to(self.base_dtype).to(self.device)
-        else:
-            llama_vec_n = torch.zeros_like(llama_vec, device=self.device)
-            clip_l_pooler_n = torch.zeros_like(clip_l_pooler, device=self.device)
-
-        llama_vec, llama_attention_mask = crop_or_pad_yield_mask(llama_vec, length=512)
-        llama_vec_n, llama_attention_mask_n = crop_or_pad_yield_mask(llama_vec_n, length=512)
-
         output_images = None
-        num_frames = self.encoded_to_decoded_length(self.latent_window_size)
+
         latent_paddings_list = list(range(total_latent_sections))
 
         total_generated_latent_frames = 0
@@ -6185,35 +6173,17 @@ class WarpedFramepackSampler:
 
         latent_embeds = self.get_video_latent_embeds(video_image_batch, image_batch_size, latent_paddings)
 
-        comfy_model = HyVideoModel(
-                HyVideoModelConfig(self.base_dtype),
-                model_type=comfy.model_base.ModelType.FLOW,
-                device=self.device,
-            )
-
-        patcher = comfy.model_patcher.ModelPatcher(comfy_model, self.device, torch.device("cpu"))
-        callback = latent_preview.prepare_callback(patcher, self.steps)
-
-        move_model_to_device_with_memory_preservation(self.transformer, target_device=self.device, preserved_memory_gb=self.gpu_memory_preservation)
+        comfy_model, patcher, callback = self.initialize_comfy_model()
 
         print("latent_paddings count: {}  |  latent_paddings: {}".format(len(latent_paddings), latent_paddings))
 
-        latent_batches_gend = []
-
-        temp_noise = torch.randn((int(llama_vec.shape[0]), 16, self.latent_window_size * self.batch_count, H, W), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
-
-        if Decimal(self.noise_strength).compare(Decimal(1.00)) != 0:
-            temp_noise = torch.mul(temp_noise, self.noise_strength)
-
-        temp_noise_tuple = torch.split(temp_noise, self.latent_window_size, dim=2)
-        noise = [item for item in temp_noise_tuple]
+        # noise = self.setup_latent_noise(W, H)
+        noise, _ = self.setup_latent_noise(self.latent_window_size * self.batch_count, W, H)
 
         if self.verbose_messaging:
             print("Noise Batches Length: {}".format(len(noise)))
             print("sample noise Shape: {}".format(noise[0].shape))
 
-        temp_noise = None
-        temp_noise_tuple = None
         has_end_image = True
         generated_latents = None
         interrupted = False
@@ -6224,15 +6194,13 @@ class WarpedFramepackSampler:
         temp_history_latents = None
         original_history_latents = None
 
-        mm.unload_all_models()
-        mm.soft_empty_cache()
-        gc.collect()
-        time.sleep(1)
+        self.cleanup(unload_models=True, cleanup_models=False, cleanup_cuda=True)
+
+        latent_batches_gend = []
 
         try:
             for padding_i, latent_padding in enumerate(latent_paddings):
                 padding_key = "{}".format(latent_padding)
-                prev_padding_key = "{}".format(latent_padding - 1)
                 next_padding_key = "{}".format(latent_padding + 1)
 
                 is_first_section = latent_padding == min(latent_paddings)
@@ -6243,12 +6211,12 @@ class WarpedFramepackSampler:
                 image_encoder_last_hidden_state = torch.mul(start_image_encoder_last_hidden_state, self.start_embed_strength)
 
                 if self.verbose_messaging:
-                    print("latent_padding: {}  |  latent_window_size: {}".format(latent_padding, self.latent_window_size))
+                    print("\nlatent_padding: {}  |  latent_window_size: {}".format(latent_padding, self.latent_window_size))
 
                 noise_latent = noise[latent_padding]
 
                 if self.verbose_messaging:
-                    print("noise_latent Shape: ()".format(noise_latent.shape))
+                    print("noise_latent Shape: {}".format(noise_latent.shape))
 
                 if is_first_section:
                     original_history_latents = torch.zeros(size=(1, 16, self.buffer_length, H, W), dtype=torch.float32).cpu()
@@ -6269,26 +6237,39 @@ class WarpedFramepackSampler:
                 if self.v2v_context_count > history_latents.shape[2]:
                     self.v2v_context_count = history_latents.shape[2]
 
-                num_frames = self.encoded_to_decoded_length(self.latent_window_size)
-
                 if self.verbose_messaging:
                     print("history_latents Shape: {}\n".format(history_latents.shape))
-
                     print("indices: {}".format(indices))
                     print("latent_indices: {}\n".format(latent_indices))
                     print("clean_latent_2x_indices: {}".format(clean_latent_2x_indices))
                     print("clean_latent_4x_indices: {}".format(clean_latent_4x_indices))
                     print("clean_latent_indices: {}\n".format(clean_latent_indices))
-
                     print("clean_latents_2x Shape: {}".format(clean_latents_2x.shape))
                     print("clean_latents_4x Shape: {}".format(clean_latents_4x.shape))
                     print("clean_latents Shape: {}\n".format(clean_latents.shape))
                     print("noise Shape: {}\n".format(noise[latent_padding].shape))
 
-                if self.use_teacache:
-                    self.transformer.initialize_teacache(enable_teacache=True, num_steps=self.steps, rel_l1_thresh=self.teacache_rel_l1_thresh)
-                else:
+                if (self.use_teacache and not is_dummy_section) or (is_dummy_section and self.dummy_teacache):
+                    self.transformer.__class__.forward = self.transformer.orig_forward
+                    self.transformer.initialize_teacache(enable_teacache=True, num_steps=self.steps, rel_l1_thresh=self.teacache_rel_l1_thresh, verbose_messaging=self.verbose_messaging)
+                    self.transformer.initialize_magcache(enable_magcache=False)
+
+                    if self.verbose_messaging:
+                        print("TeaCache Enabled")
+                elif (self.use_magcache and not is_dummy_section) or (is_dummy_section and self.dummy_magcache):
+                    self.transformer.__class__.forward = self.transformer.__class__.magcache_framepack_forward
+                    self.transformer.initialize_magcache(enable_magcache=True, num_steps=self.steps, magcache_thresh=self.magcache_thresh, K=self.magcache_K, retention_ratio=self.magcache_retention_ratio, verbose_messaging=self.verbose_messaging)
                     self.transformer.initialize_teacache(enable_teacache=False)
+
+                    if self.verbose_messaging:
+                        print("MagCache Enabled")
+                else:
+                    self.transformer.__class__.forward = self.transformer.orig_forward
+                    self.transformer.initialize_teacache(enable_teacache=False)
+                    self.transformer.initialize_magcache(enable_magcache=False)
+
+                    if self.verbose_messaging:
+                        print("Both TeaCache and MagCache Disabled")
 
                 clean_latents.to(dtype=torch.float32, device=self.device)
                 clean_latents_2x.to(dtype=torch.float32, device=self.device)
@@ -6297,9 +6278,9 @@ class WarpedFramepackSampler:
 
                 print("Generating Batch {}".format(latent_padding))
 
-                generated_latents = self.generate_video(W * 8, H * 8, num_frames, rnd, noise_latent, llama_vec, llama_attention_mask, clip_l_pooler, llama_vec_n, llama_attention_mask_n, clip_l_pooler_n, image_encoder_last_hidden_state,
-                                                        latent_indices, clean_latents, clean_latent_indices, clean_latents_2x, clean_latent_2x_indices, clean_latents_4x, clean_latent_4x_indices, callback)
-
+                generated_latents = self.generate_video(W * 8, H * 8, self.num_frames, rnd, noise_latent, self.llama_vec, self.llama_attention_mask, self.clip_l_pooler, self.llama_vec_n, self.llama_attention_mask_n,
+                                                        self.clip_l_pooler_n, image_encoder_last_hidden_state, latent_indices, clean_latents, clean_latent_indices, clean_latents_2x, clean_latent_2x_indices,
+                                                        clean_latents_4x, clean_latent_4x_indices, callback)
                 noise[latent_padding] = None
 
                 if self.verbose_messaging:
@@ -6345,10 +6326,7 @@ class WarpedFramepackSampler:
 
             pass
         except BaseException as e:
-            mm.unload_all_models()
-            mm.soft_empty_cache()
-            gc.collect()
-            time.sleep(1)
+            self.cleanup(unload_models=True, cleanup_models=False, cleanup_cuda=True)
 
             print(f"\nWarpedFramepackSampler: Exception During Processing: {str(e)}")
             print("WarpedFramepackSampler: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned.\n")
@@ -6385,13 +6363,10 @@ class WarpedFramepackSampler:
         # self.transformer.to(self.offload_device)
         offload_model_from_device_for_memory_preservation(self.transformer, self.device, preserved_memory_gb=0)
 
-        mm.unload_all_models()
-        mm.soft_empty_cache()
-        gc.collect()
-        time.sleep(1)
+        self.cleanup(unload_models=True, cleanup_models=False, cleanup_cuda=True)
 
         if len(latent_batches_gend) > 0:
-            output_images = self.decode_batches(latent_batches_gend, self.skip_frames, is_v2v=True)
+            output_images = self.decode_batches(latent_batches_gend, self.skip_frames)
         elif interrupted:
             temp_image = Image.new('RGB', (self.width, self.height), color = 'yellow')
             output_images = pil2tensorSwap(temp_image)
@@ -6407,7 +6382,7 @@ class WarpedFramepackSampler:
         if self.verbose_messaging:
             print("output_images Shape: {}".format(output_images.shape))
 
-        return (output_images, generation_status, self.fps, )
+        return (output_images, generation_status, self.seed, )
 
     def generate_video(self, width, height, num_frames, seed_generator, noise_latent, llama_vec, llama_attention_mask, clip_l_pooler, llama_vec_n, llama_attention_mask_n, clip_l_pooler_n, image_encoder_last_hidden_state,
                         latent_indices, clean_latents, clean_latent_indices, clean_latents_2x, clean_latent_2x_indices, clean_latents_4x, clean_latent_4x_indices, callback):
@@ -6448,6 +6423,81 @@ class WarpedFramepackSampler:
 
         return generated_latents
 
+    def setup_latent_noise(self, noise_latent_length, width, height):
+        rnd = torch.Generator("cpu").manual_seed(self.seed)
+        dummy_noise = None
+
+        if not self.gen_dummy or (self.mode == VideoGenerationType.V2V):
+            temp_noise = torch.randn((1, 16, noise_latent_length, height, width), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
+        else:
+            dummy_noise = torch.randn((1, 16, self.dummy_latents, height, width), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
+
+            rnd = torch.Generator("cpu").manual_seed(self.seed)
+            temp_noise = torch.randn((1, 16, noise_latent_length + self.dummy_latents - 1, height, width), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
+
+            temp_noise_tuple = torch.split(temp_noise, self.dummy_latents, dim=2)
+            temp_noise_split = [item for item in temp_noise_tuple]
+            temp_noise_tuple = None
+
+            # dummy_noise = temp_noise_split[0]
+
+            dummy_noise_tuple = torch.split(dummy_noise, 1, dim=2)
+            dummy_noise_split = [item for item in dummy_noise_tuple]
+            dummy_noise_tuple = None
+
+            temp_noise = dummy_noise_split[len(dummy_noise_split) - 1]
+            dummy_noise_split = None
+
+            i = -1
+            for entry in temp_noise_split:
+                i += 1
+
+                if i > 0:
+                    if not temp_noise is None:
+                        temp_noise = torch.cat((temp_noise, entry), 2)
+                    else:
+                        temp_noise = entry
+
+            temp_noise_split = None
+
+            gc.collect()
+            time.sleep(1)
+
+        if Decimal(self.noise_strength).compare(Decimal(1.00)) != 0:
+            temp_noise = torch.mul(temp_noise, self.noise_strength)
+
+        temp_noise_tuple = torch.split(temp_noise, self.latent_window_size, dim=2)
+        noise = [item for item in temp_noise_tuple]
+        temp_noise = None
+        temp_noise_tuple = None
+
+        if self.verbose_messaging:
+            if not dummy_noise is None:
+                print("\nsetup_latent_noise: dummy_noise Shape: {}".format(dummy_noise.shape))
+
+            i = 0
+            for entry in noise:
+                print("setup_latent_noise: Batch: {}  |  noise Shape: {}".format(i, entry.shape))
+                i += 1
+
+            print("\n")
+
+        return noise, dummy_noise
+
+    def initialize_comfy_model(self):
+        comfy_model = HyVideoModel(
+                HyVideoModelConfig(self.base_dtype),
+                model_type=comfy.model_base.ModelType.FLOW,
+                device=self.device,
+            )
+
+        patcher = comfy.model_patcher.ModelPatcher(comfy_model, self.device, torch.device("cpu"))
+        callback = latent_preview.prepare_callback(patcher, self.steps)
+
+        move_model_to_device_with_memory_preservation(self.transformer, target_device=self.device, preserved_memory_gb=self.gpu_memory_preservation)
+
+        return comfy_model, patcher, callback
+
     def get_video_clean_latents(self, video_latents, context_frames, is_plus_one=True):
         from torch import Tensor
         latents_tuple = torch.split(video_latents, 1, dim=2)
@@ -6460,6 +6510,8 @@ class WarpedFramepackSampler:
 
         if context_frames < 3:
             context_frames = 3
+        elif context_frames > self.latent_window_size:
+            context_frames = self.latent_window_size
 
         if context_frames >= video_latents.shape[2]:
             clean_latent_indices = []
@@ -6542,6 +6594,15 @@ class WarpedFramepackSampler:
 
         return history_latents
 
+    def setup_dummy_noise(self, width, height):
+        rnd = torch.Generator("cpu").manual_seed(self.seed)
+        noise = torch.randn((1, 16, self.dummy_latents, height, width), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
+
+        if Decimal(self.noise_strength).compare(Decimal(1.00)) != 0:
+            noise = torch.mul(temp_noise, self.noise_strength)
+
+        return noise
+
     def encoded_to_decoded_length(self, latent_length):
         if latent_length <= 0:
             return 0
@@ -6591,6 +6652,10 @@ class WarpedFramepackSampler:
         next_lowest = preferred_batch_size - 1
         next_highest = preferred_batch_size - 1
 
+        if self.verbose_messaging:
+            print("get_latent_window_size: Next Lowest Initialized To: {}".format(next_lowest))
+            print("get_latent_window_size: Next Highest Initialized To: {}".format(next_highest))
+
         num_frames_final = int(((num_frames - 1) // 4) * 4) + 1
 
         if num_frames != num_frames_final:
@@ -6633,6 +6698,51 @@ class WarpedFramepackSampler:
                 print("(6) batch_count set to: {}".format(int((num_frames_final - 1) / next_highest)))
                 return self.decoded_to_encoded_length(next_highest + 1), int((num_frames_final - 1) / next_highest), num_frames_final
 
+        print("Unable to find a compatible latent_window_size for number of frames = {} and preferred_batch_size = {}.".format(frame_count, preferred_batch_size))
+        print("Recalculating Number Of Frames Based On preferred_batch_size of: {}".format(preferred_batch_size))
+
+        return self.calculate_new_number_of_frames(preferred_batch_size, (((frame_count - 1) // 4) * 4) + 1, use_batch_size)
+
+    def calculate_new_number_of_frames(self, preferred_batch_size, frame_count, use_batch_size):
+        working_batch_size = preferred_batch_size - 1
+        working_frame_count = frame_count - 1
+
+        next_lowest = next_highest = working_frame_count
+        next_lowest_found = False
+        next_highest_found = False
+
+        while next_lowest > 37:
+            next_lowest -= 4
+
+            if int(next_lowest % working_batch_size) == 0:
+                next_lowest_found = True
+                break
+
+        if next_lowest_found and (use_batch_size == "next_lowest"):
+            return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
+
+        while next_highest < 999997:
+            next_highest += 4
+
+            if int(next_highest % working_batch_size) == 0:
+                next_highest_found = True
+                break
+
+        if next_highest_found and (use_batch_size == "next_highest"):
+            return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
+
+        if next_lowest_found and next_highest_found:
+            if (working_frame_count - next_lowest) <= (next_highest - working_frame_count):
+                return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
+
+            return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
+
+        if next_lowest_found:
+            return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
+
+        if next_highest_found:
+            return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
+
         raise ValueError("Unable to find a compatible latent_window_size for number of frames = {} and preferred_batch_size = {}.".format(frame_count, preferred_batch_size))
 
     def clip_vision_encode(self, image, crop="center"):
@@ -6643,61 +6753,122 @@ class WarpedFramepackSampler:
             return output
 
     def get_video_latent_embeds(self, video_frames, batch_frame_count, paddings):
+        if self.verbose_messaging:
+            print("get_video_latent_embeds: video_frames Shape: {}".format(video_frames.shape))
+            print("get_video_latent_embeds: batch_frame_count: {}".format(batch_frame_count))
+            print("get_video_latent_embeds: paddings: {}".format(paddings))
+
         if len(video_frames.shape) < 4:
             video_frames = video_frames.unsqueeze(0)
 
-        image_batches_tuple = torch.split(video_frames, batch_frame_count, dim=0)
+        first_batch = video_frames[:batch_frame_count, :, :, :]
+        remaining_batches = video_frames[batch_frame_count:, :, :, :]
+
+        start_image = first_batch[1:2, :, :, :]
+        end_image = first_batch[(batch_frame_count - 1):, :, :, :]
+        next_start_image = first_batch[(first_batch.shape[0] - 4):(first_batch.shape[0] - 3), :, :, :]
+
+        start_latent = self.encode_batched(start_image, self.latent_window_size)
+        start_latent_embedding = self.clip_vision_encode(start_image)
+        start_image = start_image.to(self.offload_device)
+        end_latent = self.encode_batched(end_image, self.latent_window_size)
+        end_latent_embedding = self.clip_vision_encode(end_image)
+        end_image = end_image.to(self.offload_device)
+        next_first_latent = end_latent.clone().detach().to(end_latent)
+        next_first_embedding = deep_copy(end_latent_embedding)
+
+        if self.verbose_messaging:
+            print("get_video_latent_embeds: first_batch Shape: {}".format(first_batch.shape))
+            print("get_video_latent_embeds: remaining_batches Shape: {}".format(remaining_batches.shape))
+            print("get_video_latent_embeds: batch 0: start_image Shape: {}".format(start_image.shape))
+            print("get_video_latent_embeds: batch 0: start_latent Shape: {}".format(start_latent["samples"].shape))
+            print("get_video_latent_embeds: batch 0: end_image Shape: {}".format(end_image.shape))
+            print("get_video_latent_embeds: batch 0: end_latent Shape: {}".format(end_latent["samples"].shape))
+            print("get_video_latent_embeds: batch 0: next_start_image Shape: {}".format(next_start_image.shape))
+            print("get_video_latent_embeds: batch 0: next_first_latent Shape: {}".format(next_first_latent.shape))
+
+        latent_embeds = {"0": {}}
+        latent_embeds["0"]["start_latent"] = (start_latent["samples"] * vae_scaling_factor).to(self.offload_device)
+        latent_embeds["0"]["start_embedding"] = start_latent_embedding
+        latent_embeds["0"]["end_latent"] = (end_latent["samples"] * vae_scaling_factor).to(self.offload_device)
+        latent_embeds["0"]["end_embedding"] = end_latent_embedding
+
+        start_image = None
+        start_latent = None
+        start_latent_embedding = None
+        end_image = None
+        end_latent = None
+        end_latent_embedding = None
+        next_start_four = None
+        next_start_image = None
+
+        image_batches_tuple = torch.split(remaining_batches, batch_frame_count - 1, dim=0)
         image_batches_split = [item for item in image_batches_tuple]
         image_batches_tuple = None
 
-        latent_embeds = {}
+        if self.verbose_messaging:
+            i = 0
+            for entry in image_batches_split:
+                print("get_video_latent_embeds: batch: {}  |  split Shape: {}".format(i + 1, image_batches_split[i].shape))
+                i += 1
 
         print("get_video_latent_embeds Batch: Encoding Start/End Images...")
 
-        start_latent = None
-        start_latent_embedding = None
+        batch_number = 1
+        for batch in image_batches_split:
+            batch_key = "{}".format(batch_number)
 
-        i = 0
-        for batch_number in paddings:
-            batch = image_batches_split[batch_number]
+            if self.verbose_messaging:
+                print("get_video_latent_embeds: Processing Batch: {}".format(batch_number))
 
-            batch_image_batches_tuple = torch.split(batch, 1, dim=0)
-            batch_image_batches_split = [item for item in batch_image_batches_tuple]
-            batch_image_batches_tuple = None
+            latent_embeds[batch_key] = {"start_latent": None, "end_latent": None, "start_embedding": None, "end_embedding": None}
 
-            latent_embeds["{}".format(batch_number)] = {"start_latent": None, "end_latent": None, "start_embedding": None, "end_embedding": None}
+            start_latent = next_first_latent
+            start_latent_embedding = next_first_embedding
 
-            if batch.shape[0] == batch_frame_count:
-                start_index = batch.shape[0] - 1
+            end_image = batch[(batch.shape[0] - 1):, :, :, :]
+            end_image = end_image.to(self.device)
+            end_latent = self.encode_batched(end_image, self.latent_window_size)
+            end_latent_embedding = self.clip_vision_encode(end_image)
+            end_image = end_image.to(self.device)
 
-                start_image = batch_image_batches_split[0].clone().detach().to(self.device)
-                start_latent = self.encode_batched(start_image, self.latent_window_size)
-                start_latent_embedding = self.clip_vision_encode(start_image)
+            latent_embeds[batch_key]["start_latent"] = (start_latent["samples"] * vae_scaling_factor).to(self.offload_device)
+            latent_embeds[batch_key]["start_embedding"] = start_latent_embedding
+            latent_embeds[batch_key]["end_latent"] = (end_latent["samples"] * vae_scaling_factor).to(self.offload_device)
+            latent_embeds[batch_key]["end_embedding"] = end_latent_embedding
 
-                end_image = batch_image_batches_split[len(batch_image_batches_split) - 1].clone().detach().to(self.device)
-                end_latent = self.encode_batched(end_image, self.latent_window_size)
-                end_latent_embedding = self.clip_vision_encode(end_image)
+            if batch_number < max(paddings):
+                next_start_image = batch[(batch.shape[0] - 1):, :, :, :]
+                next_first_latent = self.encode_batched(next_start_image, self.latent_window_size)
+                next_first_embedding = copy.deepcopy(end_latent_embedding)
+                next_start_image = None
+            else:
+                next_first_embedding = None
+                next_start_image = None
+                next_first_latent = None
 
-                latent_embeds["{}".format(batch_number)]["start_latent"] = start_latent["samples"] * vae_scaling_factor
-                latent_embeds["{}".format(batch_number)]["start_embedding"] = start_latent_embedding
-                latent_embeds["{}".format(batch_number)]["end_latent"] = end_latent["samples"] * vae_scaling_factor
-                latent_embeds["{}".format(batch_number)]["end_embedding"] = end_latent_embedding
+            start_image = None
+            start_latent = None
+            start_latent_embedding = None
+            end_image = None
+            end_latent = None
+            end_latent_embedding = None
+            batch_image_batches_split = None
 
-                start_image = None
-                start_latent = None
-                start_latent_embedding = None
-                end_image = None
-                end_latent = None
-                end_latent_embedding = None
-                batch_image_batches_split = None
-
-            i += 1
+            batch_number += 1
 
         print("get_video_latent_embeds Batch: Encoding Start/End Images...Done")
 
-        mm.soft_empty_cache()
-        gc.collect()
-        time.sleep(0.2)
+        if self.verbose_messaging:
+            print("get_video_latent_embeds: latent_embeds length: {}".format(len(latent_embeds)))
+
+            for batch_key in latent_embeds.keys():
+                print("get_video_latent_embeds: Batch {}: start_latent Shape: {}".format(batch_key, latent_embeds[batch_key]["start_latent"].shape))
+                print("get_video_latent_embeds: Batch {}: end_latent Shape: {}".format(batch_key, latent_embeds[batch_key]["end_latent"].shape))
+                print("get_video_latent_embeds: Batch {}: start_embedding Shape: {}".format(batch_key, latent_embeds[batch_key]["start_embedding"]["last_hidden_state"].shape))
+                print("get_video_latent_embeds: Batch {}: end_embedding Shape: {}".format(batch_key, latent_embeds[batch_key]["end_embedding"]["last_hidden_state"].shape))
+
+        self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
 
         return latent_embeds
 
@@ -6718,14 +6889,13 @@ class WarpedFramepackSampler:
             decoded_data.unsqueeze(0)
 
         return decoded_data
-    def decode_batches(self, latent_batches, skip_frames, is_v2v=False):
+
+    def decode_batches(self, latent_batches, skip_frames):
         if (latent_batches is None) or (len(latent_batches) < 1):
             print("decode_batches: Warning...nothing to decode.")
             return None
 
-        mm.unload_all_models()
-        gc.collect()
-        time.sleep(1)
+        self.cleanup(unload_models=True, cleanup_models=False, cleanup_cuda=False)
 
         resulting_images = None
 
@@ -6742,12 +6912,8 @@ class WarpedFramepackSampler:
                 if len(temp_decoded.shape) < 4:
                     temp_decoded = temp_decoded.unsqueeze(0)
 
-                if is_v2v:
-                    image_batches_tuple = torch.split(temp_decoded, temp_decoded.shape[0] - 3, dim=0)
-                    image_batches_split = [item for item in image_batches_tuple]
-                    temp_decoded = image_batches_split[0]
-                    image_batches_tuple = None
-                    image_batches_split = None
+                # if i > 0:
+                #     temp_decoded = temp_decoded[3:, :, :, :]
 
                 if not resulting_images is None:
                     resulting_images = torch.cat((resulting_images, temp_decoded), 0)
@@ -6756,9 +6922,7 @@ class WarpedFramepackSampler:
 
                 entry.to(device=self.offload_device)
 
-                mm.soft_empty_cache()
-                gc.collect()
-                time.sleep(0.2)
+                self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
 
                 i += 1
         else:
@@ -6776,84 +6940,17 @@ class WarpedFramepackSampler:
                 if len(temp_decoded.shape) < 4:
                     temp_decoded = temp_decoded.unsqueeze(0)
 
-                if is_v2v:
-                    image_batches_tuple = torch.split(temp_decoded, temp_decoded.shape[0] - 3, dim=0)
-                    image_batches_split = [item for item in image_batches_tuple]
-                    temp_decoded = image_batches_split[0]
-                    image_batches_tuple = None
-                    image_batches_split = None
-
                 temp_decoded_batches.append(temp_decoded)
 
                 entry.to(device=self.offload_device)
 
-                mm.soft_empty_cache()
-                gc.collect()
-                time.sleep(0.2)
+                self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
 
                 i += 1
 
-            blend_value = 1.0 / self.blend_frames
-            i = 0
-            while i < (len(temp_decoded_batches) - 1):
-                alpha_blend_val = blend_value
-                blend_count = self.blend_frames
-
-                image_batches_tuple = torch.split(temp_decoded_batches[i], 1, dim=0)
-                image_batches_split = [item for item in image_batches_tuple]
-                image1 = image_batches_split[len(image_batches_split) - 1]
-                image_batches_tuple = None
-                image_batches_split = None
-
-                image_batches_tuple = torch.split(temp_decoded_batches[i + 1], 1, dim=0)
-                image_batches_split = [item for item in image_batches_tuple]
-                image2 = image_batches_split[0]
-                image_batches_tuple = None
-                image_batches_split = None
-
-                image1 = tensor2pilSwap(image1)[0]
-                image2 = tensor2pilSwap(image2)[0]
-
-                blend_latents = None
-
-                while blend_count > 0:
-                    blended_image = Image.blend(image1, image2, alpha_blend_val)
-                    temp_latent = pil2tensorSwap(blended_image)
-                    blended_image = None
-
-                    if len(temp_latent.shape) < 4:
-                        temp_latent = temp_latent.unsqueeze(0)
-
-                    if not blend_latents is None:
-                        blend_latents = torch.cat((blend_latents, temp_latent), 0)
-                    else:
-                        blend_latents = temp_latent
-
-                    alpha_blend_val += blend_value
-                    blend_count -= 1
-
-                temp_decoded_batches[i] = torch.cat((temp_decoded_batches[i], blend_latents), 0)
-                blend_latents = None
-
-                mm.soft_empty_cache()
-                gc.collect()
-                time.sleep(0.2)
-
-                i += 1
-
-            for entry in temp_decoded_batches:
-                if not resulting_images is None:
-                    resulting_images = torch.cat((resulting_images, entry), 0)
-                else:
-                    resulting_images = entry
-
-                entry.to(device=self.offload_device)
-
+            resulting_images = self.assemble_final_result(image_batches)
             temp_decoded_batches = None
-            mm.soft_empty_cache()
-            gc.collect()
-            time.sleep(1)
-
+            self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
 
         print("decode_batches: Full decoded images count: {}".format(resulting_images.shape[0]))
 
@@ -6881,6 +6978,110 @@ class WarpedFramepackSampler:
 
         return resulting_images
 
+    def assemble_final_result(self, image_batches):
+        if self.blend_frames < 1:
+            resulting_images = None
+            for entry in image_batches:
+                if not resulting_images is None:
+                    resulting_images = torch.cat((resulting_images, entry), 0)
+                else:
+                    resulting_images = entry
+
+                entry.to(device=self.offload_device)
+                entry = None
+        else:
+            blend_value = 1.0 / self.blend_frames
+            i = 0
+            while i < (len(image_batches) - 1):
+                alpha_blend_val = blend_value
+                blend_count = self.blend_frames
+
+                image_batches_tuple = torch.split(image_batches[i], 1, dim=0)
+                image_batches_split = [item for item in image_batches_tuple]
+                image1 = image_batches_split[len(image_batches_split) - 1]
+                # image1 = image_batches_split[len(image_batches_split) - 4]
+                image_batches_tuple = None
+                image_batches_split = None
+
+                image_batches_tuple = torch.split(image_batches[i + 1], 1, dim=0)
+                image_batches_split = [item for item in image_batches_tuple]
+                image2 = image_batches_split[0]
+                image_batches_tuple = None
+                image_batches_split = None
+
+                image1 = tensor2pilSwap(image1)[0]
+                image2 = tensor2pilSwap(image2)[0]
+
+                blend_latents = None
+
+                while blend_count > 0:
+                    blended_image = Image.blend(image1, image2, alpha_blend_val)
+                    temp_latent = pil2tensorSwap(blended_image)
+                    blended_image = None
+
+                    if len(temp_latent.shape) < 4:
+                        temp_latent = temp_latent.unsqueeze(0)
+
+                    if not blend_latents is None:
+                        blend_latents = torch.cat((blend_latents, temp_latent), 0)
+                    else:
+                        blend_latents = temp_latent
+
+                    alpha_blend_val += blend_value
+                    blend_count -= 1
+
+                image_batches_tuple = torch.split(image_batches[i], image_batches[i].shape[0] - 3, dim=0)
+                image_batches_split = [item for item in image_batches_tuple]
+                image_batches_tuple = None
+
+                image_batches[i] = torch.cat((image_batches_split[0], blend_latents), 0)
+                blend_latents = None
+                image_batches_split = None
+
+                self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
+
+                i += 1
+
+            resulting_images = None
+            for entry in image_batches:
+                if not resulting_images is None:
+                    resulting_images = torch.cat((resulting_images, entry), 0)
+                else:
+                    resulting_images = entry
+
+                entry.to(device=self.offload_device)
+
+            image_batches = None
+
+            self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
+
+
+        print("assemble_final_result: Full decoded images count: {}".format(resulting_images.shape[0]))
+
+        if self.skip_frames < 1:
+            return resulting_images
+
+        skipped_frames = 1
+
+        image_batches_tuple = torch.split(resulting_images, 1, dim=0)
+        image_batches_split = [item for item in image_batches_tuple]
+
+        resulting_images = None
+
+        for image in image_batches_split:
+            if skipped_frames <= self.skip_frames:
+                skipped_frames += 1
+                continue
+
+            if not resulting_images is None:
+                resulting_images = torch.cat((resulting_images, image), 0)
+            else:
+                resulting_images = image
+
+        print("assemble_final_result: Final decoded images count: {}".format(resulting_images.shape[0]))
+
+        return resulting_images
+
     def encode_batched(self, image, per_batch=16):
         from nodes import VAEEncode
         from comfy.utils import ProgressBar
@@ -6897,61 +7098,111 @@ class WarpedFramepackSampler:
 
         return {"samples": torch.cat(t, dim=0)}
 
+    def cleanup(self, unload_models=False, cleanup_models=False, cleanup_cuda=False):
+        if unload_models:
+            mm.unload_all_models()
+
+        if cleanup_models:
+            mm.cleanup_models()
+
+        if cleanup_cuda:
+            mm.soft_empty_cache()
+
+        gc.collect()
+        time.sleep(1)
+
+        return
+
     def video_encode(self, video_frames, batch_size):
         if len(video_frames.shape) < 4:
             video_frames = video_frames.unsqueeze(0)
 
-        image_batches_tuple = torch.split(video_frames, batch_size - 1, dim=0)
+        print(f"video_encode: Encoding input video frames in batch size {batch_size} (reduce preferred_batch_size if memory issues here or if forcing video resolution)")
+
+        if self.verbose_messaging:
+            print("video_encode: video_frames Shape: {}".format(video_frames.shape))
+            print("video_encode: batch_size: {}".format(batch_size))
+
+        first_batch = video_frames[:batch_size, :, :, :]
+        remaining_batches = video_frames[batch_size:, :, :, :]
+        # next_start_image = first_batch[(first_batch.shape[0] - 4):(first_batch.shape[0] - 3), :, :, :]
+        next_start_four = first_batch[(first_batch.shape[0] - 4):, :, :, :]
+
+        first_batch_latents = partial_encode_tiled(self.vae, first_batch, unload_after=False)
+
+        if self.verbose_messaging:
+            print("video_encode: first_batch Shape: {}".format(first_batch.shape))
+            print("video_encode: remaining_batches Shape: {}".format(remaining_batches.shape))
+            # print("video_encode: next_start_image Shape: {}".format(next_start_image.shape))
+            print("video_encode: next_start_four Shape: {}".format(next_start_four.shape))
+
+        if len(first_batch_latents.shape) < 5:
+            first_batch_latents = first_batch_latents.unsqueeze(0)
+
+        first_batch_latents = first_batch_latents * vae_scaling_factor
+        final_latent_batches = [first_batch_latents.to(self.offload_device)]
+
+        image_batches_tuple = torch.split(remaining_batches, batch_size - 1, dim=0)
         image_batches_split = [item for item in image_batches_tuple]
 
         final_image_batches = []
         last_frame = None
 
-        for entry in image_batches_split:
-            if entry.shape[0] == (batch_size - 1):
-                final_image_batches.append(entry.clone().detach())
-            else:
-                if last_frame is None:
-                    last_frame = entry
-
-        print(f"video_encode: Encoding input video frames in batch size {batch_size} (reduce preferred_batch_size if memory issues here or if forcing video resolution)")
         latents = None
-        final_latent_batches = []
         batch_encodings = []
 
-        i = 1
         with torch.no_grad():
-            for entry in final_image_batches:
-                entry.to(dtype=torch.float32, device=self.device)
+            i = 0
+            for entry in image_batches_split:
+                entry = entry.to(dtype=torch.float32, device=self.device)
+                entry = torch.cat((next_start_four, entry), 0)
+                # next_start_image = entry[(entry.shape[0] - 1):, :, :, :]
+                next_start_four = entry[(entry.shape[0] - 4):, :, :, :]
 
-                if (i < len(final_image_batches)):
-                    next_start_image = final_image_batches[i][1:2, :, :, :]
-
-                    entry = torch.cat((entry, next_start_image.to(entry)), 0)
+                if i < (len(image_batches_split) - 1):
                     batch_latent = partial_encode_tiled(self.vae, entry, unload_after=False)
                 else:
-                    entry = torch.cat((entry, last_frame.to(entry)), 0)
                     batch_latent = partial_encode_tiled(self.vae, entry, unload_after=True)
-
-                i += 1
 
                 if len(batch_latent.shape) < 5:
                     batch_latent = batch_latent.unsqueeze(0)
 
                 batch_latent = batch_latent * vae_scaling_factor
+                batch_latent = batch_latent.to(self.offload_device)
                 final_latent_batches.append(batch_latent.clone().detach())
-                entry.to(device=self.offload_device)
+                entry = entry.to(device=self.offload_device)
+                entry = None
+                batch_latent = None
 
         print(f"Encoding input video frames in batch size {batch_size} Done.")
 
+        if self.verbose_messaging:
+            i = 0
+            for entry in final_latent_batches:
+                print("video_encode: Batch: {}  |  batch Shape: {}".format(i, entry.shape))
+                i += 1
+
         return final_latent_batches, batch_encodings
+
+def cleanup(device=None, unload_models=False, cleanup_cuda=False):
+    if unload_models:
+        mm.free_memory(1e30, device)
+
+    if cleanup_cuda:
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+
+    gc.collect()
+    time.sleep(1)
+
+    return
 
 class WarpedFramepackLoraSelectBatch:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-               "lora": ("STRING", {"default": ""}),
+               "lora": ("STRING", {"default": "", "forceInput": True}),
                 "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.0001, "tooltip": "LORA strength, set to 0.0 to unmerge the LORA"}),
                 "fuse_lora": ("BOOLEAN", {"default": False, "tooltip": "Fuse the LORA model with the base model. This is recommended for better performance."}),
             },
@@ -6975,10 +7226,12 @@ class WarpedFramepackLoraSelectBatch:
             "name": lora.split(".")[0],
             "fuse_lora": fuse_lora,
         }
+
         if prev_lora is not None:
             loras_list.extend(prev_lora)
 
         loras_list.append(lora)
+
         return (loras_list,)
 
 def warped_load_torch_file(ckpt, return_metadata=False):
@@ -7030,20 +7283,19 @@ class WarpedDualEncoder(ComfyNodeABC):
     RETURN_TYPES = (IO.CONDITIONING, IO.CONDITIONING, )
     RETURN_NAMES = ("pos_conditioning", "neg_conditioning", )
     FUNCTION = "process"
-
-    CATEGORY = "Warped/Conditioning"
-
+    CATEGORY = "Warped/General/Conditioning"
     DESCRIPTION = "Encodes both positive and negative prompts."
 
     def process(self, clip, positive_text="", negative_text=""):
-        if clip.patcher.model.device != clip.patcher.load_device:
-            clip.patcher.model.to(device=clip.patcher.load_device)
+        print("WarpedDualEncoder: Loading clip model to device: {}".format(clip.patcher.load_device))
+        clip.patcher.model.to(device=clip.patcher.load_device)
 
         print("WarpedDualEncoder: Encoding Prompts...")
         positive_conditioning = self.encode(clip, positive_text)
         negative_conditioning = self.encode(clip, negative_text)
         print("WarpedDualEncoder: Encoding Prompts...Done.")
 
+        print("WarpedDualEncoder: Unloading clip model to device: {}".format(get_offload_device()))
         clip.patcher.model.to(device=get_offload_device())
 
         if torch.cuda.is_available():
@@ -7077,7 +7329,7 @@ class WarpedDualCLIPLoader:
     RETURN_NAMES = ("clip", )
     FUNCTION = "load_clip"
 
-    CATEGORY = "Warped/Loaders"
+    CATEGORY = "Warped/General/Loaders"
 
     DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5"
 
@@ -7158,7 +7410,7 @@ class WarpedLoadFramePackModel:
 
             "base_precision": (["fp32", "bf16", "fp16"], {"default": "bf16"}),
             "quantization": (['disabled', 'fp8_e4m3fn', 'fp8_e4m3fn_fast', 'fp8_e5m2'], {"default": 'disabled', "tooltip": "optional quantization method"}),
-            "load_device": (["main_device", "offload_device"], {"default": "offload_device", "tooltip": "Initialize the model on the main device or offload device"}),
+            "load_device": (get_available_devices(), {"default": "cpu", "tooltip": "set load device."}),
             },
             "optional": {
                 "attention_mode": ([
@@ -7189,12 +7441,17 @@ class WarpedLoadFramePackModel:
 
         base_dtype = {"fp8_e4m3fn": torch.float8_e4m3fn, "fp8_e4m3fn_fast": torch.float8_e4m3fn, "bf16": torch.bfloat16, "fp16": torch.float16, "fp16_fast": torch.float16, "fp32": torch.float32}[base_precision]
 
-        device = mm.get_torch_device()
         offload_device = get_offload_device()
-        if load_device == "main_device":
-            transformer_load_device = device
+
+        if load_device == "cuda":
+            device = mm.get_torch_device()
+        elif load_device == "cpu":
+            device = offload_device
         else:
-            transformer_load_device = offload_device
+            temp_strings = load_device.split(':')
+            device = torch.device(int(temp_strings[len(temp_strings) - 1]))
+
+        transformer_load_device = offload_device
 
         model_path = folder_paths.get_full_path_or_raise("diffusion_models", model)
         model_config_path = os.path.join(script_directory, "transformer_config.json")
@@ -7252,6 +7509,11 @@ class WarpedLoadFramePackModel:
             for l in lora:
                 fuse = True if l["fuse_lora"] else False
 
+                blocktypes = None
+
+                if "blocks" in l.keys():
+                    blocktypes = l["blocks"]
+
                 print("Reading LORA: {}".format(l["path"]))
                 with open(l["path"], "rb") as file:
                     lora_temp = file.read()
@@ -7260,6 +7522,13 @@ class WarpedLoadFramePackModel:
                 lora_sd = warped_load_torch_file(lora_temp)
                 print("Loading Lora: {}...Done".format(lora_number))
                 lora_number += 1
+
+                # Convert Lora To diffusion_model format
+                lora_sd = convert_lora(lora_sd, convert_to="diffusion_model")
+
+                # If blocks value exist in lora metadata, then select block types
+                if not blocktypes is None:
+                    lora_sd = filter_lora_keys(lora_sd, blocktypes)
 
                 if "lora_unet_single_transformer_blocks_0_attn_to_k.lora_up.weight" in lora_sd:
                     from .utils import convert_to_diffusers
@@ -7285,6 +7554,7 @@ class WarpedLoadFramePackModel:
 
                 del lora_sd
                 mm.soft_empty_cache()
+
             if adapter_list:
                 transformer.set_adapters(adapter_list, weights=adapter_weights)
                 if fuse:
@@ -7305,7 +7575,6 @@ class WarpedLoadFramePackModel:
             from .fp8_optimization import convert_fp8_linear
             convert_fp8_linear(transformer, base_dtype, params_to_keep=params_to_keep)
 
-
         DynamicSwapInstaller.install_model(transformer, device=device)
 
         if compile_args is not None:
@@ -7315,8 +7584,6 @@ class WarpedLoadFramePackModel:
             if compile_args["compile_double_blocks"]:
                 for i, block in enumerate(transformer.transformer_blocks):
                     transformer.transformer_blocks[i] = torch.compile(block, fullgraph=compile_args["fullgraph"], dynamic=compile_args["dynamic"], backend=compile_args["backend"], mode=compile_args["mode"])
-
-            #transformer = torch.compile(transformer, fullgraph=compile_args["fullgraph"], dynamic=compile_args["dynamic"], backend=compile_args["backend"], mode=compile_args["mode"])
 
         pipe = {
             "transformer": transformer.eval(),
@@ -7349,9 +7616,9 @@ class WarpedCLIPVisionLoader:
         return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"), ),
                              }}
     RETURN_TYPES = ("CLIP_VISION",)
+    RETURN_NAMES = ("clip_vision",)
     FUNCTION = "load_clip"
-
-    CATEGORY = "Warped/Loaders"
+    CATEGORY = "Warped/General/Loaders"
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path_or_raise("clip_vision", clip_name)
@@ -7450,10 +7717,11 @@ class WarpedVAELoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "vae_name": (s.vae_list(), )}}
-    RETURN_TYPES = ("VAE",)
+    RETURN_TYPES = ("VAE", "DICT", )
+    RETURN_NAMES = ("vae", "vae_state_dict", )
     FUNCTION = "load_vae"
 
-    CATEGORY = "Warped/Loaders"
+    CATEGORY = "Warped/General/Loaders"
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
@@ -7475,4 +7743,200 @@ class WarpedVAELoader:
         time.sleep(1)
 
         vae.throw_exception_if_invalid()
-        return (vae,)
+        return (vae, sd, )
+
+class WarpedNumericalConversion:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "optional": {
+                        "int_value": ("INT", {"default": None, "forceInput": True}),
+                        "float_value": ("FLOAT", {"default": None, "forceInput": True}),
+                        "number_value": ("NUMBER", {"default": None, "forceInput": True}),
+            }
+        }
+
+    RETURN_TYPES = ("INT","FLOAT", "NUMBER", "STRING", )
+    RETURN_NAMES = ("int","float", "number", "string", )
+    OUTPUT_NODE = True
+    FUNCTION = "int_to_number"
+    CATEGORY = "Warped/General/Utils"
+
+    def int_to_number(self, int_value=None, float_value=None, number_value=None):
+        value = None
+
+        if (int_value == None) and (float_value == None) and (number == None):
+            raise ValueError("WarpedNumericalConversion: All inputs are None. Nothing to convert.")
+
+        i = 0
+
+        if not int_value is None:
+            i += 1
+            value = int_value
+
+        if not float_value is None:
+            i += 1
+            value = float_value
+
+        if not number_value is None:
+            i += 1
+            value = number_value
+
+        if i > 1:
+            raise ValueError("WarpedNumericalConversion: More than one type of value inputs simultaneously is not supported.")
+
+        if not value is None:
+            return {"ui": {"string": ["{}".format(value),]}, "result": (int(value), float(value), value, "{}".format(value),), }
+
+        return {"ui": {"string": ["{}".format(0),]}, "result": (int(0), float(0), value, "0",), }
+
+class WarpedLoraReSave:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "lora_name": (folder_paths.get_filename_list("loras"),),
+                "save_path": ("STRING", {"default": get_default_gen_output_path()}),
+                "model_name": ("STRING", {"default": ""}),
+            },
+        }
+
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
+    OUTPUT_IS_LIST = (True,)
+    FUNCTION = "load_lora"
+    CATEGORY = "Warped/General/Lora"
+    DESCRIPTION = "Re-saves LORA with new metadata."
+
+    def get_metadata(self, lora_path, model_name):
+        model_config_path = os.path.join(script_directory, "your_metadata.json")
+        model_config_path = os.path.abspath(model_config_path)
+
+        print("metadata config file path: {}".format(model_config_path))
+
+        try:
+            with open(model_config_path, "r") as f:
+                metadata = json.load(f)
+
+            if len(model_name) > 0:
+                metadata["model_name"] = model_name
+
+            return metadata
+        except Exception as e:
+            print("Exception attempting to read config file: {}".format(model_config_path))
+            raise e
+
+        return {"metadata": "No Metadata" }
+
+    def load_lora(self, lora_name: str, save_path: str, model_name: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        if not lora_name:
+            return {"ui": {"tags": ["Nothing here to Re-save"]}}
+
+        # Get the full path to the LoRA file
+        lora_path = folder_paths.get_full_path("loras", lora_name)
+        if not os.path.exists(lora_path):
+            raise ValueError(f"LoRA file not found: {lora_path}")
+
+        lora_weights = comfy.utils.load_torch_file(lora_path)
+
+        metadata = self.get_metadata(lora_path, model_name)
+
+        temp_strings = save_path.split('\\')
+        del temp_strings[len(temp_strings) - 1]
+
+        print("Save Path: {}".format(save_path))
+
+        save_folder = ""
+        for temp_string in temp_strings:
+            if len(save_folder) > 0:
+                save_folder = "{}\\{}".format(save_folder, temp_string)
+            else:
+                save_folder = temp_string
+
+        print("Save_folder: {}".format(save_folder))
+        os.makedirs(save_folder, exist_ok = True)
+
+        utils.save_torch_file(lora_weights, save_path, metadata=metadata)
+
+        save_message = "Weights Saved To: {}".format(save_path)
+
+        return {"ui": {"tags": [save_message]}}
+
+class WarpedReverseImageBatch:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "images": ("IMAGE", {"tooltip": "Image batch to reverse."}),
+            }
+        }
+    RETURN_TYPES = ("IMAGE", )
+    RETURN_NAMES = ("images", )
+    FUNCTION = "reverse_images"
+    CATEGORY = "Warped/General/Image"
+    DESCRIPTION = "Reverses the order of the batch of images input into the node."
+
+    def reverse_images(self, images=None):
+        if images is None:
+            raise ValueError("images input cannot be None.")
+
+        images_tuple = torch.split(images, 1, dim=0)
+        images_split = [item for item in images_tuple]
+
+        images_split.reverse()
+
+        resulting_images = None
+        for temp_image in images_split:
+            if not resulting_images is None:
+                resulting_images = torch.cat((resulting_images, temp_image), 0)
+            else:
+                resulting_images = temp_image
+
+        return (resulting_images, )
+
+class WarpedCheckpointLoader:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "ckpt_name": (folder_paths.get_filename_list("checkpoints"), {"tooltip": "The name of the checkpoint (model) to load."}),
+            }
+        }
+    RETURN_TYPES = ("MODEL", "CLIP", "VAE", )
+    RETURN_NAMES = ("model", "clip", "vae", )
+    OUTPUT_TOOLTIPS = ("The model used for denoising latents.",
+                       "The CLIP model used for encoding text prompts.",
+                       "The VAE model used for encoding and decoding images to and from latent space.")
+    FUNCTION = "load_checkpoint"
+    CATEGORY = "Warped/General/Loaders"
+    DESCRIPTION = "Loads a diffusion model checkpoint, diffusion models are used to denoise latents."
+
+    def load_checkpoint(self, ckpt_name):
+        ckpt_path = folder_paths.get_full_path_or_raise("checkpoints", ckpt_name)
+        out = self.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return out[:3]
+
+    def load_checkpoint_guess_config(self, ckpt_path, output_vae=True, output_clip=True, embedding_directory=None):
+        print("Reading: {}".format(ckpt_path))
+        with open(ckpt_path, "rb") as file:
+            checkpoint_temp = file.read()
+
+        print("Loading Checkpoint...")
+        ckpt = warped_load_torch_file(checkpoint_temp)
+        print("Loading Checkpoint...Done")
+        checkpoint_temp = None
+
+        gc.collect()
+        time.sleep(1)
+
+        out = comfy.sd.load_state_dict_guess_config(ckpt, output_vae, output_clip, embedding_directory)
+        if out is None:
+            raise RuntimeError("ERROR: Could not detect model type of: {}".format(ckpt_path))
+
+        return out

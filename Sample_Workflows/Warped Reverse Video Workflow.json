@@ -1,0 +1,231 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "revision": 0,
+  "last_node_id": 11,
+  "last_link_id": 5,
+  "nodes": [
+    {
+      "id": 9,
+      "type": "WarpedReverseImageBatch",
+      "pos": [
+        847,
+        329
+      ],
+      "size": [
+        226.91073608398438,
+        26
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "WarpedReverseImageBatch"
+      },
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 11,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        1200,
+        329
+      ],
+      "size": [
+        504.7587890625,
+        736
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 4
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        },
+        {
+          "name": "frame_rate",
+          "type": "FLOAT",
+          "widget": {
+            "name": "frame_rate"
+          },
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-videohelpersuite",
+        "ver": "1.6.1",
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 8,
+        "loop_count": 0,
+        "filename_prefix": "Hunyuan/%date:yyyy_MM_dd%/lowres/vid",
+        "format": "video/nvenc_h264-mp4",
+        "pix_fmt": "yuv420p",
+        "bitrate": 10,
+        "megabit": true,
+        "save_metadata": true,
+        "pingpong": false,
+        "save_output": true,
+        "save_images": false,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {}
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "WarpedBundleAllVideoImages",
+      "pos": [
+        418,
+        331
+      ],
+      "size": [
+        304.5747985839844,
+        202
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image_batch",
+          "type": "IMAGE",
+          "links": [
+            3
+          ]
+        },
+        {
+          "name": "first_image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "last_image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "num_frames",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "fps",
+          "type": "FLOAT",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "WarpedBundleAllVideoImages"
+      },
+      "widgets_values": [
+        "",
+        true
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    }
+  ],
+  "links": [
+    [
+      3,
+      10,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      4,
+      9,
+      0,
+      11,
+      0,
+      "IMAGE"
+    ],
+    [
+      5,
+      10,
+      6,
+      11,
+      4,
+      "FLOAT"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [
+        -126,
+        -214
+      ]
+    },
+    "frontendVersion": "1.20.5",
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 15,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

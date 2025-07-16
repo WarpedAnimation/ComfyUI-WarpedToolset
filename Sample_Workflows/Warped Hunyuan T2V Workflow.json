@@ -1,56 +1,9 @@
 {
   "id": "facb86ea-4076-46ff-921d-e6dcadfb1754",
   "revision": 0,
-  "last_node_id": 286,
-  "last_link_id": 904,
+  "last_node_id": 289,
+  "last_link_id": 908,
   "nodes": [
-    {
-      "id": 152,
-      "type": "PreviewTextNode",
-      "pos": [
-        743.6790771484375,
-        -206.6033477783203
-      ],
-      "size": [
-        342.3085632324219,
-        114.48214721679688
-      ],
-      "flags": {},
-      "order": 18,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": 894
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui_custom_nodes_alekpet",
-        "ver": "7b3d6f190aeca261422bdfb74b5af37937e5bf68",
-        "Node name for S&R": "PreviewTextNode"
-      },
-      "widgets_values": [
-        "",
-        "****** WarpedSamplerCustomAdv: Total Images Generated 1 ******",
-        [
-          false,
-          true
-        ]
-      ],
-      "color": "#322",
-      "bgcolor": "#533"
-    },
     {
       "id": 99,
       "type": "Fast Groups Muter (rgthree)",
@@ -143,7 +96,6 @@
       "outputs": [
         {
           "name": "CONDITIONING",
-          "shape": 3,
           "type": "CONDITIONING",
           "slot_index": 0,
           "links": [
@@ -193,7 +145,6 @@
       "outputs": [
         {
           "name": "GUIDER",
-          "shape": 3,
           "type": "GUIDER",
           "slot_index": 0,
           "links": [
@@ -330,7 +281,7 @@
           "links": [
             526,
             883,
-            902
+            906
           ]
         }
       ],
@@ -442,7 +393,6 @@
       "outputs": [
         {
           "name": "SAMPLER",
-          "shape": 3,
           "type": "SAMPLER",
           "slot_index": 0,
           "links": [
@@ -541,6 +491,175 @@
       }
     },
     {
+      "id": 170,
+      "type": "StringConstantMultiline",
+      "pos": [
+        -128.29852294921875,
+        280.7070617675781
+      ],
+      "size": [
+        423.325927734375,
+        409.93310546875
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "slot_index": 0,
+          "links": [
+            448
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "e3b4bcf21e03402a2b11927eb5a4e3df500795b7",
+        "Node name for S&R": "StringConstantMultiline"
+      },
+      "widgets_values": [
+        "8itchW4lk, dynamic (real life:1.15) video showing front view of a woman with long flowing blonde_hair and bright green_eyes, she is wearing (beige thigh-high stockings and a maroon garter_belt with no panties and she is topless and she is braless:1.2). (she is showing her (large:1.3) ((natural heavy:1.3)) naked breasts:1.15)  pointy, large aereolas, (her nipples are erect:1.25), She has small hips and a (small waist:1.4), (she is also wearing a thin diamond choker and navel_piercing, She has a slender fit body. she is in an abandonned nuclear facility, she was surprised by the viewer, so now she is walking toward the viewer to seduce him:1.25), (she is walking toward the viewer:1.2), (she is walking in a very sexy manner, looking at the viewer. Her facial expression goes from puzzled to flirting with the viewer. sexy but dangerous attitude and seductive lips, normal speed, her heavy breasts (((are (bouncing:1.5) and (swaying:1.3) and (jiggling:1.7):1.7)) unrestrained with every step she takes and with ever move she makes:1.15), (((her breasts bounce into each other and recoil away from each other as she walks:1.8))), the viewer keeps her in view all the times, (extremely soft breasts:1.3), (extremely bouncing breasts:1.3), (breasts bouncing up and down side to side:1.5), tanned skin, tanlines, detailed face, detailed hands, detailed fingers, nail polish, glamour eye makeup, eyeliner, lipstick, mascara, very petite body, 4k ultra high quality video footage, (realisic jiggle, bouncing, wobble, swaying physics, her breasts jiggle and bounce with each stap she takes:1.2), dark atmosphere, flickering lights shine down from the ceiling, well lit post apocalyptic nuclear building interior with god rays illuminating the room through holes in the ceiling and walls, retro cyberpunk vibe",
+        true,
+        true
+      ]
+    },
+    {
+      "id": 286,
+      "type": "WarpedVAELoader",
+      "pos": [
+        -439.18890380859375,
+        438.5068359375
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "vae",
+          "type": "VAE",
+          "links": [
+            904
+          ]
+        },
+        {
+          "name": "vae_state_dict",
+          "type": "DICT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "Node name for S&R": "WarpedVAELoader",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "hunyuan_video_vae_bf16.safetensors"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 67,
+      "type": "ModelSamplingSD3",
+      "pos": [
+        -16.971450805664062,
+        63.993743896484375
+      ],
+      "size": [
+        210,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 905
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            195
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "ModelSamplingSD3"
+      },
+      "widgets_values": [
+        12
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 287,
+      "type": "MagCache",
+      "pos": [
+        -19.923995971679688,
+        4.6010003089904785
+      ],
+      "size": [
+        270,
+        178
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 906
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            905
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Zehong-Ma/ComfyUI-MagCache",
+        "ver": "7d4e982bf7955498afca891c7094c48a70985537",
+        "Node name for S&R": "MagCache"
+      },
+      "widgets_values": [
+        "hunyuan_video",
+        0.12000000000000002,
+        0.2,
+        3,
+        0,
+        -1
+      ]
+    },
+    {
       "id": 284,
       "type": "WarpedCreateEmptyLatentBatch",
       "pos": [
@@ -552,7 +671,7 @@
         126
       ],
       "flags": {},
-      "order": 4,
+      "order": 6,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -575,12 +694,55 @@
         "Node name for S&R": "WarpedCreateEmptyLatentBatch"
       },
       "widgets_values": [
-        137,
-        320,
-        512
+        121,
+        480,
+        720
       ],
       "color": "#223",
       "bgcolor": "#335"
+    },
+    {
+      "id": 152,
+      "type": "PreviewTextNode",
+      "pos": [
+        743.6790771484375,
+        -233.2232208251953
+      ],
+      "size": [
+        342.3085632324219,
+        114.48214721679688
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 894
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_custom_nodes_alekpet",
+        "ver": "7b3d6f190aeca261422bdfb74b5af37937e5bf68",
+        "Node name for S&R": "PreviewTextNode"
+      },
+      "widgets_values": [
+        "",
+        [
+          false,
+          true
+        ]
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
     },
     {
       "id": 280,
@@ -639,7 +801,9 @@
         {
           "name": "seed",
           "type": "INT",
-          "links": null
+          "links": [
+            907
+          ]
         },
         {
           "name": "generation_status",
@@ -670,165 +834,111 @@
       "bgcolor": "#535"
     },
     {
-      "id": 170,
-      "type": "StringConstantMultiline",
+      "id": 289,
+      "type": "PreviewTextNode",
       "pos": [
-        -128.29852294921875,
-        280.7070617675781
+        1383.5662841796875,
+        -242.86416625976562
       ],
       "size": [
-        423.325927734375,
-        409.93310546875
+        242.4835662841797,
+        103.83414459228516
       ],
       "flags": {},
-      "order": 5,
+      "order": 20,
       "mode": 0,
-      "inputs": [],
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 908
+        }
+      ],
       "outputs": [
         {
           "name": "STRING",
           "type": "STRING",
-          "slot_index": 0,
-          "links": [
-            448
-          ]
+          "links": null
         }
       ],
       "properties": {
-        "cnr_id": "comfyui-kjnodes",
-        "ver": "e3b4bcf21e03402a2b11927eb5a4e3df500795b7",
-        "Node name for S&R": "StringConstantMultiline"
+        "cnr_id": "comfyui_custom_nodes_alekpet",
+        "ver": "7b3d6f190aeca261422bdfb74b5af37937e5bf68",
+        "Node name for S&R": "PreviewTextNode"
       },
       "widgets_values": [
-        "8itchW4lk, dynamic (real life:1.15) video showing front view of a woman with long flowing blonde_hair and bright green_eyes, she is wearing (beige thigh-high stockings and a maroon garter_belt with no panties and she is topless and she is braless:1.2). (she is showing her (large:1.3) ((natural heavy:1.3)) naked breasts:1.15)  pointy, large aereolas, (her nipples are erect:1.25), She has small hips and a (small waist:1.4), (she is also wearing a thin diamond choker and navel_piercing, She has a slender fit body. she is in an abandonned nuclear facility, she was surprised by the viewer, so now she is walking toward the viewer to seduce him:1.25), (she is walking toward the viewer:1.2), (she is walking in a very sexy manner, looking at the viewer. Her facial expression goes from puzzled to flirting with the viewer. sexy but dangerous attitude and seductive lips, normal speed, her heavy breasts (((are (bouncing:1.5) and (swaying:1.3) and (jiggling:1.7):1.7)) unrestrained with every step she takes and with ever move she makes:1.15), (((her breasts bounce into each other and recoil away from each other as she walks:1.8))), the viewer keeps her in view all the times, (extremely soft breasts:1.3), (extremely bouncing breasts:1.3), (breasts bouncing up and down side to side:1.5), tanned skin, tanlines, detailed face, detailed hands, detailed fingers, nail polish, glamour eye makeup, eyeliner, lipstick, mascara, very petite body, 4k ultra high quality video footage, (realisic jiggle, bouncing, wobble, swaying physics, her breasts jiggle and bounce with each stap she takes:1.2), dark atmosphere, flickering lights shine down from the ceiling, well lit post apocalyptic nuclear building interior with god rays illuminating the room through holes in the ceiling and walls, retro cyberpunk vibe",
-        true,
-        true
-      ]
+        "",
+        [
+          false,
+          true
+        ]
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
     },
     {
-      "id": 285,
-      "type": "WarpedTeaCache",
+      "id": 288,
+      "type": "WarpedNumericalConversion",
       "pos": [
-        -114.02001953125,
-        13.55999755859375
+        1118.0810546875,
+        -229.65499877929688
       ],
       "size": [
-        315,
-        106
+        230.00741577148438,
+        86
       ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 13,
+      "flags": {},
+      "order": 18,
       "mode": 0,
       "inputs": [
         {
-          "name": "model",
-          "type": "MODEL",
-          "link": 902
+          "name": "int_value",
+          "shape": 7,
+          "type": "INT",
+          "link": 907
+        },
+        {
+          "name": "float_value",
+          "shape": 7,
+          "type": "FLOAT",
+          "link": null
+        },
+        {
+          "name": "number_value",
+          "shape": 7,
+          "type": "NUMBER",
+          "link": null
         }
       ],
       "outputs": [
         {
-          "name": "model",
-          "type": "MODEL",
+          "name": "int",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "float",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "name": "number",
+          "type": "NUMBER",
+          "links": null
+        },
+        {
+          "name": "string",
+          "type": "STRING",
           "links": [
-            903
+            908
           ]
         }
       ],
       "properties": {
-        "cnr_id": "ComfyUI-WarpedToolset",
-        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
-        "Node name for S&R": "WarpedTeaCache"
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.0",
+        "Node name for S&R": "WarpedNumericalConversion"
       },
-      "widgets_values": [
-        "hunyuan_video",
-        0.4,
-        1
-      ],
-      "color": "#323",
-      "bgcolor": "#535"
-    },
-    {
-      "id": 67,
-      "type": "ModelSamplingSD3",
-      "pos": [
-        82.85357666015625,
-        14.746726036071777
-      ],
-      "size": [
-        210,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 14,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 903
-        }
-      ],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "slot_index": 0,
-          "links": [
-            195
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "ModelSamplingSD3"
-      },
-      "widgets_values": [
-        12
-      ],
-      "color": "#222",
-      "bgcolor": "#000"
-    },
-    {
-      "id": 286,
-      "type": "WarpedVAELoader",
-      "pos": [
-        -439.18890380859375,
-        438.5068359375
-      ],
-      "size": [
-        315,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 6,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "VAE",
-          "type": "VAE",
-          "links": [
-            904
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-WarpedToolset",
-        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
-        "widget_ue_connectable": {},
-        "Node name for S&R": "WarpedVAELoader"
-      },
-      "widgets_values": [
-        "hunyuan_video_vae_bf16.safetensors"
-      ],
       "color": "#323",
       "bgcolor": "#535"
     },
@@ -870,7 +980,7 @@
         "rejects_ue_links": true
       },
       "widgets_values": [
-        "Hunyuan\\RsmFunbagsHy.safetensors",
+        "RsmHy\\RsmFunbagsHy.safetensors",
         1.0000000000000002,
         "all",
         "None",
@@ -1007,28 +1117,44 @@
       "LATENT"
     ],
     [
-      902,
-      81,
-      0,
-      285,
-      0,
-      "MODEL"
-    ],
-    [
-      903,
-      285,
-      0,
-      67,
-      0,
-      "MODEL"
-    ],
-    [
       904,
       286,
       0,
       195,
       0,
       "*"
+    ],
+    [
+      905,
+      287,
+      0,
+      67,
+      0,
+      "MODEL"
+    ],
+    [
+      906,
+      81,
+      0,
+      287,
+      0,
+      "MODEL"
+    ],
+    [
+      907,
+      280,
+      2,
+      288,
+      0,
+      "INT"
+    ],
+    [
+      908,
+      288,
+      3,
+      289,
+      0,
+      "STRING"
     ]
   ],
   "groups": [
@@ -1051,14 +1177,14 @@
     "ds": {
       "scale": 0.7513148009015777,
       "offset": [
-        536.352,
-        72.5969999999924
+        541.6760000000013,
+        149.79499999999234
       ]
     },
     "groupNodes": {},
     "ue_links": [],
     "VHS_latentpreview": true,
-    "VHS_latentpreviewrate": 10,
+    "VHS_latentpreviewrate": 15,
     "node_versions": {
       "comfy-core": "0.3.13",
       "comfyui-frame-interpolation": "1.0.6",
@@ -1073,7 +1199,8 @@
       "Hunyuan-Multi-Lora-Loader": "dd009a9d44b47bfaf01a4ffa38d7098f523e2cce"
     },
     "VHS_MetadataImage": true,
-    "VHS_KeepIntermediate": true
+    "VHS_KeepIntermediate": true,
+    "frontendVersion": "1.20.5"
   },
   "version": 0.4
 }
