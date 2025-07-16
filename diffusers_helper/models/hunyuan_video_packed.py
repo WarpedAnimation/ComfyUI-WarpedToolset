@@ -1200,3 +1200,21 @@ class HunyuanVideoTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin, 
 
         return hidden_states,
 
+    # def forward(
+    #         self,
+    #         hidden_states, timestep, encoder_hidden_states, encoder_attention_mask, pooled_projections, guidance,
+    #         latent_indices=None,
+    #         clean_latents=None, clean_latent_indices=None,
+    #         clean_latents_2x=None, clean_latent_2x_indices=None,
+    #         clean_latents_4x=None, clean_latent_4x_indices=None,
+    #         image_embeddings=None,
+    #         attention_kwargs=None, return_dict=True
+    # ):
+    #     if not self.enable_magcache:
+    #         return self.orig_forward(hidden_states, timestep, encoder_hidden_states, encoder_attention_mask, pooled_projections, guidance, latent_indices=latent_indices, clean_latents=clean_latents, clean_latent_indices=clean_latent_indices,
+    #                     clean_latents_2x=clean_latents_2x, clean_latent_2x_indices=clean_latent_2x_indices, clean_latents_4x=clean_latents_4x, clean_latent_4x_indices=clean_latents_4x, image_embeddings=image_embeddings,
+    #                     attention_kwargs=attention_kwargs, return_dict=return_dict)
+    #
+    #     return self.magcache_framepack_forward(hidden_states, timestep, encoder_hidden_states, encoder_attention_mask, pooled_projections, guidance, latent_indices=latent_indices, clean_latents=clean_latents, clean_latent_indices=clean_latent_indices,
+    #                 clean_latents_2x=clean_latents_2x, clean_latent_2x_indices=clean_latent_2x_indices, clean_latents_4x=clean_latents_4x, clean_latent_4x_indices=clean_latents_4x, image_embeddings=image_embeddings,
+    #                 attention_kwargs=attention_kwargs, return_dict=return_dict)
