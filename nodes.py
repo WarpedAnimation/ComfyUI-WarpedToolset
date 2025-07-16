@@ -4131,379 +4131,379 @@ class WarpedWanLoadAndEditLoraBlocks(WarpedBaseWanLoraLoader):
 
         return (return_model, return_clip,)
 
-class WarpedImageResize:
-    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
-    @classmethod
-    def INPUT_TYPES(self):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-                "width": ("INT", { "default": 400, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, }),
-                "height": ("INT", { "default": 720, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, }),
-                "upscale_method": (self.upscale_methods, {"default": "lanczos"}),
-                "crop": (["center", "top_left", "top_right", "bottom_left", "bottom_right", "top_center", "bottom_center"], {"default": "center"}),
-                "use_gpu": ("BOOLEAN", {"default": False}),
-            },
-        }
-
-    RETURN_TYPES = ("IMAGE", "IMAGE", "INT", "INT",)
-    RETURN_NAMES = ("IMAGE", "scale_orig_image", "width", "height",)
-    FUNCTION = "resize"
-    CATEGORY = "Warped/General/Image"
-    DESCRIPTION = """
-                Resizes the image to the specified width and height.
-                Size can be retrieved from the inputs, and the final scale
-                is  determined in this order of importance:
-                - get_image_size
-                - width_input and height_input
-                - width and height widgets
-
-                Keep proportions keeps the aspect ratio of the image, by
-                highest dimension.
-                """
-
-    def resize(self, image, width, height, upscale_method, crop="center", use_gpu=False):
-        print("Original Image Shape: {}".format(image.shape))
-
-        B, H, W, C = image.shape
-        self.is_downsize = False
-
-        if use_gpu:
-            self.device = mm.get_torch_device()
-        else:
-            self.device = get_offload_device()
-
-        scaled_image = image.clone().detach()
-        test_image1  = image.clone().detach()
-        test_image2  = image.clone().detach()
-
-        is_long_side, orig_is_landscape, new_is_landscape, upscale_required = self.determine_side_to_scale(H, W, width, height)
-
-        print("Automatic Value Determination: is_long_side: {}  |  original_is_landscape: {}  |  new_is_landscape: {}  | upscale_required {}".format(is_long_side, orig_is_landscape, new_is_landscape, upscale_required))
-
-        if upscale_required:
-            W = int(W / 16) * 16
-            H = int(H / 16) * 16
-
-            print("Modified Width: {}  |  Height: {}".format(W, H))
-
-            # Scale based on which dimension is smaller in proportion to the desired dimensions
-            ratio = max(width / W, height / H)
-            temp_width = round(W * ratio)
-            temp_height = round(H * ratio)
-
-            print("Aspect Ratio Change Required: temp_width: {}  |  temp_height: {}".format(temp_width, temp_height))
-
-            image = image.movedim(-1,1)
-            image = self.upscale(image, temp_width, temp_height, upscale_method, crop)
-            image = image.movedim(1,-1)
-
-            if orig_is_landscape:
-                if is_long_side:
-                    image = self.scale_to_side(image, width, is_long_side)
-                else:
-                    image = self.scale_to_side(image, height, is_long_side)
-            else:
-                if is_long_side:
-                    image = self.scale_to_side(image, height, is_long_side)
-                else:
-                    image = self.scale_to_side(image, width, is_long_side)
-
-            scaled_image = image.clone().detach()
-
-            image = self.crop(image, width, height, crop)
-
-            return(image, scaled_image, image.shape[2], image.shape[1],)
-
-        if (width < W) or (height < H):
-            # if same orientation
-            if (orig_is_landscape and new_is_landscape) or (not orig_is_landscape and not new_is_landscape):
-                if is_long_side:
-                    if not new_is_landscape:
-                        image = self.scale_to_side(image, height, is_long_side)
-                    else:
-                        image = self.scale_to_side(image, width, is_long_side)
-                else:
-                    if new_is_landscape:
-                        image = self.scale_to_side(image, height, is_long_side)
-                    else:
-                        image = self.scale_to_side(image, width, is_long_side)
-            # if original is landscape and new is portrait or original is portrait and new is landscape
-            else:
-                if is_long_side:
-                    image = self.scale_to_side(image, width, is_long_side)
-                else:
-                    image = self.scale_to_side(image, height, is_long_side)
-
-            scaled_image = image.clone().detach()
-
-            B, H, W, C = image.shape
-            self.is_downsize = True
-
-        if self.is_downsize:
-            image = self.crop(image, width, height, crop)
-            return(image, scaled_image, image.shape[2], image.shape[1],)
-
-        if (orig_is_landscape and new_is_landscape) or ((not orig_is_landscape) and (not new_is_landscape)):
-            image = image.movedim(-1,1)
-            image = self.upscale(image, width, height, upscale_method, crop)
-            image = image.movedim(1,-1)
-
-            return(image, image, image.shape[2], image.shape[1],)
-
-        if orig_is_landscape:
-            temp_ratio = round(height // H)
-            temp_width = round(W * temp_ratio)
-
-            image = image.movedim(-1,1)
-            image = self.upscale(image, temp_width, height, upscale_method, "disabled")
-            image = image.movedim(1,-1)
-
-            scaled_image = image.clone().detach()
-            image = self.crop(image, width, height, crop)
-
-            return(image, scaled_image, image.shape[2], image.shape[1],)
-
-        temp_ratio = round(width // W)
-        temp_height = round(H * temp_ratio)
-
-        image = image.movedim(-1,1)
-        image = self.upscale(image, width, temp_height, upscale_method, "disabled")
-        image = image.movedim(1,-1)
-
-        scaled_image = image.clone().detach()
-        image = self.crop(image, width, height, crop)
-
-        return(image, scaled_image, image.shape[2], image.shape[1],)
-
-    def determine_side_to_scale(self, original_height, original_width, width, height):
-        original_is_landscape = False
-        new_is_landscape = False
-
-        if original_width > original_height:
-            original_is_landscape = True
-
-        if width > height:
-            new_is_landscape = True
-
-        if (original_width == original_height):
-            if width <= height:
-                original_is_landscape = True
-
-                if width < height:
-                    new_is_landscape = True
-                else:
-                    new_is_landscape = original_is_landscape
-            else:
-                original_is_landscape = True
-                new_is_landscape = True
-
-        is_long_side = True
-        upscale_required = False
-
-        if (not new_is_landscape and original_is_landscape) or (new_is_landscape and not original_is_landscape):
-            is_long_side = False
-        else:
-            if original_is_landscape:
-                temp_ratio  = round(width // original_width)
-                temp_height = round(temp_ratio * height)
-
-                if temp_height < height:
-                    is_long_side = False
-                    upscale_required = True
-            else:
-                temp_ratio  = round(height // original_height)
-                temp_width = round(temp_ratio * width)
-
-                if temp_width < width:
-                    is_long_side = False
-                    upscale_required = True
-
-        return is_long_side, original_is_landscape, new_is_landscape, upscale_required
-
-    def crop(self, input_image, width, height, crop_type):
-        image_batches_tuple = torch.split(input_image, 1, dim=0)
-        image_batches_split = [item for item in image_batches_tuple]
-
-        result_images = None
-        for image in image_batches_split:
-            new_image = tensor2pilSwap(image)
-            new_image = new_image[0]
-
-            print("Image width: {} height: {}  |  New width: {} height: {}".format(new_image.width, new_image.height, width, height))
-
-            #(left, upper, right, lower)
-            if crop_type == "top_left":
-                left = 0
-                upper = 0
-                right = width
-                lower = height
-            elif crop_type == "top_right":
-                left = new_image.width - width
-                upper = 0
-                right = new_image.width
-                lower = height
-            elif crop_type == "top_center":
-                left = int(new_image.width // 2) - int(width // 2)
-                upper = 0
-                right = (int(new_image.width // 2) - int(width // 2)) + width
-                lower = height
-            elif crop_type == "bottom_left":
-                left = 0
-                upper = new_image.height - height
-                right = width
-                lower = new_image.height
-            elif crop_type == "bottom_right":
-                left = new_image.width - width
-                upper = new_image.height - height
-                right = new_image.width
-                lower = new_image.height
-            elif crop_type == "bottom_center":
-                left = int(new_image.width // 2) - int(width // 2)
-                upper = new_image.height - height
-                right = (int(new_image.width // 2) - int(width // 2)) + width
-                lower = new_image.height
-            elif crop_type == "center":
-                left = int(new_image.width // 2) - int(width // 2)
-                upper = int(new_image.height // 2) - int(height // 2)
-                right = (int(new_image.width // 2) - int(width // 2)) + width
-                lower = (int(new_image.height // 2) - int(height // 2)) + height
-
-            print("Crop Locations: Left: {}  |  Upper: {}  |  Right: {}  |  Lower: {}".format(int(new_image.width // 2) - int(width // 2), 0, width, height))
-            new_image = new_image.crop((left, upper, right, lower))
-
-            newImage = pil2tensorSwap([newImage], device=self.device)
-
-            if not result_images is None:
-                result_images = torch.cat((result_images, new_image), 0)
-            else:
-                result_images = new_image
-
-            new_image = None
-
-        mm.soft_empty_cache()
-        gc.collect()
-        time.sleep(1)
-
-        return result_images
-
-    def upscale(self, samples, width, height, upscale_method, crop):
-            orig_shape = tuple(samples.shape)
-            if len(orig_shape) > 4:
-                samples = samples.reshape(samples.shape[0], samples.shape[1], -1, samples.shape[-2], samples.shape[-1])
-                samples = samples.movedim(2, 1)
-                samples = samples.reshape(-1, orig_shape[1], orig_shape[-2], orig_shape[-1])
-
-            s = samples
-            if crop != "disabed":
-                old_width = samples.shape[-1]
-                old_height = samples.shape[-2]
-                old_aspect = old_width / old_height
-                new_aspect = width / height
-                x = 0
-                y = 0
-
-                if crop == "center":
-                    if old_aspect > new_aspect:
-                        x = round((old_width - old_width * (new_aspect / old_aspect)) / 2)
-                    elif old_aspect < new_aspect:
-                        y = round((old_height - old_height * (old_aspect / new_aspect)) / 2)
-
-                    s = samples.narrow(-2, y, old_height - y * 2).narrow(-1, x, old_width - x * 2)
-                elif (s.shape[2] != height) or (s.shape[3] != width):
-                    if self.is_downsize:
-                        if len(s.shape) < 4:
-                            s = s.unsqueeze(0)
-
-                        print("s.shape: {}".format(s.shape))
-
-                        if crop == "top_left":
-                            if width < height:
-                                s = s.narrow(-1, 0, width)
-                            else:
-                                s = s.narrow(-2, 0, height)
-                        elif crop == "top_right":
-                            if width < height:
-                                s = s.narrow(-1, s.shape[3] - width, width)
-                            else:
-                                s = s.narrow(-2, 0, height)
-                        elif crop == "bottom_left":
-                            if width < height:
-                                s = s.narrow(-1, 0, width)
-                            else:
-                                s = s.narrow(-2, s.shape[2] - height, height)
-                        elif crop == "bottom_right":
-                            if width < height:
-                                s = s.narrow(-1, s.shape[3] -  width, width)
-                            else:
-                                s = s.narrow(-2, s.shape[2] - height, height)
-                        elif crop == "top_center":
-                            if width < height:
-                                s = s.narrow(-1, round((s.shape[3] / 2) - (width / 2) - 1), width)
-                            else:
-                                s = s.narrow(-1, 0, height)
-                        elif crop == "bottom_center":
-                            if width < height:
-                                s = s.narrow(-1, round((s.shape[3] / 2) - (width / 2) - 1), width)
-                                print("s.shape 1: {}".format(s.shape))
-                            else:
-                                s = s.narrow(-2, s.shape[2] - height, height)
-                                print("s.shape 2: {}".format(s.shape))
-
-            if upscale_method == "bislerp":
-                out = utils.bislerp(s, width, height)
-            elif upscale_method == "lanczos":
-                out = utils.lanczos(s, width, height)
-            else:
-                out = torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
-
-            if len(orig_shape) == 4:
-                return out
-
-            out = out.reshape((orig_shape[0], -1, orig_shape[1]) + (height, width))
-            return out.movedim(2, 1).reshape(orig_shape[:-2] + (height, width))
-
-    def scale_to_side(self, input_image, length=1024, scale_long_side=True):
-        image_batches_tuple = torch.split(input_image, 1, dim=0)
-        image_batches_split = [item for item in image_batches_tuple]
-
-        result_images = None
-
-        for image in image_batches_split:
-            img = tensor2pilSwap(image)
-            img = img[0]
-
-            if scale_long_side:
-                if img.height >= img.width:
-                    newHeight = length
-                    newWidth = int(float(length / img.height) * img.width)
-                else:
-                    newWidth = length
-                    newHeight = int(float(length / img.width) * img.height)
-            else:
-                if img.height <= img.width:
-                    newHeight = length
-                    newWidth = int(float(length / img.height) * img.width)
-                else:
-                    newWidth = length
-                    newHeight = int(float(length / img.width) * img.height)
-
-            tempImage = img.resize((newWidth, newHeight), resample=Image.BILINEAR)
-
-            newImage = pil2tensorSwap([tempImage], device=self.device)
-
-            if not result_images is None:
-                result_images = torch.cat((result_images, new_image), 0)
-            else:
-                result_images = new_image
-
-            new_image = None
-
-        mm.soft_empty_cache()
-        gc.collect()
-        time.sleep(1)
-
-        return result_images
+# class WarpedImageResize:
+#     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
+#     @classmethod
+#     def INPUT_TYPES(self):
+#         return {
+#             "required": {
+#                 "image": ("IMAGE",),
+#                 "width": ("INT", { "default": 400, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, }),
+#                 "height": ("INT", { "default": 720, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, }),
+#                 "upscale_method": (self.upscale_methods, {"default": "lanczos"}),
+#                 "crop": (["center", "top_left", "top_right", "bottom_left", "bottom_right", "top_center", "bottom_center"], {"default": "center"}),
+#                 "use_gpu": ("BOOLEAN", {"default": False}),
+#             },
+#         }
+#
+#     RETURN_TYPES = ("IMAGE", "IMAGE", "INT", "INT",)
+#     RETURN_NAMES = ("IMAGE", "scale_orig_image", "width", "height",)
+#     FUNCTION = "resize"
+#     CATEGORY = "Warped/General/Image"
+#     DESCRIPTION = """
+#                 Resizes the image to the specified width and height.
+#                 Size can be retrieved from the inputs, and the final scale
+#                 is  determined in this order of importance:
+#                 - get_image_size
+#                 - width_input and height_input
+#                 - width and height widgets
+#
+#                 Keep proportions keeps the aspect ratio of the image, by
+#                 highest dimension.
+#                 """
+#
+#     def resize(self, image, width, height, upscale_method, crop="center", use_gpu=False):
+#         print("Original Image Shape: {}".format(image.shape))
+#
+#         B, H, W, C = image.shape
+#         self.is_downsize = False
+#
+#         if use_gpu:
+#             self.device = mm.get_torch_device()
+#         else:
+#             self.device = get_offload_device()
+#
+#         scaled_image = image.clone().detach()
+#         test_image1  = image.clone().detach()
+#         test_image2  = image.clone().detach()
+#
+#         is_long_side, orig_is_landscape, new_is_landscape, upscale_required = self.determine_side_to_scale(H, W, width, height)
+#
+#         print("Automatic Value Determination: is_long_side: {}  |  original_is_landscape: {}  |  new_is_landscape: {}  | upscale_required {}".format(is_long_side, orig_is_landscape, new_is_landscape, upscale_required))
+#
+#         if upscale_required:
+#             W = int(W / 16) * 16
+#             H = int(H / 16) * 16
+#
+#             print("Modified Width: {}  |  Height: {}".format(W, H))
+#
+#             # Scale based on which dimension is smaller in proportion to the desired dimensions
+#             ratio = max(width / W, height / H)
+#             temp_width = round(W * ratio)
+#             temp_height = round(H * ratio)
+#
+#             print("Aspect Ratio Change Required: temp_width: {}  |  temp_height: {}".format(temp_width, temp_height))
+#
+#             image = image.movedim(-1,1)
+#             image = self.upscale(image, temp_width, temp_height, upscale_method, crop)
+#             image = image.movedim(1,-1)
+#
+#             if orig_is_landscape:
+#                 if is_long_side:
+#                     image = self.scale_to_side(image, width, is_long_side)
+#                 else:
+#                     image = self.scale_to_side(image, height, is_long_side)
+#             else:
+#                 if is_long_side:
+#                     image = self.scale_to_side(image, height, is_long_side)
+#                 else:
+#                     image = self.scale_to_side(image, width, is_long_side)
+#
+#             scaled_image = image.clone().detach()
+#
+#             image = self.crop(image, width, height, crop)
+#
+#             return(image, scaled_image, image.shape[2], image.shape[1],)
+#
+#         if (width < W) or (height < H):
+#             # if same orientation
+#             if (orig_is_landscape and new_is_landscape) or (not orig_is_landscape and not new_is_landscape):
+#                 if is_long_side:
+#                     if not new_is_landscape:
+#                         image = self.scale_to_side(image, height, is_long_side)
+#                     else:
+#                         image = self.scale_to_side(image, width, is_long_side)
+#                 else:
+#                     if new_is_landscape:
+#                         image = self.scale_to_side(image, height, is_long_side)
+#                     else:
+#                         image = self.scale_to_side(image, width, is_long_side)
+#             # if original is landscape and new is portrait or original is portrait and new is landscape
+#             else:
+#                 if is_long_side:
+#                     image = self.scale_to_side(image, width, is_long_side)
+#                 else:
+#                     image = self.scale_to_side(image, height, is_long_side)
+#
+#             scaled_image = image.clone().detach()
+#
+#             B, H, W, C = image.shape
+#             self.is_downsize = True
+#
+#         if self.is_downsize:
+#             image = self.crop(image, width, height, crop)
+#             return(image, scaled_image, image.shape[2], image.shape[1],)
+#
+#         if (orig_is_landscape and new_is_landscape) or ((not orig_is_landscape) and (not new_is_landscape)):
+#             image = image.movedim(-1,1)
+#             image = self.upscale(image, width, height, upscale_method, crop)
+#             image = image.movedim(1,-1)
+#
+#             return(image, image, image.shape[2], image.shape[1],)
+#
+#         if orig_is_landscape:
+#             temp_ratio = round(height // H)
+#             temp_width = round(W * temp_ratio)
+#
+#             image = image.movedim(-1,1)
+#             image = self.upscale(image, temp_width, height, upscale_method, "disabled")
+#             image = image.movedim(1,-1)
+#
+#             scaled_image = image.clone().detach()
+#             image = self.crop(image, width, height, crop)
+#
+#             return(image, scaled_image, image.shape[2], image.shape[1],)
+#
+#         temp_ratio = round(width // W)
+#         temp_height = round(H * temp_ratio)
+#
+#         image = image.movedim(-1,1)
+#         image = self.upscale(image, width, temp_height, upscale_method, "disabled")
+#         image = image.movedim(1,-1)
+#
+#         scaled_image = image.clone().detach()
+#         image = self.crop(image, width, height, crop)
+#
+#         return(image, scaled_image, image.shape[2], image.shape[1],)
+#
+#     def determine_side_to_scale(self, original_height, original_width, width, height):
+#         original_is_landscape = False
+#         new_is_landscape = False
+#
+#         if original_width > original_height:
+#             original_is_landscape = True
+#
+#         if width > height:
+#             new_is_landscape = True
+#
+#         if (original_width == original_height):
+#             if width <= height:
+#                 original_is_landscape = True
+#
+#                 if width < height:
+#                     new_is_landscape = True
+#                 else:
+#                     new_is_landscape = original_is_landscape
+#             else:
+#                 original_is_landscape = True
+#                 new_is_landscape = True
+#
+#         is_long_side = True
+#         upscale_required = False
+#
+#         if (not new_is_landscape and original_is_landscape) or (new_is_landscape and not original_is_landscape):
+#             is_long_side = False
+#         else:
+#             if original_is_landscape:
+#                 temp_ratio  = round(width // original_width)
+#                 temp_height = round(temp_ratio * height)
+#
+#                 if temp_height < height:
+#                     is_long_side = False
+#                     upscale_required = True
+#             else:
+#                 temp_ratio  = round(height // original_height)
+#                 temp_width = round(temp_ratio * width)
+#
+#                 if temp_width < width:
+#                     is_long_side = False
+#                     upscale_required = True
+#
+#         return is_long_side, original_is_landscape, new_is_landscape, upscale_required
+#
+#     def crop(self, input_image, width, height, crop_type):
+#         image_batches_tuple = torch.split(input_image, 1, dim=0)
+#         image_batches_split = [item for item in image_batches_tuple]
+#
+#         result_images = None
+#         for image in image_batches_split:
+#             new_image = tensor2pilSwap(image)
+#             new_image = new_image[0]
+#
+#             print("Image width: {} height: {}  |  New width: {} height: {}".format(new_image.width, new_image.height, width, height))
+#
+#             #(left, upper, right, lower)
+#             if crop_type == "top_left":
+#                 left = 0
+#                 upper = 0
+#                 right = width
+#                 lower = height
+#             elif crop_type == "top_right":
+#                 left = new_image.width - width
+#                 upper = 0
+#                 right = new_image.width
+#                 lower = height
+#             elif crop_type == "top_center":
+#                 left = int(new_image.width // 2) - int(width // 2)
+#                 upper = 0
+#                 right = (int(new_image.width // 2) - int(width // 2)) + width
+#                 lower = height
+#             elif crop_type == "bottom_left":
+#                 left = 0
+#                 upper = new_image.height - height
+#                 right = width
+#                 lower = new_image.height
+#             elif crop_type == "bottom_right":
+#                 left = new_image.width - width
+#                 upper = new_image.height - height
+#                 right = new_image.width
+#                 lower = new_image.height
+#             elif crop_type == "bottom_center":
+#                 left = int(new_image.width // 2) - int(width // 2)
+#                 upper = new_image.height - height
+#                 right = (int(new_image.width // 2) - int(width // 2)) + width
+#                 lower = new_image.height
+#             elif crop_type == "center":
+#                 left = int(new_image.width // 2) - int(width // 2)
+#                 upper = int(new_image.height // 2) - int(height // 2)
+#                 right = (int(new_image.width // 2) - int(width // 2)) + width
+#                 lower = (int(new_image.height // 2) - int(height // 2)) + height
+#
+#             print("Crop Locations: Left: {}  |  Upper: {}  |  Right: {}  |  Lower: {}".format(int(new_image.width // 2) - int(width // 2), 0, width, height))
+#             new_image = new_image.crop((left, upper, right, lower))
+#
+#             newImage = pil2tensorSwap([newImage], device=self.device)
+#
+#             if not result_images is None:
+#                 result_images = torch.cat((result_images, new_image), 0)
+#             else:
+#                 result_images = new_image
+#
+#             new_image = None
+#
+#         mm.soft_empty_cache()
+#         gc.collect()
+#         time.sleep(1)
+#
+#         return result_images
+#
+#     def upscale(self, samples, width, height, upscale_method, crop):
+#             orig_shape = tuple(samples.shape)
+#             if len(orig_shape) > 4:
+#                 samples = samples.reshape(samples.shape[0], samples.shape[1], -1, samples.shape[-2], samples.shape[-1])
+#                 samples = samples.movedim(2, 1)
+#                 samples = samples.reshape(-1, orig_shape[1], orig_shape[-2], orig_shape[-1])
+#
+#             s = samples
+#             if crop != "disabed":
+#                 old_width = samples.shape[-1]
+#                 old_height = samples.shape[-2]
+#                 old_aspect = old_width / old_height
+#                 new_aspect = width / height
+#                 x = 0
+#                 y = 0
+#
+#                 if crop == "center":
+#                     if old_aspect > new_aspect:
+#                         x = round((old_width - old_width * (new_aspect / old_aspect)) / 2)
+#                     elif old_aspect < new_aspect:
+#                         y = round((old_height - old_height * (old_aspect / new_aspect)) / 2)
+#
+#                     s = samples.narrow(-2, y, old_height - y * 2).narrow(-1, x, old_width - x * 2)
+#                 elif (s.shape[2] != height) or (s.shape[3] != width):
+#                     if self.is_downsize:
+#                         if len(s.shape) < 4:
+#                             s = s.unsqueeze(0)
+#
+#                         print("s.shape: {}".format(s.shape))
+#
+#                         if crop == "top_left":
+#                             if width < height:
+#                                 s = s.narrow(-1, 0, width)
+#                             else:
+#                                 s = s.narrow(-2, 0, height)
+#                         elif crop == "top_right":
+#                             if width < height:
+#                                 s = s.narrow(-1, s.shape[3] - width, width)
+#                             else:
+#                                 s = s.narrow(-2, 0, height)
+#                         elif crop == "bottom_left":
+#                             if width < height:
+#                                 s = s.narrow(-1, 0, width)
+#                             else:
+#                                 s = s.narrow(-2, s.shape[2] - height, height)
+#                         elif crop == "bottom_right":
+#                             if width < height:
+#                                 s = s.narrow(-1, s.shape[3] -  width, width)
+#                             else:
+#                                 s = s.narrow(-2, s.shape[2] - height, height)
+#                         elif crop == "top_center":
+#                             if width < height:
+#                                 s = s.narrow(-1, round((s.shape[3] / 2) - (width / 2) - 1), width)
+#                             else:
+#                                 s = s.narrow(-1, 0, height)
+#                         elif crop == "bottom_center":
+#                             if width < height:
+#                                 s = s.narrow(-1, round((s.shape[3] / 2) - (width / 2) - 1), width)
+#                                 print("s.shape 1: {}".format(s.shape))
+#                             else:
+#                                 s = s.narrow(-2, s.shape[2] - height, height)
+#                                 print("s.shape 2: {}".format(s.shape))
+#
+#             if upscale_method == "bislerp":
+#                 out = utils.bislerp(s, width, height)
+#             elif upscale_method == "lanczos":
+#                 out = utils.lanczos(s, width, height)
+#             else:
+#                 out = torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
+#
+#             if len(orig_shape) == 4:
+#                 return out
+#
+#             out = out.reshape((orig_shape[0], -1, orig_shape[1]) + (height, width))
+#             return out.movedim(2, 1).reshape(orig_shape[:-2] + (height, width))
+#
+#     def scale_to_side(self, input_image, length=1024, scale_long_side=True):
+#         image_batches_tuple = torch.split(input_image, 1, dim=0)
+#         image_batches_split = [item for item in image_batches_tuple]
+#
+#         result_images = None
+#
+#         for image in image_batches_split:
+#             img = tensor2pilSwap(image)
+#             img = img[0]
+#
+#             if scale_long_side:
+#                 if img.height >= img.width:
+#                     newHeight = length
+#                     newWidth = int(float(length / img.height) * img.width)
+#                 else:
+#                     newWidth = length
+#                     newHeight = int(float(length / img.width) * img.height)
+#             else:
+#                 if img.height <= img.width:
+#                     newHeight = length
+#                     newWidth = int(float(length / img.height) * img.width)
+#                 else:
+#                     newWidth = length
+#                     newHeight = int(float(length / img.width) * img.height)
+#
+#             tempImage = img.resize((newWidth, newHeight), resample=Image.BILINEAR)
+#
+#             newImage = pil2tensorSwap([tempImage], device=self.device)
+#
+#             if not result_images is None:
+#                 result_images = torch.cat((result_images, new_image), 0)
+#             else:
+#                 result_images = new_image
+#
+#             new_image = None
+#
+#         mm.soft_empty_cache()
+#         gc.collect()
+#         time.sleep(1)
+#
+#         return result_images
 
 class WarpedImageScaleToSide:
     @classmethod
