@@ -1,0 +1,186 @@
+[
+    {
+        "name":" chat.gguf     [1.9GB; for general purpose]",
+        "url":"https://github.com/calcuis/chatgpt-ai-model/releases/download/0.1/chat.gguf"
+    },
+    {
+        "name":" code.gguf     [3.3GB; for coding assistance]",
+        "url":"https://huggingface.co/calcuis/code_mini/resolve/main/code.gguf"
+    },
+    {
+        "name":" medi.gguf     [3.3GB; for medical/health advice]",
+        "url":"https://huggingface.co/calcuis/medi_mini/resolve/main/medi.gguf"
+    },
+    {
+        "name":" law.gguf      [3.3GB; for law/legal opinion]",
+        "url":"https://huggingface.co/calcuis/law_mini/resolve/main/law.gguf"
+    },
+    {
+        "name":" finance.gguf  [3.3GB; for wealth/financial plan]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/finance.gguf"
+    },
+    {
+        "name":" coder.gguf    [1.4GB; for simple coding issue]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/coder.gguf"
+    },
+    {
+        "name":" phi2.gguf     [1.4GB; for technical problem]",
+        "url":"https://huggingface.co/calcuis/phi2_mini/resolve/main/phi2.gguf"
+    },
+    {
+        "name":" lam2.gguf     [3.3GB; for long/detailed response]",
+        "url":"https://huggingface.co/calcuis/lam2_mini/resolve/main/lam2.gguf"
+    },
+    {
+        "name":" tiny2.gguf    [783MB; for fast/rapid response]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/tiny2.gguf"
+    },
+    {
+        "name":"stable.gguf   [1.7GB; for code review]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/stable.gguf"
+    },
+    {
+        "name":"hermes.gguf   [3.5GB; for general/basic consultation]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/hermes.gguf"
+    },
+    {
+        "name":"samantha.gguf [2.9GB; for medical student]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/samantha.gguf"
+    },
+    {
+        "name":"doublee.gguf  [1.4GB; for electrical engineering]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/doublee.gguf"
+    },
+    {
+        "name":"math.gguf     [3.1GB; for math/calculation]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/math.gguf"
+    },
+    {
+        "name":"math2.gguf    [3.6GB; for math/calculation (2nd)]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/math2.gguf"
+    },
+    {
+        "name":"python.gguf   [3.3GB; for coding python]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/python.gguf"
+    },
+    {
+        "name":"bloom.gguf    [1.6GB; for quick response]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/bloom.gguf"
+    },
+    {
+        "name":"yarn.gguf     [3.1GB; for problem solving]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/yarn.gguf"
+    },
+    {
+        "name":"dolphin.gguf  [3.0GB; for solving problem]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/dolphin.gguf"
+    },
+    {
+        "name":"karen.gguf    [2.7GB; for drafting letter/paper]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/karen.gguf"
+    },
+    {
+        "name":"beagle.gguf   [3.5GB; for genearl response]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/beagle.gguf"
+    },
+    {
+        "name":"garrulus.gguf [2.7GB; for specific response]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/garrulus.gguf"
+    },
+    {
+        "name":"westlake.gguf [2.7GB; for common information]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/westlake.gguf"
+    },
+    {
+        "name":"openchat.gguf [3.0GB; for most purpose]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/openchat.gguf"
+    },
+    {
+        "name":"zephyr.gguf   [3.0GB; for multilayer response]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/zephyr.gguf"
+    },
+    {
+        "name":"mamba.gguf    [2.1GB; for quick/fast enquiry]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/mamba.gguf"
+    },
+    {
+        "name":"deep.gguf     [3.1GB; for lengthy response]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/deep.gguf"
+    },
+    {
+        "name":"orca.gguf     [4.1GB; for multiple response]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/orca.gguf"
+    },
+    {
+        "name":"claude.gguf   [3.7GB; for comprehensive response]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/claude.gguf"
+    },
+    {
+        "name":"mistral.gguf  [3.1GB; for instructional enquiry]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/mistral.gguf"
+    },
+    {
+        "name":"gpt.gguf      [330MB; for general response]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/gpt.gguf"
+    },
+    {
+        "name":"gpt2.gguf     [1.6GB; for general response (2nd)]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/gpt2.gguf"
+    },
+    {
+        "name":"gemma2.gguf   [3.4GB; for specific response]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/gemma2.gguf"
+    },
+    {
+        "name":"gemma3-1b-it  [687MB; for great summary; q4_0]",
+        "url":"https://huggingface.co/gguf-org/gemma-3-1b-it-gguf/resolve/main/gemma-3-1b-it-q4_0.gguf"
+    },
+    {
+        "name":"gemma3-1b-pt  [1.0GB; for list response; q8_0]",
+        "url":"https://huggingface.co/gguf-org/gemma-3-1b-pt-gguf/resolve/main/gemma-3-1b-pt-q8_0.gguf"
+    },
+    {
+        "name":"phi3.gguf     [2.3GB; for technical problem (3rd)]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/phi3.gguf"
+    },
+    {
+        "name":"phi3.5.gguf   [2.0GB; for technical problem (3.5)]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/phi3.5.gguf"
+    },
+    {
+        "name":"phi4.gguf     [5.6GB; for technical problem (4th)]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/phi4.gguf"
+    },
+    {
+        "name":"llama2.gguf   [2.8GB; for comprehensive response]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/llama2.gguf"
+    },
+    {
+        "name":"llama3.gguf   [3.6GB; for comprehensive response (3rd)]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/llama3.gguf"
+    },
+    {
+        "name":"llama3.2.gguf [1.7GB; for uncensored content]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/llama3.2.gguf"
+    },
+    {
+        "name":"guanaco.gguf  [2.8GB; for uncensored content]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/guanaco.gguf"
+    },
+    {
+        "name":"wizard.gguf   [3.3GB; for uncensored content]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/wizard.gguf"
+    },
+    {
+        "name":"solar.gguf    [4.5GB; for uncensored content]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/solar.gguf"
+    },
+    {
+        "name":"maid.gguf     [3.1GB; for adult/18+ nsfw]",
+        "url":"https://huggingface.co/calcuis/gguf/resolve/main/maid.gguf"
+    },
+    {
+        "name":"tiny.gguf     [551MB; for testing pdf analyzor]",
+        "url":"https://github.com/calcuis/chatgpt-ai-model/releases/download/0.2/tiny.gguf"
+    }
+]
