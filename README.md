@@ -25,6 +25,13 @@
 
 <div align="left">
 
+# V1.7.1 Updates
+
+1) Added Fast Loading GGUF Unet, Clip, and Dual Clip Loader Nodes
+2) Fixed/Updated Sample Workflows
+
+<div align="left">
+
 # V1.7.0 Overview
 
 #### [V1.7.0 Overview Video](https://mega.nz/file/r2YwySbS#a1Fw_Z4ASlkXIVBmLQFHAbEzFxpWGGVmyEMrVNplt6I)

@@ -1,49 +1,9 @@
 {
   "id": "facb86ea-4076-46ff-921d-e6dcadfb1754",
   "revision": 0,
-  "last_node_id": 294,
-  "last_link_id": 914,
+  "last_node_id": 298,
+  "last_link_id": 919,
   "nodes": [
-    {
-      "id": 113,
-      "type": "SetNode",
-      "pos": [
-        -7.660725116729736,
-        63.07086181640625
-      ],
-      "size": [
-        210,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "VAE",
-          "type": "VAE",
-          "link": 270
-        }
-      ],
-      "outputs": [
-        {
-          "name": "*",
-          "type": "*",
-          "links": null
-        }
-      ],
-      "title": "Set_VAE",
-      "properties": {
-        "previousName": "VAE"
-      },
-      "widgets_values": [
-        "VAE"
-      ],
-      "color": "#322",
-      "bgcolor": "#533"
-    },
     {
       "id": 152,
       "type": "PreviewTextNode",
@@ -56,15 +16,12 @@
         114.48214721679688
       ],
       "flags": {},
-      "order": 20,
+      "order": 19,
       "mode": 0,
       "inputs": [
         {
           "name": "text",
           "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
           "link": 894
         }
       ],
@@ -82,7 +39,6 @@
       },
       "widgets_values": [
         "",
-        "****** WarpedSamplerCustomAdvLatent: Total Images Generated 137 ******",
         [
           false,
           true
@@ -148,7 +104,6 @@
       "outputs": [
         {
           "name": "CONDITIONING",
-          "shape": 3,
           "type": "CONDITIONING",
           "slot_index": 0,
           "links": [
@@ -181,7 +136,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 17,
+      "order": 16,
       "mode": 0,
       "inputs": [
         {
@@ -198,7 +153,6 @@
       "outputs": [
         {
           "name": "GUIDER",
-          "shape": 3,
           "type": "GUIDER",
           "slot_index": 0,
           "links": [
@@ -218,225 +172,6 @@
       "bgcolor": "#000"
     },
     {
-      "id": 279,
-      "type": "TeaCache",
-      "pos": [
-        -13,
-        9
-      ],
-      "size": [
-        315,
-        106
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 15,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 883
-        }
-      ],
-      "outputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "links": [
-            884
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "teacache",
-        "ver": "f0c6c56778d626b23db99ea1fee41736f7f55720",
-        "Node name for S&R": "TeaCache"
-      },
-      "widgets_values": [
-        "hunyuan_video",
-        0.4,
-        1
-      ]
-    },
-    {
-      "id": 146,
-      "type": "CLIPTextEncode",
-      "pos": [
-        -6.035816669464111,
-        173.69970703125
-      ],
-      "size": [
-        288.2851257324219,
-        78.88789367675781
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 10,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 869
-        },
-        {
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": 448
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "slot_index": 0,
-          "links": [
-            352
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "CLIPTextEncode"
-      },
-      "widgets_values": [
-        "8itchW4lk, dynamic (real life:1.15) video showing front view of a beautiful stunning gorgeous woman with very long flowing brown hair with blonde highlights and exotic sexy grey eyes, she is wearing (a provocative revealing see-through scientist indiana jones style maroon satin top blouse:1.2) and see-through black thong underwear with an extremely short tight micro miniskirt low on the hips and she is braless, (she is showing her massive ((natural heavy sagging:1.3)) naked breasts:1.15), (her nipples are erect:1.25), (she is also wearing a thin silver military dogtags pendant necklace, she is in an abandonned nuclear facility, she was surprised by the viewer, so now she is walking toward the viewer to seduce him:1.25), (she is walking toward the viewer:1.2), (she is walking in a very sexy manner, smug facial expression with a slight smirk, sexy but dangerous attitude and seductive lips, normal speed, her heavy breasts (((are (bouncing:1.5) and (swaying:1.3) and (jiggling:1.7):1.7)) unrestrained with every step she takes and with ever move she makes:1.15), (((her breasts bounce into each other and recoil away from each other as she walks:1.8))), the viewer keeps her in view all the times, (extremely soft breasts:1.3), (extremely bouncing breasts:1.3), (breasts bouncing up and down side to side:1.5), detailed face, detailed hands, detailed fingers, nail polish, glamour eye makeup, eyeliner, lipstick, mascara, 4k ultra high quality video footage, (realisic jiggle, boucing, wobble, swaying physics, her breasts jiggle and bounce with each staps she take:1.2), dark atmosphere, post apocalyptic nuclear building interior, retro cyberpunk vibe",
-        [
-          false,
-          true
-        ]
-      ]
-    },
-    {
-      "id": 195,
-      "type": "Reroute",
-      "pos": [
-        -8.020484924316406,
-        198.64976501464844
-      ],
-      "size": [
-        75,
-        26
-      ],
-      "flags": {},
-      "order": 9,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "",
-          "type": "*",
-          "link": 569
-        }
-      ],
-      "outputs": [
-        {
-          "name": "",
-          "type": "VAE",
-          "slot_index": 0,
-          "links": [
-            850,
-            889
-          ]
-        }
-      ],
-      "properties": {
-        "showOutputText": false,
-        "horizontal": false
-      }
-    },
-    {
-      "id": 177,
-      "type": "BasicScheduler",
-      "pos": [
-        -38.529476165771484,
-        761.505126953125
-      ],
-      "size": [
-        315,
-        106
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 14,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 526
-        }
-      ],
-      "outputs": [
-        {
-          "name": "SIGMAS",
-          "type": "SIGMAS",
-          "slot_index": 0,
-          "links": [
-            852,
-            880,
-            892
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "BasicScheduler"
-      },
-      "widgets_values": [
-        "simple",
-        20,
-        1
-      ]
-    },
-    {
-      "id": 16,
-      "type": "KSamplerSelect",
-      "pos": [
-        -39.147926330566406,
-        827.6121215820312
-      ],
-      "size": [
-        315,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "SAMPLER",
-          "shape": 3,
-          "type": "SAMPLER",
-          "slot_index": 0,
-          "links": [
-            851,
-            879,
-            891
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "KSamplerSelect"
-      },
-      "widgets_values": [
-        "uni_pc"
-      ]
-    },
-    {
       "id": 190,
       "type": "VHS_VideoCombine",
       "pos": [
@@ -445,10 +180,10 @@
       ],
       "size": [
         708.6593627929688,
-        334
+        358
       ],
       "flags": {},
-      "order": 19,
+      "order": 18,
       "mode": 0,
       "inputs": [
         {
@@ -498,6 +233,7 @@
         "save_metadata": true,
         "pingpong": false,
         "save_output": true,
+        "save_images": true,
         "videopreview": {
           "hidden": false,
           "paused": false,
@@ -515,50 +251,6 @@
       }
     },
     {
-      "id": 67,
-      "type": "ModelSamplingSD3",
-      "pos": [
-        134.88357543945312,
-        -20.343273162841797
-      ],
-      "size": [
-        210,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 16,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 884
-        }
-      ],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "slot_index": 0,
-          "links": [
-            195
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "ModelSamplingSD3"
-      },
-      "widgets_values": [
-        12
-      ],
-      "color": "#222",
-      "bgcolor": "#000"
-    },
-    {
       "id": 284,
       "type": "WarpedCreateEmptyLatentBatch",
       "pos": [
@@ -570,7 +262,7 @@
         126
       ],
       "flags": {},
-      "order": 2,
+      "order": 1,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -588,9 +280,10 @@
         }
       ],
       "properties": {
-        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "cnr_id": "comfyui-warpedtoolset",
         "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
-        "Node name for S&R": "WarpedCreateEmptyLatentBatch"
+        "Node name for S&R": "WarpedCreateEmptyLatentBatch",
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset"
       },
       "widgets_values": [
         137,
@@ -612,7 +305,7 @@
         26
       ],
       "flags": {},
-      "order": 13,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -628,7 +321,7 @@
           "slot_index": 0,
           "links": [
             526,
-            883
+            918
           ]
         }
       ],
@@ -636,158 +329,6 @@
         "showOutputText": false,
         "horizontal": false
       }
-    },
-    {
-      "id": 10,
-      "type": "VAELoader",
-      "pos": [
-        -436.01348876953125,
-        863.2140502929688
-      ],
-      "size": [
-        292.16009521484375,
-        69.82014465332031
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 3,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "VAE",
-          "shape": 3,
-          "type": "VAE",
-          "slot_index": 0,
-          "links": [
-            270,
-            569
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "VAELoader"
-      },
-      "widgets_values": [
-        "hunyuan_video_vae_bf16.safetensors"
-      ]
-    },
-    {
-      "id": 273,
-      "type": "DualCLIPLoaderGGUF",
-      "pos": [
-        -435.5494079589844,
-        805.490478515625
-      ],
-      "size": [
-        301.0328369140625,
-        106
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 4,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "CLIP",
-          "type": "CLIP",
-          "slot_index": 0,
-          "links": [
-            869
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-GGUF",
-        "ver": "bc5223b0e37e053dbec2ea5e5f52c2fd4b8f712a",
-        "Node name for S&R": "DualCLIPLoaderGGUF"
-      },
-      "widgets_values": [
-        "clip_l.safetensors",
-        "Kijai\\llava-llama-3-8B-v1_1-Q4_K_M.gguf",
-        "hunyuan_video"
-      ]
-    },
-    {
-      "id": 275,
-      "type": "UnetLoaderGGUF",
-      "pos": [
-        -431.4759826660156,
-        742.2569580078125
-      ],
-      "size": [
-        315,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 5,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            872,
-            908,
-            909
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-GGUF",
-        "ver": "bc5223b0e37e053dbec2ea5e5f52c2fd4b8f712a",
-        "Node name for S&R": "UnetLoaderGGUF"
-      },
-      "widgets_values": [
-        "hunyuan-video-t2v-720p-Q4_K_M.gguf"
-      ]
-    },
-    {
-      "id": 170,
-      "type": "StringConstantMultiline",
-      "pos": [
-        -128.29852294921875,
-        280.7070617675781
-      ],
-      "size": [
-        423.325927734375,
-        409.93310546875
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "slot_index": 0,
-          "links": [
-            448
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui-kjnodes",
-        "ver": "e3b4bcf21e03402a2b11927eb5a4e3df500795b7",
-        "Node name for S&R": "StringConstantMultiline"
-      },
-      "widgets_values": [
-        "8itchW4lk, dynamic (real life:1.15) video showing front view of a woman with long flowing auburn_hair and brown_eyes, she is wearing (beige thigh-high stockings and a maroon garter_belt with no panties and she is topless and she is braless:1.2). (she is showing her (large:1.3) ((natural heavy:1.3)) naked breasts:1.15)  pointy, large aereolas, (her nipples are erect:1.25), She has small hips and a (small waist:1.4), (she is also wearing a thin diamond choker and navel_piercing, She has a slender fit body. she is in an abandonned nuclear facility, she was surprised by the viewer, so now she is walking toward the viewer to seduce him:1.25), (she is walking toward the viewer:1.2), (she is walking in a very sexy manner, looking at the viewer. Her facial expression goes from puzzled to flirting with the viewer. sexy but dangerous attitude and seductive lips, normal speed, her heavy breasts (((are (bouncing:1.5) and (swaying:1.3) and (jiggling:1.7):1.7)) unrestrained with every step she takes and with ever move she makes:1.15), (((her breasts bounce into each other and recoil away from each other as she walks:1.8))), the viewer keeps her in view all the times, (extremely soft breasts:1.3), (extremely bouncing breasts:1.3), (breasts bouncing up and down side to side:1.5), dark-skinned female, dark skin, detailed face, detailed hands, detailed fingers, nail polish, glamour eye makeup, eyeliner, lipstick, mascara, very petite body, 4k ultra high quality video footage, (realisic jiggle, bouncing, wobble, swaying physics, her breasts jiggle and bounce with each stap she takes:1.2), dark atmosphere, flickering lights shine down from the ceiling, well lit post apocalyptic nuclear building interior with god rays illuminating the room through holes in the ceiling and walls, retro cyberpunk vibe",
-        true,
-        [
-          false,
-          true
-        ]
-      ]
     },
     {
       "id": 280,
@@ -801,7 +342,7 @@
         1387.471923828125
       ],
       "flags": {},
-      "order": 18,
+      "order": 17,
       "mode": 0,
       "inputs": [
         {
@@ -857,9 +398,10 @@
         }
       ],
       "properties": {
-        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "cnr_id": "comfyui-warpedtoolset",
         "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
-        "Node name for S&R": "WarpedSamplerCustomAdvLatent"
+        "Node name for S&R": "WarpedSamplerCustomAdvLatent",
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset"
       },
       "widgets_values": [
         224176001153222,
@@ -888,7 +430,7 @@
         113.97900390625
       ],
       "flags": {},
-      "order": 7,
+      "order": 2,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -906,9 +448,10 @@
         }
       ],
       "properties": {
-        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "cnr_id": "comfyui-warpedtoolset",
         "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
-        "Node name for S&R": "WarpedLoadLorasBatchByPrefix"
+        "Node name for S&R": "WarpedLoadLorasBatchByPrefix",
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset"
       },
       "widgets_values": [
         "M:\\Projects\\webui_test\\stable-diffusion-webui-forge\\models\\Lora\\Hunyuan",
@@ -929,20 +472,18 @@
         403.67999267578125
       ],
       "flags": {},
-      "order": 11,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 909
+          "link": 915
         },
         {
           "name": "lora_name",
+          "shape": 7,
           "type": "STRING",
-          "widget": {
-            "name": "lora_name"
-          },
           "link": 912
         }
       ],
@@ -953,12 +494,19 @@
           "links": [
             910
           ]
+        },
+        {
+          "name": "lora_metadata",
+          "shape": 6,
+          "type": "STRING",
+          "links": null
         }
       ],
       "properties": {
-        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "cnr_id": "comfyui-warpedtoolset",
         "ver": "1f5f5dd1352060b4db60431726812f980926bac4",
-        "Node name for S&R": "WarpedHunyuanMultiLoraLoader"
+        "Node name for S&R": "WarpedHunyuanMultiLoraLoader",
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset"
       },
       "widgets_values": [
         "Hunyuan\\Move_Enhancer_V3_20.safetensors",
@@ -973,12 +521,434 @@
         "None",
         1,
         "all",
-        "None",
         1,
         "all"
       ],
       "color": "#323",
       "bgcolor": "#535"
+    },
+    {
+      "id": 195,
+      "type": "Reroute",
+      "pos": [
+        -151.76841735839844,
+        719.0704956054688
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 917
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "VAE",
+          "slot_index": 0,
+          "links": [
+            850,
+            889
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 295,
+      "type": "WarpedLoaderGGUF",
+      "pos": [
+        -443.787109375,
+        657.4349975585938
+      ],
+      "size": [
+        398.0114440917969,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            915
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.0",
+        "Node name for S&R": "WarpedLoaderGGUF"
+      },
+      "widgets_values": [
+        "hunyuan-video-t2v-720p-Q4_K_M.gguf"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 298,
+      "type": "MagCache",
+      "pos": [
+        -60.45900344848633,
+        9.23701000213623
+      ],
+      "size": [
+        270,
+        178
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 918
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            919
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Zehong-Ma/ComfyUI-MagCache",
+        "ver": "7d4e982bf7955498afca891c7094c48a70985537",
+        "Node name for S&R": "MagCache"
+      },
+      "widgets_values": [
+        "hunyuan_video",
+        0.12000000000000002,
+        0.2,
+        3,
+        0,
+        -1
+      ]
+    },
+    {
+      "id": 67,
+      "type": "ModelSamplingSD3",
+      "pos": [
+        97.61557006835938,
+        7.607726097106934
+      ],
+      "size": [
+        210,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 919
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            195
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "ModelSamplingSD3"
+      },
+      "widgets_values": [
+        12
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 177,
+      "type": "BasicScheduler",
+      "pos": [
+        -38.529476165771484,
+        761.505126953125
+      ],
+      "size": [
+        315,
+        106
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 526
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SIGMAS",
+          "type": "SIGMAS",
+          "slot_index": 0,
+          "links": [
+            852,
+            880,
+            892
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "BasicScheduler"
+      },
+      "widgets_values": [
+        "simple",
+        25,
+        1
+      ]
+    },
+    {
+      "id": 16,
+      "type": "KSamplerSelect",
+      "pos": [
+        -40.47892761230469,
+        814.3021850585938
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "slot_index": 0,
+          "links": [
+            851,
+            879,
+            891
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "uni_pc"
+      ]
+    },
+    {
+      "id": 296,
+      "type": "WarpedDualClipLoaderGGUF",
+      "pos": [
+        -439.79412841796875,
+        722.6533203125
+      ],
+      "size": [
+        300.9039001464844,
+        130
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            916
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.0",
+        "Node name for S&R": "WarpedDualClipLoaderGGUF"
+      },
+      "widgets_values": [
+        "clip_l.safetensors",
+        "Kijai\\llava-llama-3-8B-v1_1-Q4_K_M.gguf",
+        "hunyuan_video",
+        "default"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 297,
+      "type": "WarpedVAELoader",
+      "pos": [
+        -437.1321716308594,
+        789.2032470703125
+      ],
+      "size": [
+        270,
+        78
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "vae",
+          "type": "VAE",
+          "links": [
+            917
+          ]
+        },
+        {
+          "name": "vae_state_dict",
+          "type": "DICT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.0",
+        "Node name for S&R": "WarpedVAELoader"
+      },
+      "widgets_values": [
+        "hunyuan_video_vae_bf16.safetensors"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 146,
+      "type": "CLIPTextEncode",
+      "pos": [
+        -20.676578521728516,
+        160.389404296875
+      ],
+      "size": [
+        288.2851257324219,
+        88
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 916
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 448
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            352
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "8itchW4lk, dynamic (real life:1.15) video showing front view of a beautiful stunning gorgeous woman with very long flowing brown hair with blonde highlights and exotic sexy grey eyes, she is wearing (a provocative revealing see-through scientist indiana jones style maroon satin top blouse:1.2) and see-through black thong underwear with an extremely short tight micro miniskirt low on the hips and she is braless, (she is showing her massive ((natural heavy sagging:1.3)) naked breasts:1.15), (her nipples are erect:1.25), (she is also wearing a thin silver military dogtags pendant necklace, she is in an abandonned nuclear facility, she was surprised by the viewer, so now she is walking toward the viewer to seduce him:1.25), (she is walking toward the viewer:1.2), (she is walking in a very sexy manner, smug facial expression with a slight smirk, sexy but dangerous attitude and seductive lips, normal speed, her heavy breasts (((are (bouncing:1.5) and (swaying:1.3) and (jiggling:1.7):1.7)) unrestrained with every step she takes and with ever move she makes:1.15), (((her breasts bounce into each other and recoil away from each other as she walks:1.8))), the viewer keeps her in view all the times, (extremely soft breasts:1.3), (extremely bouncing breasts:1.3), (breasts bouncing up and down side to side:1.5), detailed face, detailed hands, detailed fingers, nail polish, glamour eye makeup, eyeliner, lipstick, mascara, 4k ultra high quality video footage, (realisic jiggle, boucing, wobble, swaying physics, her breasts jiggle and bounce with each staps she take:1.2), dark atmosphere, post apocalyptic nuclear building interior, retro cyberpunk vibe",
+        [
+          false,
+          true
+        ]
+      ]
+    },
+    {
+      "id": 170,
+      "type": "StringConstantMultiline",
+      "pos": [
+        -126.96752166748047,
+        246.10122680664062
+      ],
+      "size": [
+        423.325927734375,
+        409.93310546875
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "slot_index": 0,
+          "links": [
+            448
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "e3b4bcf21e03402a2b11927eb5a4e3df500795b7",
+        "Node name for S&R": "StringConstantMultiline"
+      },
+      "widgets_values": [
+        "8itchW4lk, dynamic (real life:1.15) video showing front view of a woman with long flowing auburn_hair and brown_eyes, she is wearing (beige thigh-high stockings and a maroon garter_belt with no panties and she is topless and she is braless:1.2). (she is showing her (large:1.3) ((natural heavy:1.3)) naked breasts:1.15)  pointy, large aereolas, (her nipples are erect:1.25), She has small hips and a (small waist:1.4), (she is also wearing a thin diamond choker and navel_piercing, She has a slender fit body. she is in an abandonned nuclear facility, she was surprised by the viewer, so now she is walking toward the viewer to seduce him:1.25), (she is walking toward the viewer:1.2), (she is walking in a very sexy manner, looking at the viewer. Her facial expression goes from puzzled to flirting with the viewer. sexy but dangerous attitude and seductive lips, normal speed, her heavy breasts (((are (bouncing:1.5) and (swaying:1.3) and (jiggling:1.7):1.7)) unrestrained with every step she takes and with ever move she makes:1.15), (((her breasts bounce into each other and recoil away from each other as she walks:1.8))), the viewer keeps her in view all the times, (extremely soft breasts:1.3), (extremely bouncing breasts:1.3), (breasts bouncing up and down side to side:1.5), dark-skinned female, dark skin, detailed face, detailed hands, detailed fingers, nail polish, glamour eye makeup, eyeliner, lipstick, mascara, very petite body, 4k ultra high quality video footage, (realisic jiggle, bouncing, wobble, swaying physics, her breasts jiggle and bounce with each stap she takes:1.2), dark atmosphere, flickering lights shine down from the ceiling, well lit post apocalyptic nuclear building interior with god rays illuminating the room through holes in the ceiling and walls, retro cyberpunk vibe",
+        true,
+        [
+          false,
+          true
+        ]
+      ]
     }
   ],
   "links": [
@@ -997,14 +967,6 @@
       22,
       0,
       "MODEL"
-    ],
-    [
-      270,
-      10,
-      0,
-      113,
-      0,
-      "*"
     ],
     [
       352,
@@ -1027,38 +989,6 @@
       81,
       0,
       177,
-      0,
-      "MODEL"
-    ],
-    [
-      569,
-      10,
-      0,
-      195,
-      0,
-      "*"
-    ],
-    [
-      869,
-      273,
-      0,
-      146,
-      0,
-      "CLIP"
-    ],
-    [
-      883,
-      81,
-      0,
-      279,
-      0,
-      "MODEL"
-    ],
-    [
-      884,
-      279,
-      0,
-      67,
       0,
       "MODEL"
     ],
@@ -1119,14 +1049,6 @@
       "LATENT"
     ],
     [
-      909,
-      275,
-      0,
-      292,
-      0,
-      "MODEL"
-    ],
-    [
       910,
       292,
       0,
@@ -1141,6 +1063,46 @@
       292,
       1,
       "STRING"
+    ],
+    [
+      915,
+      295,
+      0,
+      292,
+      0,
+      "MODEL"
+    ],
+    [
+      916,
+      296,
+      0,
+      146,
+      0,
+      "CLIP"
+    ],
+    [
+      917,
+      297,
+      0,
+      195,
+      0,
+      "*"
+    ],
+    [
+      918,
+      81,
+      0,
+      298,
+      0,
+      "MODEL"
+    ],
+    [
+      919,
+      298,
+      0,
+      67,
+      0,
+      "MODEL"
     ]
   ],
   "groups": [
@@ -1163,14 +1125,15 @@
     "ds": {
       "scale": 0.7513148009015777,
       "offset": [
-        520.9849999999964,
-        78.60899999999866
+        534.2949999999944,
+        55.981999999999005
       ]
     },
+    "frontendVersion": "1.20.5",
     "groupNodes": {},
     "ue_links": [],
     "VHS_latentpreview": true,
-    "VHS_latentpreviewrate": 0,
+    "VHS_latentpreviewrate": 15,
     "node_versions": {
       "comfy-core": "0.3.13",
       "comfyui-frame-interpolation": "1.0.6",

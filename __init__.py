@@ -1,4 +1,5 @@
 from .nodes import *
+from .gguf_nodes import WarpedLoaderGGUF, WarpedClipLoaderGGUF, WarpedDualClipLoaderGGUF
 
 NODE_CLASS_MAPPINGS = {
     "WarpedHunyuanMultiLoraMerge": WarpedHunyuanMultiLoraMerge,
@@ -6,13 +7,13 @@ NODE_CLASS_MAPPINGS = {
     "WarpedHunyuanLoraMerge": WarpedHunyuanLoraMerge,
     "WarpedHunyuanMultiLoraMixer": WarpedHunyuanMultiLoraMixer,
     "WarpedHunyuanMultiLoraMixerExt": WarpedHunyuanMultiLoraMixerExt,
-    # "WarpedHunyuanMultiLoraMixerExt2": WarpedHunyuanMultiLoraMixerExt2,
     "WarpedHunyuanLoraAvgMerge": WarpedHunyuanLoraAvgMerge,
     "WarpedHunyuanLoraBatchMerge": WarpedHunyuanLoraBatchMerge,
     "WarpedWanLoraMerge": WarpedWanLoraMerge,
     "WarpedSamplerCustomAdv": WarpedSamplerCustomAdv,
     "WarpedSamplerCustomAdvLatent": WarpedSamplerCustomAdvLatent,
-    # "WarpedAdvancedSamplerBatch": WarpedAdvancedSamplerBatch,
+    # "WarpedSamplerCustomBatch": WarpedSamplerCustomBatch,
+    # "WarpedSamplerCustomScripted": WarpedSamplerCustomScripted,
     "WarpedFramepackSampler": WarpedFramepackSampler,
     "WarpedCreateSpecialImageBatch": WarpedCreateSpecialImageBatch,
     "WarpedCreateEmptyImageBatch": WarpedCreateEmptyImageBatch,
@@ -28,7 +29,6 @@ NODE_CLASS_MAPPINGS = {
     "WarpedLoadVideosBatch": WarpedLoadVideosBatch,
     "WarpedWanImageToVideo": WarpedWanImageToVideo,
     "WarpedWanLoadAndEditLoraBlocks": WarpedWanLoadAndEditLoraBlocks,
-    # "WarpedImageResize": WarpedImageResize,
     "WarpedImageScaleToSide": WarpedImageScaleToSide,
     "WarpedLoadLorasBatchByPrefix": WarpedLoadLorasBatchByPrefix,
     "WarpedHunyuanVideoLoraLoader": WarpedHunyuanVideoLoraLoader,
@@ -39,6 +39,7 @@ NODE_CLASS_MAPPINGS = {
     "WarpedFramepackLoraSelectBatch": WarpedFramepackLoraSelectBatch,
     "WarpedFramepackMultiLoraSelect": WarpedFramepackMultiLoraSelect,
     "WarpedFramepackMultiLoraSelectExt": WarpedFramepackMultiLoraSelectExt,
+    "WarpedCLIPLoader": WarpedCLIPLoader,
     "WarpedDualCLIPLoader": WarpedDualCLIPLoader,
     "WarpedDualEncoder": WarpedDualEncoder,
     "WarpedCLIPVisionLoader": WarpedCLIPVisionLoader,
@@ -50,6 +51,11 @@ NODE_CLASS_MAPPINGS = {
     "WarpedReverseImageBatch": WarpedReverseImageBatch,
     "WarpedMultiLoraLoader": WarpedMultiLoraLoader,
     "WarpedHunyuanImageToVideo": WarpedHunyuanImageToVideo,
+    "WarpedBasicGuider": WarpedBasicGuider,
+    "WarpedDualGuider": WarpedDualGuider,
+    "WarpedLoaderGGUF": WarpedLoaderGGUF,
+    "WarpedClipLoaderGGUF": WarpedClipLoaderGGUF,
+    "WarpedDualClipLoaderGGUF": WarpedDualClipLoaderGGUF,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -58,13 +64,13 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WarpedHunyuanLoraMerge": "Warped Hunyuan Lora Merge",
     "WarpedHunyuanMultiLoraMixer": "Warped Hunyuan Multi Lora Mixer",
     "WarpedHunyuanMultiLoraMixerExt": "Warped Hunyuan Multi Lora Mixer Ext",
-    # "WarpedHunyuanMultiLoraMixerExt2": "Warped Hunyuan Multi Lora Mixer Ext 2",
     "WarpedHunyuanLoraAvgMerge": "Warped Hunyuan Lora Avg Merge",
     "WarpedHunyuanLoraBatchMerge": "Warped Hunyuan Lora Batch Merge",
     "WarpedWanLoraMerge": "Warped Wan Lora Merge",
     "WarpedSamplerCustomAdv": "Warped Sampler Custom Advanced (Image)",
     "WarpedSamplerCustomAdvLatent": "Warped Sampler Custom Advanced (Latent)",
-    # "WarpedAdvancedSamplerBatch": "Warped Advanced Sampler Batch",
+    # "WarpedSamplerCustomBatch": "Warped Sampler Custom Batch",
+    # "WarpedSamplerCustomScripted": "Warped Sampler Custom Scripted",
     "WarpedFramepackSampler": "Warped Framepack Sampler",
     "WarpedCreateSpecialImageBatch": "Warped Create Special Image Batch",
     "WarpedCreateEmptyImageBatch": "Warped Create Empty Image Batch",
@@ -80,7 +86,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WarpedLoadVideosBatch": "Warped Load Videos Batch",
     "WarpedWanImageToVideo": "Warped Wan Image To Video",
     "WarpedWanLoadAndEditLoraBlocks": "Warped Wan Load And Edit Lora Blocks",
-    # "WarpedImageResize": "Warped Image Resize",
     "WarpedImageScaleToSide": "Warped Image Scale To Side",
     "WarpedLoadLorasBatchByPrefix": "Warped Load Loras Batch By Prefix",
     "WarpedHunyuanVideoLoraLoader": "Warped Hunyuan Video Lora Loader",
@@ -91,6 +96,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WarpedFramepackLoraSelectBatch": "Warped Framepack Lora Select Batch",
     "WarpedFramepackMultiLoraSelect": "Warped Framepack Multi Lora Select",
     "WarpedFramepackMultiLoraSelectExt": "Warped Framepack Multi Lora Select Ext",
+    "WarpedCLIPLoader": "Warped CLIP Loader",
     "WarpedDualCLIPLoader": "Warped Dual CLIP Loader",
     "WarpedDualEncoder": "Warped Dual Encoder",
     "WarpedCLIPVisionLoader": "Warped Load CLIP Vision",
@@ -102,6 +108,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WarpedReverseImageBatch": "Warped Reverse Image Batch",
     "WarpedMultiLoraLoader": "Warped Multi Lora Loader",
     "WarpedHunyuanImageToVideo": "Warped Hunyuan Image To Video",
+    "WarpedBasicGuider": "Warped Basic Guider Batch",
+    "WarpedDualGuider": "Warped Dual Guider",
+    "WarpedLoaderGGUF": "Warped UNET Loader GGUF",
+    "WarpedClipLoaderGGUF": "Warped Clip Loader GGUF",
+    "WarpedDualClipLoaderGGUF": "Warped Dual Clip Loader GGUF",
 }
 
 WEB_DIRECTORY = "./web"

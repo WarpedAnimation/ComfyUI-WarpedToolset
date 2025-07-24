@@ -1,8 +1,8 @@
 {
   "id": "facb86ea-4076-46ff-921d-e6dcadfb1754",
   "revision": 0,
-  "last_node_id": 289,
-  "last_link_id": 908,
+  "last_node_id": 291,
+  "last_link_id": 910,
   "nodes": [
     {
       "id": 99,
@@ -36,41 +36,6 @@
       }
     },
     {
-      "id": 275,
-      "type": "UnetLoaderGGUF",
-      "pos": [
-        -446.1169128417969,
-        342.95745849609375
-      ],
-      "size": [
-        315,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            872
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-GGUF",
-        "ver": "bc5223b0e37e053dbec2ea5e5f52c2fd4b8f712a",
-        "Node name for S&R": "UnetLoaderGGUF"
-      },
-      "widgets_values": [
-        "hunyuan-video-t2v-720p-Q4_K_M.gguf"
-      ]
-    },
-    {
       "id": 26,
       "type": "FluxGuidance",
       "pos": [
@@ -84,7 +49,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 11,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -164,95 +129,6 @@
       "bgcolor": "#000"
     },
     {
-      "id": 273,
-      "type": "DualCLIPLoaderGGUF",
-      "pos": [
-        -442.2043762207031,
-        386.2261047363281
-      ],
-      "size": [
-        301.0328369140625,
-        106
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 2,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "CLIP",
-          "type": "CLIP",
-          "slot_index": 0,
-          "links": [
-            869
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-GGUF",
-        "ver": "bc5223b0e37e053dbec2ea5e5f52c2fd4b8f712a",
-        "Node name for S&R": "DualCLIPLoaderGGUF"
-      },
-      "widgets_values": [
-        "clip_l.safetensors",
-        "Kijai\\llava-llama-3-8B-v1_1-Q4_K_M.gguf",
-        "hunyuan_video"
-      ]
-    },
-    {
-      "id": 146,
-      "type": "CLIPTextEncode",
-      "pos": [
-        -6.035816669464111,
-        173.69970703125
-      ],
-      "size": [
-        288.2851257324219,
-        78.88789367675781
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 869
-        },
-        {
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": 448
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "slot_index": 0,
-          "links": [
-            352
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "CLIPTextEncode"
-      },
-      "widgets_values": [
-        "8itchW4lk, dynamic (real life:1.15) video showing front view of a beautiful stunning gorgeous woman with very long flowing brown hair with blonde highlights and exotic sexy grey eyes, she is wearing (a provocative revealing see-through scientist indiana jones style maroon satin top blouse:1.2) and see-through black thong underwear with an extremely short tight micro miniskirt low on the hips and she is braless, (she is showing her massive ((natural heavy sagging:1.3)) naked breasts:1.15), (her nipples are erect:1.25), (she is also wearing a thin silver military dogtags pendant necklace, she is in an abandonned nuclear facility, she was surprised by the viewer, so now she is walking toward the viewer to seduce him:1.25), (she is walking toward the viewer:1.2), (she is walking in a very sexy manner, smug facial expression with a slight smirk, sexy but dangerous attitude and seductive lips, normal speed, her heavy breasts (((are (bouncing:1.5) and (swaying:1.3) and (jiggling:1.7):1.7)) unrestrained with every step she takes and with ever move she makes:1.15), (((her breasts bounce into each other and recoil away from each other as she walks:1.8))), the viewer keeps her in view all the times, (extremely soft breasts:1.3), (extremely bouncing breasts:1.3), (breasts bouncing up and down side to side:1.5), detailed face, detailed hands, detailed fingers, nail polish, glamour eye makeup, eyeliner, lipstick, mascara, 4k ultra high quality video footage, (realisic jiggle, boucing, wobble, swaying physics, her breasts jiggle and bounce with each staps she take:1.2), dark atmosphere, post apocalyptic nuclear building interior, retro cyberpunk vibe",
-        true
-      ]
-    },
-    {
       "id": 81,
       "type": "Reroute",
       "pos": [
@@ -264,7 +140,7 @@
         26
       ],
       "flags": {},
-      "order": 10,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -302,7 +178,7 @@
         26
       ],
       "flags": {},
-      "order": 9,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
@@ -387,7 +263,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 3,
+      "order": 1,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -502,7 +378,7 @@
         409.93310546875
       ],
       "flags": {},
-      "order": 4,
+      "order": 2,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -525,49 +401,6 @@
         true,
         true
       ]
-    },
-    {
-      "id": 286,
-      "type": "WarpedVAELoader",
-      "pos": [
-        -439.18890380859375,
-        438.5068359375
-      ],
-      "size": [
-        315,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 5,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "vae",
-          "type": "VAE",
-          "links": [
-            904
-          ]
-        },
-        {
-          "name": "vae_state_dict",
-          "type": "DICT",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-WarpedToolset",
-        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
-        "Node name for S&R": "WarpedVAELoader",
-        "widget_ue_connectable": {}
-      },
-      "widgets_values": [
-        "hunyuan_video_vae_bf16.safetensors"
-      ],
-      "color": "#323",
-      "bgcolor": "#535"
     },
     {
       "id": 67,
@@ -671,7 +504,7 @@
         126
       ],
       "flags": {},
-      "order": 6,
+      "order": 3,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -939,6 +772,7 @@
         "ver": "1.7.0",
         "Node name for S&R": "WarpedNumericalConversion"
       },
+      "widgets_values": [],
       "color": "#323",
       "bgcolor": "#535"
     },
@@ -954,13 +788,13 @@
         345.9579772949219
       ],
       "flags": {},
-      "order": 7,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 872
+          "link": 910
         }
       ],
       "outputs": [
@@ -993,6 +827,177 @@
         1,
         "all"
       ]
+    },
+    {
+      "id": 146,
+      "type": "CLIPTextEncode",
+      "pos": [
+        -15.35281753540039,
+        169.70672607421875
+      ],
+      "size": [
+        288.2851257324219,
+        81
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 909
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 448
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            352
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "8itchW4lk, dynamic (real life:1.15) video showing front view of a beautiful stunning gorgeous woman with very long flowing brown hair with blonde highlights and exotic sexy grey eyes, she is wearing (a provocative revealing see-through scientist indiana jones style maroon satin top blouse:1.2) and see-through black thong underwear with an extremely short tight micro miniskirt low on the hips and she is braless, (she is showing her massive ((natural heavy sagging:1.3)) naked breasts:1.15), (her nipples are erect:1.25), (she is also wearing a thin silver military dogtags pendant necklace, she is in an abandonned nuclear facility, she was surprised by the viewer, so now she is walking toward the viewer to seduce him:1.25), (she is walking toward the viewer:1.2), (she is walking in a very sexy manner, smug facial expression with a slight smirk, sexy but dangerous attitude and seductive lips, normal speed, her heavy breasts (((are (bouncing:1.5) and (swaying:1.3) and (jiggling:1.7):1.7)) unrestrained with every step she takes and with ever move she makes:1.15), (((her breasts bounce into each other and recoil away from each other as she walks:1.8))), the viewer keeps her in view all the times, (extremely soft breasts:1.3), (extremely bouncing breasts:1.3), (breasts bouncing up and down side to side:1.5), detailed face, detailed hands, detailed fingers, nail polish, glamour eye makeup, eyeliner, lipstick, mascara, 4k ultra high quality video footage, (realisic jiggle, boucing, wobble, swaying physics, her breasts jiggle and bounce with each staps she take:1.2), dark atmosphere, post apocalyptic nuclear building interior, retro cyberpunk vibe",
+        true
+      ]
+    },
+    {
+      "id": 286,
+      "type": "WarpedVAELoader",
+      "pos": [
+        -436.52691650390625,
+        451.8167724609375
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "vae",
+          "type": "VAE",
+          "links": [
+            904
+          ]
+        },
+        {
+          "name": "vae_state_dict",
+          "type": "DICT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "Node name for S&R": "WarpedVAELoader",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "hunyuan_video_vae_bf16.safetensors"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 290,
+      "type": "WarpedDualClipLoaderGGUF",
+      "pos": [
+        -435.19573974609375,
+        405.23223876953125
+      ],
+      "size": [
+        300.9039001464844,
+        130
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            909
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.0",
+        "Node name for S&R": "WarpedDualClipLoaderGGUF"
+      },
+      "widgets_values": [
+        "clip_l.safetensors",
+        "Kijai\\llava-llama-3-8B-v1_1-Q4_K_M.gguf",
+        "hunyuan_video",
+        "default"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 291,
+      "type": "WarpedLoaderGGUF",
+      "pos": [
+        -436.5267639160156,
+        354.6539306640625
+      ],
+      "size": [
+        282.2144470214844,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            910
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.0",
+        "Node name for S&R": "WarpedLoaderGGUF"
+      },
+      "widgets_values": [
+        "hunyuan-video-t2v-720p-Q4_K_M.gguf"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
     }
   ],
   "links": [
@@ -1033,22 +1038,6 @@
       81,
       0,
       177,
-      0,
-      "MODEL"
-    ],
-    [
-      869,
-      273,
-      0,
-      146,
-      0,
-      "CLIP"
-    ],
-    [
-      872,
-      275,
-      0,
-      258,
       0,
       "MODEL"
     ],
@@ -1155,6 +1144,22 @@
       289,
       0,
       "STRING"
+    ],
+    [
+      909,
+      290,
+      0,
+      146,
+      0,
+      "CLIP"
+    ],
+    [
+      910,
+      291,
+      0,
+      258,
+      0,
+      "MODEL"
     ]
   ],
   "groups": [
@@ -1177,10 +1182,11 @@
     "ds": {
       "scale": 0.7513148009015777,
       "offset": [
-        541.6760000000013,
-        149.79499999999234
+        668.1210000000013,
+        107.20299999999239
       ]
     },
+    "frontendVersion": "1.20.5",
     "groupNodes": {},
     "ue_links": [],
     "VHS_latentpreview": true,
@@ -1199,8 +1205,7 @@
       "Hunyuan-Multi-Lora-Loader": "dd009a9d44b47bfaf01a4ffa38d7098f523e2cce"
     },
     "VHS_MetadataImage": true,
-    "VHS_KeepIntermediate": true,
-    "frontendVersion": "1.20.5"
+    "VHS_KeepIntermediate": true
   },
   "version": 0.4
 }

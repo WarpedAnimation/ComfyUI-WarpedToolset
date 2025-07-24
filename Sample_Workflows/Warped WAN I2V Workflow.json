@@ -1,79 +1,9 @@
 {
   "id": "2fac44f1-8935-4d17-8233-fe2dcaee9ba8",
   "revision": 0,
-  "last_node_id": 140,
-  "last_link_id": 296,
+  "last_node_id": 142,
+  "last_link_id": 303,
   "nodes": [
-    {
-      "id": 38,
-      "type": "CLIPLoader",
-      "pos": [
-        -68.24571228027344,
-        51.294097900390625
-      ],
-      "size": [
-        376.05950927734375,
-        106
-      ],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "CLIP",
-          "type": "CLIP",
-          "slot_index": 0,
-          "links": [
-            214
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.20",
-        "Node name for S&R": "CLIPLoader"
-      },
-      "widgets_values": [
-        "t5xxl_um_fp8_e4m3fn_scaled.safetensors",
-        "wan",
-        "default"
-      ]
-    },
-    {
-      "id": 55,
-      "type": "LoaderGGUF",
-      "pos": [
-        -71.74114227294922,
-        -65.37071228027344
-      ],
-      "size": [
-        380.0403137207031,
-        67.37849426269531
-      ],
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "slot_index": 0,
-          "links": [
-            213
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "gguf",
-        "ver": "1.5.8",
-        "Node name for S&R": "LoaderGGUF"
-      },
-      "widgets_values": [
-        "wan2.1-i2v-14b-720p-q5_k_m.gguf"
-      ]
-    },
     {
       "id": 7,
       "type": "CLIPTextEncode",
@@ -86,7 +16,7 @@
         90.64099884033203
       ],
       "flags": {},
-      "order": 12,
+      "order": 15,
       "mode": 0,
       "inputs": [
         {
@@ -209,13 +139,13 @@
         134.78460693359375
       ],
       "flags": {},
-      "order": 7,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 213
+          "link": 297
         },
         {
           "name": "clip",
@@ -268,7 +198,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 2,
+      "order": 0,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -304,7 +234,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 10,
+      "order": 13,
       "mode": 0,
       "inputs": [
         {
@@ -346,7 +276,7 @@
         284.9806823730469
       ],
       "flags": {},
-      "order": 11,
+      "order": 14,
       "mode": 0,
       "inputs": [
         {
@@ -621,7 +551,7 @@
         493.4667053222656
       ],
       "flags": {},
-      "order": 3,
+      "order": 1,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -631,7 +561,7 @@
           "slot_index": 0,
           "links": [
             186,
-            283
+            298
           ]
         },
         {
@@ -663,13 +593,13 @@
         517.2369384765625
       ],
       "flags": {},
-      "order": 14,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
           "name": "images",
           "type": "IMAGE",
-          "link": 287
+          "link": 300
         }
       ],
       "outputs": [],
@@ -679,172 +609,6 @@
         "Node name for S&R": "PreviewImage"
       },
       "widgets_values": []
-    },
-    {
-      "id": 118,
-      "type": "WarpedImageNoiseAugmentation",
-      "pos": [
-        -390.6877746582031,
-        1235.955810546875
-      ],
-      "size": [
-        390.5999755859375,
-        126
-      ],
-      "flags": {},
-      "order": 13,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "link": 284
-        }
-      ],
-      "outputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "slot_index": 0,
-          "links": [
-            267
-          ]
-        },
-        {
-          "name": "seed",
-          "type": "INT",
-          "slot_index": 1,
-          "links": [
-            243,
-            276
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-WarpedToolset",
-        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
-        "Node name for S&R": "WarpedImageNoiseAugmentation"
-      },
-      "widgets_values": [
-        0.3,
-        661031532765305,
-        "fixed"
-      ],
-      "color": "#323",
-      "bgcolor": "#535"
-    },
-    {
-      "id": 137,
-      "type": "WarpedImageResize",
-      "pos": [
-        -391.8274230957031,
-        970.8604125976562
-      ],
-      "size": [
-        315,
-        214
-      ],
-      "flags": {},
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "link": 283
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            284,
-            287,
-            288
-          ]
-        },
-        {
-          "name": "scale_orig_image",
-          "type": "IMAGE",
-          "links": null
-        },
-        {
-          "name": "width",
-          "type": "INT",
-          "links": [
-            285
-          ]
-        },
-        {
-          "name": "height",
-          "type": "INT",
-          "links": [
-            286
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-WarpedToolset",
-        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
-        "Node name for S&R": "WarpedImageResize"
-      },
-      "widgets_values": [
-        400,
-        720,
-        "lanczos",
-        "center",
-        false
-      ],
-      "color": "#323",
-      "bgcolor": "#535"
-    },
-    {
-      "id": 51,
-      "type": "CLIPVisionEncode",
-      "pos": [
-        -72.99646759033203,
-        694.0908813476562
-      ],
-      "size": [
-        253.60000610351562,
-        78
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 15,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "clip_vision",
-          "type": "CLIP_VISION",
-          "link": 289
-        },
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "link": 288
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CLIP_VISION_OUTPUT",
-          "type": "CLIP_VISION_OUTPUT",
-          "slot_index": 0,
-          "links": [
-            266
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.20",
-        "Node name for S&R": "CLIPVisionEncode"
-      },
-      "widgets_values": [
-        "none"
-      ]
     },
     {
       "id": 134,
@@ -894,7 +658,7 @@
           "widget": {
             "name": "width"
           },
-          "link": 285
+          "link": 302
         },
         {
           "name": "height",
@@ -902,7 +666,7 @@
           "widget": {
             "name": "height"
           },
-          "link": 286
+          "link": 303
         }
       ],
       "outputs": [
@@ -966,7 +730,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 4,
+      "order": 2,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1004,7 +768,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 5,
+      "order": 3,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1048,7 +812,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 6,
+      "order": 4,
       "mode": 0,
       "inputs": [
         {
@@ -1094,7 +858,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 9,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -1121,6 +885,242 @@
       "widgets_values": [
         12
       ]
+    },
+    {
+      "id": 141,
+      "type": "WarpedLoaderGGUF",
+      "pos": [
+        -62.516021728515625,
+        -49.970008850097656
+      ],
+      "size": [
+        282.2144470214844,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            297
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.0",
+        "Node name for S&R": "WarpedLoaderGGUF"
+      },
+      "widgets_values": [
+        "Wan2.1_I2V_14B_FusionX-Q4_K_M.gguf"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 51,
+      "type": "CLIPVisionEncode",
+      "pos": [
+        -72.99646759033203,
+        694.0908813476562
+      ],
+      "size": [
+        253.60000610351562,
+        78
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip_vision",
+          "type": "CLIP_VISION",
+          "link": 289
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 301
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CLIP_VISION_OUTPUT",
+          "type": "CLIP_VISION_OUTPUT",
+          "slot_index": 0,
+          "links": [
+            266
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.20",
+        "Node name for S&R": "CLIPVisionEncode"
+      },
+      "widgets_values": [
+        "none"
+      ]
+    },
+    {
+      "id": 142,
+      "type": "ImageResizeKJv2",
+      "pos": [
+        -111.76309204101562,
+        837.80712890625
+      ],
+      "size": [
+        270,
+        242
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 298
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            299,
+            300,
+            301
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            302
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            303
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResizeKJv2"
+      },
+      "widgets_values": [
+        400,
+        720,
+        "lanczos",
+        "resize",
+        "0, 0, 0",
+        "center",
+        2
+      ]
+    },
+    {
+      "id": 118,
+      "type": "WarpedImageNoiseAugmentation",
+      "pos": [
+        -232.29910278320312,
+        1134.79833984375
+      ],
+      "size": [
+        390.5999755859375,
+        126
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 299
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            267
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "slot_index": 1,
+          "links": [
+            243,
+            276
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "Node name for S&R": "WarpedImageNoiseAugmentation"
+      },
+      "widgets_values": [
+        0.3,
+        661031532765305,
+        "fixed"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 38,
+      "type": "CLIPLoader",
+      "pos": [
+        -69.57671356201172,
+        16.68808937072754
+      ],
+      "size": [
+        376.05950927734375,
+        106
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "slot_index": 0,
+          "links": [
+            214
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.20",
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "t5xxl_um_fp8_e4m3fn_scaled.safetensors",
+        "wan",
+        "default"
+      ]
     }
   ],
   "links": [
@@ -1131,14 +1131,6 @@
       109,
       1,
       "CONDITIONING"
-    ],
-    [
-      213,
-      55,
-      0,
-      116,
-      0,
-      "MODEL"
     ],
     [
       214,
@@ -1293,54 +1285,6 @@
       "IMAGE"
     ],
     [
-      283,
-      52,
-      0,
-      137,
-      0,
-      "IMAGE"
-    ],
-    [
-      284,
-      137,
-      0,
-      118,
-      0,
-      "IMAGE"
-    ],
-    [
-      285,
-      137,
-      2,
-      134,
-      5,
-      "INT"
-    ],
-    [
-      286,
-      137,
-      3,
-      134,
-      6,
-      "INT"
-    ],
-    [
-      287,
-      137,
-      0,
-      58,
-      0,
-      "IMAGE"
-    ],
-    [
-      288,
-      137,
-      0,
-      51,
-      1,
-      "IMAGE"
-    ],
-    [
       289,
       138,
       0,
@@ -1371,6 +1315,62 @@
       110,
       0,
       "MODEL"
+    ],
+    [
+      297,
+      141,
+      0,
+      116,
+      0,
+      "MODEL"
+    ],
+    [
+      298,
+      52,
+      0,
+      142,
+      0,
+      "IMAGE"
+    ],
+    [
+      299,
+      142,
+      0,
+      118,
+      0,
+      "IMAGE"
+    ],
+    [
+      300,
+      142,
+      0,
+      58,
+      0,
+      "IMAGE"
+    ],
+    [
+      301,
+      142,
+      0,
+      51,
+      1,
+      "IMAGE"
+    ],
+    [
+      302,
+      142,
+      1,
+      134,
+      5,
+      "INT"
+    ],
+    [
+      303,
+      142,
+      2,
+      134,
+      6,
+      "INT"
     ]
   ],
   "groups": [],
@@ -1379,8 +1379,8 @@
     "ds": {
       "scale": 0.7513148009015777,
       "offset": [
-        159.67900000000375,
-        451.9319999999936
+        473.7950000000054,
+        -276.1250000000068
       ]
     },
     "frontendVersion": "1.20.5",
