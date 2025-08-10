@@ -5,6 +5,12 @@
 
 <div align="left">
 
+# If you like what I'm doing, you can support me at:
+
+#### [SubscribeStar Page](https://subscribestar.adult/warped-animation)
+
+<div align="left">
+
 # Installation
 
 * Available in ComfyUI Manager or:
