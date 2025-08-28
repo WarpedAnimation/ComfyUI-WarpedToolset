@@ -15,6 +15,22 @@ from .gguf_connector.quant import quantize, dequantize, QuantError
 from .gguf_connector.quant2d import dequantize_tensor, is_quantized, is_torch_compatible
 from .gguf_connector.tkn import get_field, tokenizer_builder
 
+def get_available_devices():
+    available_devices = ["default", "cpu"]
+
+    if torch.cuda.is_available():
+        available_devices.append("cuda")
+
+        if torch.cuda.device_count() > 1:
+            for i in range(torch.cuda.device_count()):
+                temp_device = "cuda:{}".format(i)
+                available_devices.append(temp_device)
+
+    return available_devices
+
+def get_offload_device():
+    return torch.device("cpu")
+
 if hasattr(torch, 'compiler') and hasattr(torch.compiler, 'disable'):
     torch_compiler_disable = torch.compiler.disable
 else:
@@ -29,8 +45,17 @@ def get_clip_type(type):
 
 def get_device(device):
     model_options = {}
+
+    print("get_device: input device: {}".format(device))
+
     if device == "cpu":
         model_options["load_device"] = model_options["offload_device"] = torch.device("cpu")
+    elif device.startswith("cuda"):
+        model_options["load_device"] = torch.device(device)
+        model_options["offload_device"] = torch.device("cpu")
+
+    print("get_device: model_options: {}".format(model_options))
+
     return model_options
 
 def tensor_swap(raw_sd, key_map):
@@ -435,12 +460,22 @@ class WarpedLoaderGGUF:
         sd = load_gguf_sd(temp_io)
         print("Loading Checkpoint...Done!")
 
+        # print("\n")
+        # for key in sd.keys():
+        #     print(key)
+        # print("\n")
+
         model = comfy.sd.load_diffusion_model_state_dict(sd, model_options=
             {'custom_operations': ops})
         if model is None:
             logging.error('ERROR UNSUPPORTED MODEL {}'.format(model_path))
             raise RuntimeError('ERROR: Could not detect model type of: {}'.
                 format(model_path))
+
+        # print("\n")
+        # print(model.model)
+        # print("\n")
+
         model = GGUFModelPatcher.clone(model)
         model.patch_on_device = patch_on_device
 
@@ -518,9 +553,14 @@ class WarpedClipLoaderGGUF:
     @classmethod
     def INPUT_TYPES(s):
         base = nodes.CLIPLoader.INPUT_TYPES()
-        return {'required': {'clip_name': (s.get_filename_list(),), 'type':
-                             base['required']['type']},
-                             'optional':{'device':(['default','cpu'],{'advanced':True}),}}
+        return {'required': {
+                            'clip_name': (s.get_filename_list(),),
+                            'type': base['required']['type']
+                            },
+                'optional': {
+                            'device':(get_available_devices(),{'advanced':True}),
+                            }
+               }
     RETURN_TYPES = 'CLIP',
     FUNCTION = 'load_clip'
     CATEGORY = 'Warped/GGUF/Loaders'
@@ -556,29 +596,84 @@ class WarpedClipLoaderGGUF:
         clip.patcher = GGUFModelPatcher.clone(clip.patcher)
         return clip
 
-    def load_clip(self, clip_name, type='stable_diffusion', device='default'):
-        clip_path = folder_paths.get_full_path('clip', clip_name)
-        if clip_name.endswith('.safetensors') and device != 'default':
-            clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=get_clip_type(type), model_options=get_device(device))
-            return (clip,)
+    def sd_load_clip(self, ckpt_paths, embedding_directory=None, clip_type=comfy.sd.CLIPType.STABLE_DIFFUSION, model_options={"offload_device": get_offload_device()}):
+        checkpoint_temp = []
+        for p in ckpt_paths:
+            print("Reading: {}".format(p))
+            with open(p, "rb") as file:
+                content = file.read()
+
+            checkpoint_temp.append(content)
+
+        clip_data = []
+
+        for p in checkpoint_temp:
+            print("Loading Clip...")
+            clip_data.append(warped_load_torch_file(p))
+            print("Loading Clip...Done")
+
+        return_clip = comfy.sd.load_text_encoder_state_dicts(clip_data, embedding_directory=embedding_directory, clip_type=clip_type, model_options=model_options)
+
+        checkpoint_temp = None
+        clip_data = None
+
+        return return_clip
+
+    def load_clip(self, clip_name, clip_type="stable_diffusion", device="cpu"):
+        clip_type_attr = getattr(comfy.sd.CLIPType, clip_type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
+
+        print("WarpedCLIPLoader: Clip Type: {}  |  {}".format(clip_type, clip_type_attr))
+
+        model_options = {}
+        if device == "cpu":
+            model_options["load_device"] = model_options["offload_device"] = torch.device("cpu")
         else:
-            return (self.load_patcher([clip_path], get_clip_type(type), self.load_data([clip_path])), get_device(device))
+            model_options["load_device"] = model_options["offload_device"] = torch.device("cpu")
+
+            if torch.cuda.is_available():
+                if device == "cuda":
+                    model_options["load_device"] = torch.cuda.current_device()
+                else:
+                    temp_device = device.split(':')
+                    device_number = int(temp_device[len(temp_device) - 1])
+                    model_options["load_device"] = torch.device(device_number)
+
+        print("WarpedCLIPLoader: {}".format(model_options))
+
+        clip_path = folder_paths.get_full_path_or_raise("text_encoders", clip_name)
+        clip = self.sd_load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type_attr, model_options=model_options)
+        return (clip,)
+
+    # def load_clip(self, clip_name, type='stable_diffusion', device='default'):
+    #     clip_path = folder_paths.get_full_path('clip', clip_name)
+    #     if clip_name.endswith('.safetensors') and device != 'default':
+    #         clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=get_clip_type(type), model_options=get_device(device))
+    #         return (clip,)
+    #     else:
+    #         return (self.load_patcher([clip_path], get_clip_type(type), self.load_data([clip_path])), get_device(device))
 
 class WarpedDualClipLoaderGGUF(WarpedClipLoaderGGUF):
     @classmethod
     def INPUT_TYPES(s):
         base = nodes.DualCLIPLoader.INPUT_TYPES()
         file_options = s.get_filename_list(),
-        return {'required': {'clip_name1':file_options, 'clip_name2':file_options, 'type':
-                             base['required']['type']},
-                             'optional':{'device':(['default','cpu'],{'advanced':True}),}}
+        return {'required': {
+                            'clip_name1':file_options,
+                            'clip_name2':file_options,
+                            'type': base['required']['type']
+                            },
+               'optional': {
+                            'device':(get_available_devices(),{'advanced':True}),
+                           }
+               }
 
     def load_clip(self, clip_name1, clip_name2, type, device='default'):
         clip_path1 = folder_paths.get_full_path('clip', clip_name1)
         clip_path2 = folder_paths.get_full_path('clip', clip_name2)
         clip_paths = [clip_path1, clip_path2]
         if device != 'default' and (clip_name1.endswith('.safetensors') and clip_name2.endswith('.safetensors')):
-            clip = comfy.sd.load_clip(ckpt_paths=clip_paths, embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=get_clip_type(type), model_options=get_device(device))
+            clip = self.load_clip(ckpt_paths=clip_paths, embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=get_clip_type(type), model_options=get_device(device))
+            # clip = comfy.sd.load_clip(ckpt_paths=clip_paths, embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=get_clip_type(type), model_options=get_device(device))
             return (clip,)
         else:
             return (self.load_patcher(clip_paths, get_clip_type(type), self.load_data(clip_paths)), get_device(device))
