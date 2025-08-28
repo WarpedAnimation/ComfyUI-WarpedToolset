@@ -1295,6 +1295,11 @@
           "links": [
             367
           ]
+        },
+        {
+          "name": "valid_output",
+          "type": "BOOLEAN",
+          "links": null
         }
       ],
       "properties": {
@@ -1682,6 +1687,50 @@
       ]
     },
     {
+      "id": 172,
+      "type": "WarpedVAELoader",
+      "pos": [
+        259.8695373535156,
+        754.8338623046875
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 8,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "vae",
+          "type": "VAE",
+          "links": [
+            370
+          ]
+        },
+        {
+          "name": "vae_state_dict",
+          "type": "DICT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WarpedToolset",
+        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
+        "Node name for S&R": "WarpedVAELoader",
+        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "hunyuan_video_vae_bf16.safetensors"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
       "id": 169,
       "type": "WarpedLoadFramePackModel",
       "pos": [
@@ -1731,52 +1780,8 @@
         "FramePack_F1_I2V_HY_20250503_fp8_e4m3fn.safetensors",
         "bf16",
         "fp8_e4m3fn",
-        "cpu",
+        "cuda",
         "sdpa"
-      ],
-      "color": "#323",
-      "bgcolor": "#535"
-    },
-    {
-      "id": 172,
-      "type": "WarpedVAELoader",
-      "pos": [
-        259.8695373535156,
-        754.8338623046875
-      ],
-      "size": [
-        315,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 8,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "vae",
-          "type": "VAE",
-          "links": [
-            370
-          ]
-        },
-        {
-          "name": "vae_state_dict",
-          "type": "DICT",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-WarpedToolset",
-        "ver": "4e08ee52f8f8f1b9b672937866812d63bbb520eb",
-        "Node name for S&R": "WarpedVAELoader",
-        "aux_id": "WarpedAnimation/ComfyUI-WarpedToolset",
-        "widget_ue_connectable": {}
-      },
-      "widgets_values": [
-        "hunyuan_video_vae_bf16.safetensors"
       ],
       "color": "#323",
       "bgcolor": "#535"
@@ -2177,7 +2182,7 @@
         -153.6730000000042
       ]
     },
-    "frontendVersion": "1.20.5",
+    "frontendVersion": "1.23.4",
     "ue_links": [],
     "VHS_latentpreview": true,
     "VHS_latentpreviewrate": 15,

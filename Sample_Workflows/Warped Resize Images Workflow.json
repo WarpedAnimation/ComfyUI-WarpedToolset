@@ -1,0 +1,297 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "revision": 0,
+  "last_node_id": 15,
+  "last_link_id": 25,
+  "nodes": [
+    {
+      "id": 3,
+      "type": "PreviewImage",
+      "pos": [
+        584,
+        49
+      ],
+      "size": [
+        277,
+        246
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.36",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 2,
+      "type": "LoadImageFromPath",
+      "pos": [
+        209,
+        352
+      ],
+      "size": [
+        270,
+        78
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "STRING",
+          "widget": {
+            "name": "image"
+          },
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2,
+            23
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_Ib_CustomNodes",
+        "ver": "59746dc1f9d5e3f52c13e21dba1aacb82d5f1c2a",
+        "Node name for S&R": "LoadImageFromPath"
+      },
+      "widgets_values": [
+        "ComfyUI_00001_-assets\\ComfyUI_00001_.png [output]"
+      ]
+    },
+    {
+      "id": 14,
+      "type": "WarpedImageScaleToSide",
+      "pos": [
+        209.18991088867188,
+        492.51904296875
+      ],
+      "size": [
+        280.6968688964844,
+        146
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 23
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            24
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.1",
+        "Node name for S&R": "WarpedImageScaleToSide"
+      },
+      "widgets_values": [
+        1024,
+        "long_side",
+        false
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 12,
+      "type": "WarpedLoadImages",
+      "pos": [
+        209,
+        53
+      ],
+      "size": [
+        270,
+        234
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "filename",
+          "type": "STRING",
+          "links": [
+            16
+          ]
+        },
+        {
+          "name": "index",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "prefixorg",
+          "type": "STRING",
+          "links": [
+            25
+          ]
+        },
+        {
+          "name": "prefixseg",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "prefixmsk",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.1",
+        "Node name for S&R": "WarpedLoadImages"
+      },
+      "widgets_values": [
+        "incremental_image",
+        0,
+        "Batch 001",
+        "N:\\Train\\!Done\\TraciLords\\S2\\50s",
+        ""
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 15,
+      "type": "SaveImage",
+      "pos": [
+        941.0078735351562,
+        49.79180908203125
+      ],
+      "size": [
+        459.0909118652344,
+        426.18182373046875
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 24
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": 25
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.36",
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    }
+  ],
+  "links": [
+    [
+      2,
+      2,
+      0,
+      3,
+      0,
+      "IMAGE"
+    ],
+    [
+      16,
+      12,
+      0,
+      2,
+      0,
+      "STRING"
+    ],
+    [
+      23,
+      2,
+      0,
+      14,
+      0,
+      "IMAGE"
+    ],
+    [
+      24,
+      14,
+      0,
+      15,
+      0,
+      "IMAGE"
+    ],
+    [
+      25,
+      12,
+      2,
+      15,
+      1,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.1,
+      "offset": [
+        -13.735092727272452,
+        49.29911909090902
+      ]
+    },
+    "frontendVersion": "1.20.5",
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 15,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

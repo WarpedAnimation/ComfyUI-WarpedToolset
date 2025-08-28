@@ -1,0 +1,518 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "revision": 0,
+  "last_node_id": 14,
+  "last_link_id": 24,
+  "nodes": [
+    {
+      "id": 3,
+      "type": "PreviewImage",
+      "pos": [
+        584,
+        49
+      ],
+      "size": [
+        277,
+        246
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.36",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 2,
+      "type": "LoadImageFromPath",
+      "pos": [
+        209,
+        352
+      ],
+      "size": [
+        270,
+        78
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "STRING",
+          "widget": {
+            "name": "image"
+          },
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2,
+            7
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_Ib_CustomNodes",
+        "ver": "59746dc1f9d5e3f52c13e21dba1aacb82d5f1c2a",
+        "Node name for S&R": "LoadImageFromPath"
+      },
+      "widgets_values": [
+        "ComfyUI_00001_-assets\\ComfyUI_00001_.png [output]"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "PreviewTextNode",
+      "pos": [
+        1354,
+        52
+      ],
+      "size": [
+        289,
+        263
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_custom_nodes_alekpet",
+        "ver": "1.0.60",
+        "Node name for S&R": "PreviewTextNode"
+      },
+      "widgets_values": [
+        "",
+        [
+          false,
+          true
+        ]
+      ]
+    },
+    {
+      "id": 6,
+      "type": "WD14Tagger|pysssss",
+      "pos": [
+        950,
+        51
+      ],
+      "size": [
+        270.06640625,
+        220
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "shape": 6,
+          "type": "STRING",
+          "links": [
+            8,
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-wd14-tagger",
+        "ver": "1.0.0",
+        "Node name for S&R": "WD14Tagger|pysssss"
+      },
+      "widgets_values": [
+        "wd-v1-4-moat-tagger-v2",
+        0.35,
+        0.85,
+        false,
+        false,
+        ""
+      ]
+    },
+    {
+      "id": 8,
+      "type": "PreviewTextNode",
+      "pos": [
+        1354,
+        383
+      ],
+      "size": [
+        289,
+        263
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 22
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_custom_nodes_alekpet",
+        "ver": "1.0.60",
+        "Node name for S&R": "PreviewTextNode"
+      },
+      "widgets_values": [
+        "",
+        [
+          false,
+          true
+        ]
+      ]
+    },
+    {
+      "id": 12,
+      "type": "WarpedLoadImages",
+      "pos": [
+        209,
+        53
+      ],
+      "size": [
+        270,
+        234
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "filename",
+          "type": "STRING",
+          "links": [
+            16,
+            20
+          ]
+        },
+        {
+          "name": "index",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "prefixorg",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "prefixseg",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "prefixmsk",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.1",
+        "Node name for S&R": "WarpedLoadImages"
+      },
+      "widgets_values": [
+        "incremental_image",
+        0,
+        "Batch 001",
+        "H:\\TrainHy\\AmandaHolden\\S1",
+        ""
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 13,
+      "type": "WarpedSaveImageCaption",
+      "pos": [
+        976,
+        762
+      ],
+      "size": [
+        219.14511108398438,
+        46
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image_path",
+          "type": "STRING",
+          "link": 20
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "link": 24
+        }
+      ],
+      "outputs": [
+        {
+          "name": "caption",
+          "type": "STRING",
+          "links": [
+            22
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.1",
+        "Node name for S&R": "WarpedSaveImageCaption"
+      },
+      "widgets_values": [],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 9,
+      "type": "Text Find and Replace",
+      "pos": [
+        955,
+        344
+      ],
+      "size": [
+        273.767578125,
+        142
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result_text",
+          "type": "STRING",
+          "links": [
+            23
+          ]
+        },
+        {
+          "name": "replacement_count_number",
+          "type": "NUMBER",
+          "links": null
+        },
+        {
+          "name": "replacement_count_float",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "name": "replacement_count_int",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "was-node-suite-comfyui",
+        "ver": "1.0.2",
+        "Node name for S&R": "Text Find and Replace"
+      },
+      "widgets_values": [
+        "1girl,",
+        "amandaholden, 1girl,"
+      ]
+    },
+    {
+      "id": 14,
+      "type": "Text Find and Replace",
+      "pos": [
+        963,
+        550
+      ],
+      "size": [
+        273.767578125,
+        142
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 23
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result_text",
+          "type": "STRING",
+          "links": [
+            24
+          ]
+        },
+        {
+          "name": "replacement_count_number",
+          "type": "NUMBER",
+          "links": null
+        },
+        {
+          "name": "replacement_count_float",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "name": "replacement_count_int",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "was-node-suite-comfyui",
+        "ver": "1.0.2",
+        "Node name for S&R": "Text Find and Replace"
+      },
+      "widgets_values": [
+        ", portrait,",
+        ","
+      ]
+    }
+  ],
+  "links": [
+    [
+      2,
+      2,
+      0,
+      3,
+      0,
+      "IMAGE"
+    ],
+    [
+      7,
+      2,
+      0,
+      6,
+      0,
+      "IMAGE"
+    ],
+    [
+      8,
+      6,
+      0,
+      7,
+      0,
+      "STRING"
+    ],
+    [
+      9,
+      6,
+      0,
+      9,
+      0,
+      "STRING"
+    ],
+    [
+      16,
+      12,
+      0,
+      2,
+      0,
+      "STRING"
+    ],
+    [
+      20,
+      12,
+      0,
+      13,
+      0,
+      "STRING"
+    ],
+    [
+      22,
+      13,
+      0,
+      8,
+      0,
+      "STRING"
+    ],
+    [
+      23,
+      9,
+      0,
+      14,
+      0,
+      "STRING"
+    ],
+    [
+      24,
+      14,
+      0,
+      13,
+      1,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [
+        0,
+        1
+      ]
+    },
+    "frontendVersion": "1.23.4",
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 15,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

@@ -1316,6 +1316,11 @@
           "links": [
             608
           ]
+        },
+        {
+          "name": "valid_output",
+          "type": "BOOLEAN",
+          "links": null
         }
       ],
       "properties": {
@@ -1847,7 +1852,7 @@
         "FramePack_F1_I2V_HY_20250503_fp8_e4m3fn.safetensors",
         "bf16",
         "fp8_e4m3fn",
-        "cpu",
+        "cuda",
         "sdpa"
       ],
       "color": "#323",
@@ -2304,7 +2309,7 @@
     "VHS_MetadataImage": true,
     "VHS_KeepIntermediate": true,
     "links_added_by_ue": [],
-    "frontendVersion": "1.20.5"
+    "frontendVersion": "1.23.4"
   },
   "version": 0.4
 }
