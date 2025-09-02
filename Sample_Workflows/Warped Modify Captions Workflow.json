@@ -1,0 +1,236 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "revision": 0,
+  "last_node_id": 4,
+  "last_link_id": 4,
+  "nodes": [
+    {
+      "id": 3,
+      "type": "PreviewTextNode",
+      "pos": [
+        1226,
+        167
+      ],
+      "size": [
+        378,
+        267
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "Original Prompt",
+      "properties": {
+        "cnr_id": "comfyui_custom_nodes_alekpet",
+        "ver": "1.0.60",
+        "Node name for S&R": "PreviewTextNode"
+      },
+      "widgets_values": [
+        "",
+        [
+          false,
+          true
+        ]
+      ]
+    },
+    {
+      "id": 2,
+      "type": "WarpedSaveImageCaption",
+      "pos": [
+        861,
+        494
+      ],
+      "size": [
+        219.14511108398438,
+        46
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image_path",
+          "type": "STRING",
+          "link": 3
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "caption",
+          "type": "STRING",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.1",
+        "Node name for S&R": "WarpedSaveImageCaption"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 1,
+      "type": "WarpedModifyCaptionFile",
+      "pos": [
+        497,
+        191
+      ],
+      "size": [
+        272.1177673339844,
+        194
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "filename",
+          "type": "STRING",
+          "links": [
+            3
+          ]
+        },
+        {
+          "name": "original",
+          "type": "STRING",
+          "links": [
+            1
+          ]
+        },
+        {
+          "name": "modified",
+          "type": "STRING",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-warpedtoolset",
+        "ver": "1.7.1",
+        "Node name for S&R": "WarpedModifyCaptionFile"
+      },
+      "widgets_values": [
+        "incremental_caption",
+        0,
+        "N:\\Train\\Mandy\\S1",
+        "1girl,",
+        "mandy, 1girl,"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "PreviewTextNode",
+      "pos": [
+        1226,
+        497
+      ],
+      "size": [
+        378,
+        267
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "Modified Prompt",
+      "properties": {
+        "cnr_id": "comfyui_custom_nodes_alekpet",
+        "ver": "1.0.60",
+        "Node name for S&R": "PreviewTextNode"
+      },
+      "widgets_values": [
+        "",
+        [
+          false,
+          true
+        ]
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      1,
+      3,
+      0,
+      "STRING"
+    ],
+    [
+      2,
+      1,
+      2,
+      2,
+      1,
+      "STRING"
+    ],
+    [
+      3,
+      1,
+      0,
+      2,
+      0,
+      "STRING"
+    ],
+    [
+      4,
+      2,
+      0,
+      4,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [
+        -131,
+        -27
+      ]
+    },
+    "frontendVersion": "1.23.4",
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 15,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

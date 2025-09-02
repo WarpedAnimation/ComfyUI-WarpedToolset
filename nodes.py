@@ -43,6 +43,7 @@ from comfy.cli_args import args
 from PIL.PngImagePlugin import PngInfo
 import random
 from tqdm import tqdm
+import io
 
 import node_helpers
 
@@ -66,13 +67,16 @@ import copy
 
 import safetensors
 import einops
-import io
+import socket
+import re
 
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+ALLOWED_EXT = ('.jpeg', '.jpg', '.png', '.tiff', '.gif', '.bmp', '.webp', '.avif', '.vfif')
 ALLOWED_VIDEO_EXT = ('mp4', 'flv', 'mov', 'avi', 'mpg', 'webm', 'mkv')
+ALLOWED_CAPTION_EXT = ('.txt')
 
 vae_scaling_factor = 0.476986
 
@@ -2283,8 +2287,8 @@ class WarpedSamplerCustomAdv:
                     }
                 }
 
-    RETURN_TYPES = ("IMAGE", "LATENT", "INT", "STRING", )
-    RETURN_NAMES = ("images", "latents", "seed", "generation_status", )
+    RETURN_TYPES = ("IMAGE", "LATENT", "INT", "STRING", "BOOLEAN", )
+    RETURN_NAMES = ("images", "latents", "seed", "generation_status", "valid_output", )
 
     FUNCTION = "sample"
 
@@ -2337,6 +2341,7 @@ class WarpedSamplerCustomAdv:
         output_images = None
         output_images_latents = None
         interrupted = False
+        valid_output = False
 
         try:
             mm.soft_empty_cache()
@@ -2370,6 +2375,7 @@ class WarpedSamplerCustomAdv:
             samples = None
 
             output_images = self.process_skip_images(output_images, skip_frames)
+            valid_output = True
             print("WarpedSamplerCustomAdv: Decoded Images Shape: {}".format(output_images.shape[0]))
 
             if output_latents:
@@ -2397,7 +2403,7 @@ class WarpedSamplerCustomAdv:
         except mm.InterruptProcessingException as ie:
             interrupted = True
             print(f"\nWarpedSamplerCustomAdv: Processing Interrupted.")
-            print("WarpedSamplerCustomAdv: Returning only partial results (if any).\n If zero images generated, a blank yellow image will be returned.\n")
+            print("WarpedSamplerCustomAdv: Returning only partial results (if any).\n If zero images generated, a blank yellow image will be returned, and valid_output will indicate False.\n")
             mm.unload_all_models()
             mm.soft_empty_cache()
             gc.collect()
@@ -2409,16 +2415,18 @@ class WarpedSamplerCustomAdv:
 
             raise mm.InterruptProcessingException(f"WarpedSamplerCustomAdv: Processing Interrupted.")
 
+            pass
+
         except BaseException as e:
             print(f"\nWarpedSamplerCustomAdv: Exception During Processing: {str(e)}")
-            print("WarpedSamplerCustomAdv: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned.\n")
+            print("WarpedSamplerCustomAdv: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned, and valid_output will indicate False.\n")
             mm.unload_all_models()
             mm.soft_empty_cache()
             gc.collect()
             time.sleep(1)
 
             generation_status = f"WarpedSamplerCustomAdv: Exception During Processing: {str(e)}"
-            generation_status = "{}{}".format(generation_status, "WarpedSamplerCustomAdv: Returning only partial results (if any).\nIf zero images generated, a blank red image will be returned.")
+            generation_status = "{}{}".format(generation_status, "WarpedSamplerCustomAdv: Returning only partial results (if any).\nIf zero images generated, a blank red image will be returned, and valid_output will indicate False.")
 
             traceback.print_tb(e.__traceback__, limit=99, file=sys.stdout)
 
@@ -2456,7 +2464,7 @@ class WarpedSamplerCustomAdv:
         if output_images_latents is None:
             output_images_latents = torch.zeros([1, 16, 1, self.height // 8, self.width // 8], dtype=torch.float32, device=self.offload_device)
 
-        return (output_images, {"samples": output_images_latents}, self.seed, generation_status,)
+        return (output_images, {"samples": output_images_latents}, self.seed, generation_status, valid_output, )
 
     def generate_noise(self, input_latent, generator=None):
         latent_image = input_latent["samples"]
@@ -2652,8 +2660,8 @@ class WarpedSamplerCustomAdvLatent:
                     }
                 }
 
-    RETURN_TYPES = ("IMAGE", "LATENT", "INT", "STRING", )
-    RETURN_NAMES = ("images", "latents", "seed", "generation_status", )
+    RETURN_TYPES = ("IMAGE", "LATENT", "INT", "STRING", "BOOLEAN", )
+    RETURN_NAMES = ("images", "latents", "seed", "generation_status", "valid_output", )
 
     FUNCTION = "sample"
 
@@ -2682,12 +2690,17 @@ class WarpedSamplerCustomAdvLatent:
         callback = self.setup_callbacks()
         disable_pbar = not utils.PROGRESS_BAR_ENABLED
 
+        print("\nSigmas: {}".format(self.sigmas))
+
         latents = latent["samples"]
 
         if len(latents.shape) < 5:
             latents = latents.unsqueeze(0)
 
         num_frames = int(((latents.shape[2] - 1) * 4) + 1)
+        self.latents_depth = latents.shape[1]
+
+        print("latents_depth: {}".format(self.latents_depth))
 
         self.width = latents.shape[4]
         self.height = latents.shape[3]
@@ -2704,6 +2717,7 @@ class WarpedSamplerCustomAdvLatent:
         output_images = None
         output_images_latents = None
         interrupted = False
+        valid_output = False
 
         try:
             mm.soft_empty_cache()
@@ -2733,6 +2747,7 @@ class WarpedSamplerCustomAdvLatent:
             print("WarpedSamplerCustomAdvLatent: Decoding Latents...")
             output_images = self.decode_tiled(samples)
             samples = None
+            valid_output = True
 
             output_images = self.process_skip_images(output_images, skip_frames)
             print("WarpedSamplerCustomAdvLatent: Decoded Images Shape: {}".format(output_images.shape[0]))
@@ -2762,7 +2777,7 @@ class WarpedSamplerCustomAdvLatent:
         except mm.InterruptProcessingException as ie:
             interrupted = True
             print(f"\nWarpedSamplerCustomAdvLatent: Processing Interrupted.")
-            print("WarpedSamplerCustomAdvLatent: Returning only partial results (if any).\n If zero images generated, a blank yellow image will be returned.\n")
+            print("WarpedSamplerCustomAdvLatent: Returning only partial results (if any).\n If zero images generated, a blank yellow image will be returned, and valid_output will indicate False.\n")
             mm.unload_all_models()
             mm.soft_empty_cache()
             gc.collect()
@@ -2773,17 +2788,18 @@ class WarpedSamplerCustomAdvLatent:
             traceback.print_tb(ie.__traceback__, limit=99, file=sys.stdout)
 
             raise mm.InterruptProcessingException(f"WarpedSamplerCustomAdvLatent: Processing Interrupted.")
+            pass
 
         except BaseException as e:
             print(f"\nWarpedSamplerCustomAdvLatent: Exception During Processing: {str(e)}")
-            print("WarpedSamplerCustomAdvLatent: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned.\n")
+            print("WarpedSamplerCustomAdvLatent: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned, and valid_output will indicate False.\n")
             mm.unload_all_models()
             mm.soft_empty_cache()
             gc.collect()
             time.sleep(1)
 
             generation_status = f"WarpedSamplerCustomAdvLatent: Exception During Processing: {str(e)}"
-            generation_status = "{}{}".format(generation_status, "WarpedSamplerCustomAdvLatent: Returning only partial results (if any).\nIf zero images generated, a blank red image will be returned.")
+            generation_status = "{}{}".format(generation_status, "WarpedSamplerCustomAdvLatent: Returning only partial results (if any).\nIf zero images generated, a blank red image will be returned, and valid_output will indicate False.")
 
             traceback.print_tb(e.__traceback__, limit=99, file=sys.stdout)
 
@@ -2821,7 +2837,7 @@ class WarpedSamplerCustomAdvLatent:
         if output_images_latents is None:
             output_images_latents = torch.zeros([1, 16, 1, self.height, self.width], dtype=torch.float32, device=self.offload_device)
 
-        return (output_images, {"samples": output_images_latents}, self.seed, generation_status,)
+        return (output_images, {"samples": output_images_latents}, self.seed, generation_status, valid_output, )
 
     def generate_noise(self, input_latent, generator=None):
         latent_image = input_latent["samples"]
@@ -2872,7 +2888,7 @@ class WarpedSamplerCustomAdvLatent:
         return new_noise
 
     def pad_noise(self, latent, num_frames=1):
-        pad_frames = torch.zeros([1, 16, num_frames, self.height, self.width], dtype=torch.float32, device=self.offload_device)
+        pad_frames = torch.zeros([1, self.latents_depth, num_frames, self.height, self.width], dtype=torch.float32, device=self.offload_device)
         pad_frames = torch.cat((latent, pad_frames), 2)
 
         return pad_frames
@@ -2891,7 +2907,7 @@ class WarpedSamplerCustomAdvLatent:
         return decoded_data
 
     def initialize_noise(self, frame_count, clear_cache=True):
-        noise_latents_full = torch.zeros([1, 16, int(frame_count), self.height, self.width], dtype=torch.float32, device=self.offload_device)
+        noise_latents_full = torch.zeros([1, self.latents_depth, int(frame_count), self.height, self.width], dtype=torch.float32, device=self.offload_device)
         print("WarpedSamplerCustomAdvLatent: Encoded noise_latents_full Shape: {}".format(noise_latents_full.shape))
 
         if Decimal(self.noise_scale).compare(Decimal(0.00)) != 0:
@@ -2983,2765 +2999,986 @@ PROMPT_TEMPLATE_ENCODE_VIDEO_I2V = (
     "<|start_header_id|>assistant<|end_header_id|>\n\n"
 )
 
-# class WarpedSamplerCustomBatch:
-#     @classmethod
-#     def INPUT_TYPES(s):
-#         return {"required":
-#                     {
-#                     "positive": ("STRING", ),
-#                     "negative": ("STRING", {"default": None}),
-#                     "clip": ("CLIP", ),
-#                     "preferred_frame_count": ("INT", {"default": 81, "min": 17, "max": nodes.MAX_RESOLUTION, "step": 4}),
-#                     "preferred_batch_size": ("INT", {"default": 17, "min": 17, "max": 161, "step": 4}),
-#                     "use_batch_size": (["next_lowest", "next_highest", "closest", "exact"], {"default": "next_lowest", "tooltip": "Number of frames generated may be impacted by choice."}),
-#                     "vae": ("VAE", ),
-#                     "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-#                     "model": ("MODEL", ),
-#                     "sampler": ("SAMPLER", ),
-#                     "sigmas": ("SIGMAS", ),
-#                     "dec_tile_size": ("INT", {"default": 256, "min": 64, "max": 4096, "step": 32}),
-#                     "dec_overlap": ("INT", {"default": 64, "min": 0, "max": 4096, "step": 32}),
-#                     "dec_temporal_size": ("INT", {"default": 64, "min": 8, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to decode at a time."}),
-#                     "dec_temporal_overlap": ("INT", {"default": 8, "min": 4, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to overlap."}),
-#                     "skip_frames": ("INT", {"default": 0, "min": 0, "max": 32, "step": 4}),
-#                     "noise_scale": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 1.00, "step": 0.01}),
-#                     "mode": (["Hunyuan", "Wan"], {"default": "Hunyuan"}),
-#                     "hunyuan_guidance_type": (["v1 (concat)", "v2 (replace)", "custom"], {"default": "v2 (replace)", "tooltip": "Only used if mode is \"Hunyuan\"."}),
-#                     "hunyuan_image_interleave": ("INT", {"default": 1, "min": 1, "max": 512, "tooltip": "How much the image influences things vs the text prompt. Higher number means more influence from the text prompt."}),
-#                     },
-#                 "optional":
-#                     {"noise_strength": ("FLOAT", {"default": 1.00, "min": 0.10, "max": 1.00, "step": 0.01}),
-#                     "blend_frames": ("INT", {"default":5, "min":0, "max": 16, "step": 1}),
-#                     "t2v_width": ("INT", {"default":480, "min":256, "max": 1280, "step": 16}),
-#                     "t2v_height": ("INT", {"default":720, "min":256, "max": 1280, "step": 16}),
-#                     "scaling_strength": ("FLOAT", {"default": 1.0}),
-#                     "clip_vision_model": ("CLIP_VISION", ),
-#                     "start_image": ("IMAGE", ),
-#                     "flux_guidance": ("FLOAT", {"default": 3.5, "min": 0.0, "max": 100.0, "step": 0.1}),
-#                     "use_flux_guidance": ("BOOLEAN", {"default": False}),
-#                     "dummy_frames": ("INT", {"default":17, "min":17, "max": 121, "step": 4, "tooltip": "Number of frames to generate in dummy batch."}),
-#                     "gen_dummy": ("BOOLEAN", {"default": False, "tooltip": "For t2v or i2v only. Will generate a dummy batch to obtain a starting image for main generation."}),
-#                     "gen_dummy_only": ("BOOLEAN", {"default": False, "tooltip": "Will generate dummy batch only."}),
-#                     "use_dummy_image": (["first", "middle", "last", "random", "all"], {"default": "last", "tooltip": "Which dummy batch image to start main generation."}),
-#                     "output_latents": ("BOOLEAN", {"default": False}),
-#                     "verbose_messaging": ("BOOLEAN", {"default": False}),
-#                     "i2v_sigmas": ("SIGMAS", {"default": None}),
-#                     "i2v_model": ("MODEL", {"default": None}),
-#                     }
-#                 }
-#
-#     RETURN_TYPES = ("IMAGE", "LATENT", "INT", "STRING", "IMAGE", )
-#     RETURN_NAMES = ("images", "latents", "seed", "generation_status", "image_used",)
-#
-#     FUNCTION = "sample"
-#
-#     CATEGORY = "Warped/General/Sampling"
-#
-#     def sample(self, positive, negative, clip, preferred_frame_count, preferred_batch_size, use_batch_size, vae, seed, model, sampler, sigmas, dec_tile_size, dec_overlap, dec_temporal_size, dec_temporal_overlap,
-#                     skip_frames, noise_scale, mode="Hunyuan", hunyuan_guidance_type="v2 (replace)", hunyuan_image_interleave=2, noise_strength=1.0, blend_frames=5, t2v_width=480, t2v_height=720, scaling_strength=1.0,
-#                     clip_vision_model=None, start_image=None, flux_guidance=3.5, dummy_frames=17, gen_dummy=False, gen_dummy_only=False, use_dummy_image="last", use_flux_guidance=False, output_latents=False, verbose_messaging=False,
-#                     i2v_sigmas=None, i2v_model=None,):
-#         self.device = mm.get_torch_device()
-#         self.offload_device = get_offload_device()
-#         mm.unload_all_models()
-#         gc.collect()
-#         time.sleep(1)
-#
-#         self.positive = positive
-#         self.negative = negative
-#         self.clip = clip
-#         self.use_clip = clip.clone()
-#         self.preferred_frame_count = preferred_frame_count
-#         self.preferred_batch_size = preferred_batch_size
-#         self.vae = vae
-#         self.seed = seed
-#         self.sampler = sampler
-#         self.sigmas = sigmas
-#         self.i2v_sigmas = i2v_sigmas
-#         self.noise_scale = noise_scale
-#         self.mode = mode
-#         self.dec_tile_size = dec_tile_size
-#         self.dec_overlap = dec_overlap
-#         self.dec_temporal_size = dec_temporal_size
-#         self.dec_temporal_overlap = dec_temporal_overlap
-#         self.clip_vision = clip_vision_model
-#         self.noise_strength = noise_strength
-#         self.blend_frames = blend_frames
-#         self.t2v_width = t2v_width
-#         self.t2v_height = t2v_height
-#         self.dummy_frames = dummy_frames
-#         self.dummy_latents = int((dummy_frames - 1) // 4) + 1
-#         self.gen_dummy = gen_dummy
-#         self.gen_dummy_only = gen_dummy_only
-#         self.use_dummy_image = use_dummy_image
-#         self.skip_frames = skip_frames
-#         self.verbose_messaging = verbose_messaging
-#         self.model = model
-#         self.i2v_model = i2v_model
-#         self.g_output = {}
-#
-#         disable_pbar = not utils.PROGRESS_BAR_ENABLED
-#
-#         self.use_sigmas = self.sigmas
-#
-#         self.guider = WarpedGuider_Basic()
-#         self.guider.set_model(self.model)
-#         callback = self.setup_callbacks()
-#
-#         self.latent_window_size, self.batch_count, self.truncated_frame_count = self.get_latent_window_size(preferred_batch_size, self.preferred_frame_count, use_batch_size=use_batch_size)
-#
-#         is_i2v = True
-#
-#         if start_image is None:
-#             start_image = torch.zeros([1, self.t2v_height, self.t2v_width, 3], dtype=torch.float32, device=self.offload_device)
-#             is_i2v = False
-#
-#         print("start_image Shape: {}".format(start_image.shape))
-#
-#         self.width = int(start_image.shape[2] // 8)
-#         self.height = int(start_image.shape[1] // 8)
-#
-#         noise, dummy_noise = self.setup_latent_noise()
-#
-#         output_images = []
-#         output_images_latents = None
-#         interrupted = False
-#         generation_status = ""
-#         total_images_generated = 0
-#         is_dummy_section = False
-#         is_first_section = False
-#         is_last_section = False
-#         switch_guider = True
-#         last_image = None
-#
-#         if not self.gen_dummy:
-#             print("Generating {} Batches".format(self.batch_count))
-#         else:
-#             print("Generating Dummy Batch Plus {} Batches".format(self.batch_count))
-#
-#         generation_batches = list(range(self.batch_count))
-#
-#         if self.gen_dummy and (not self.gen_dummy_only):
-#             generation_batches = [0] + generation_batches
-#             is_dummy_section = True
-#         else:
-#             generation_batches = [0]
-#             is_dummy_section = True
-#
-#         print("generation_batches: {}".format(generation_batches))
-#
-#         try:
-#             for i, generation_batch in enumerate(generation_batches):
-#                 batch_number = generation_batches[i]
-#                 # batch_key = "{}".format(batch_number)
-#
-#                 if is_dummy_section:
-#                     print("Generating Dummy Batch.")
-#                     is_first_section = False
-#
-#                     if not self.gen_dummy_only:
-#                         is_last_section = False
-#                     else:
-#                         is_last_section = True
-#                 else:
-#                     print("Generating Batch {}.".format(batch_number))
-#
-#                     is_first_section = batch_number == min(generation_batches)
-#                     is_last_section = batch_number == max(generation_batches)
-#
-#                 print("is_first_section: {}  |  is_last_section: {}  |  is_dummy_section: {}".format(is_first_section, is_last_section, is_dummy_section))
-#
-#                 mm.soft_empty_cache()
-#                 gc.collect()
-#                 time.sleep(0.1)
-#
-#                 image_embeds = None
-#
-#                 print("start_image Shape: {}".format(start_image.shape))
-#
-#                 if is_i2v:
-#                     if len(start_image.shape) < 4:
-#                         start_image = start_image.unsqueeze(0)
-#
-#                     print("Performing clip_vision_encode.")
-#                     image_embeds = self.clip_vision_encode(start_image.clone().detach())
-#
-#                 if not is_dummy_section:
-#                     noise_latents = noise[batch_number]
-#                 else:
-#                     noise_latents = dummy_noise
-#
-#                 print("noise_latents Shape: {}".format(noise_latents.shape))
-#
-#                 noise_mask = None
-#
-#                 if mode == "Hunyuan":
-#                     if is_i2v:
-#                         if (not self.i2v_model is None) and switch_guider:
-#                             switch_guider = False
-#                             callback = None
-#                             self.guider = WarpedGuider_Basic()
-#                             self.guider.set_model(self.i2v_model)
-#                             callback = self.setup_callbacks()
-#
-#                         self.use_clip = self.clip.clone()
-#                         temp_cond = self.hunyuan_text_encode(self.use_clip, image_embeds, positive, hunyuan_image_interleave)
-#                         positive_cond, latents = self.hunyuan_encode(temp_cond, self.vae, start_image.shape[2], start_image.shape[1], self.truncated_frame_count, 1, hunyuan_guidance_type, start_image=start_image)
-#
-#                         if "noise_mask" in latents:
-#                             noise_mask = latents["noise_mask"]
-#
-#                         latents = latents["samples"]
-#
-#                         # latents = latents["samples"] * (scaling_strength * vae_scaling_factor)
-#                     else:
-#                         positive_cond = self.do_text_encode(self.use_clip, positive)
-#                         latents = torch.zeros([1, 16, noise_latents.shape[2], self.height, self.width], dtype=torch.float32, device=self.offload_device)
-#
-#                         latents = latents * scaling_strength # scaling_strength
-#                         latents = latents * (scaling_strength * vae_scaling_factor)
-#
-#                     if use_flux_guidance:
-#                         positive_cond = self.apply_flux_guidance(positive_cond, flux_guidance)
-#
-#                     self.guider.set_conds(positive_cond)
-#                 # else:
-#                 #     positive_cond, negative_cond = wan_text_encode(self.use_clip, positive_text=positive, negative_text=negative)
-#                 #     positive_cond, negative_cond, latents = self.wan_encode(positive_cond, negative_cond, self.vae, start_image.shape[3], start_image.shape[2], ((noise_latents.shape[2] - 1) * 4) + 1, 1, start_image=start_image, clip_vision_output=image_embeds)
-#
-#                     # self.guider.set_conds(positive_cond, negative_cond)
-#
-#                 print("latents Shape: {}".format(latents.shape))
-#
-#                 num_frames = int(((latents.shape[2] - 1) * 4) + 1)
-#
-#                 print("\nDecoded Width is {}  |  Decoded Height is {}".format(int(self.width * 8), int(self.height * 8)))
-#
-#                 print("-------------------------------------------------------------------------------------------")
-#                 print("WarpedSamplerCustomBatch: Latents Shape: {}  |  Noise Latents Shape: {}".format(latents.shape, noise_latents.shape))
-#                 print("-------------------------------------------------------------------------------------------")
-#
-#                 print("Noise Shape: {}  |  Latents Shape: {}".format(noise_latents.shape, latents.shape))
-#                 print("WarpedSamplerCustomBatch: Generating {} Frames in {} Latents....".format(num_frames, latents.shape[2]))
-#
-#                 samples = self.guider.sample(noise_latents, latents, self.sampler, self.use_sigmas, denoise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=self.seed)
-#                 samples = samples.to(mm.intermediate_device())
-#
-#                 mm.unload_all_models()
-#                 mm.soft_empty_cache()
-#                 gc.collect()
-#                 time.sleep(1)
-#
-#                 if len(samples.shape) < 5:
-#                     samples = samples.unsqueeze(0)
-#
-#                 samples = samples.clone().detach() / scaling_strength # (scaling_strength * vae_scaling_factor)
-#
-#                 print("WarpedSamplerCustomBatch: Decoding Latents...")
-#                 decoded_images = self.decode_tiled(samples)
-#
-#                 if not is_dummy_section or (is_dummy_section and ((self.use_dummy_image == "all")) or self.gen_dummy_only):
-#                     output_images.append(decoded_images)
-#                     total_images_generated += decoded_images.shape[0]
-#
-#                 samples = None
-#
-#                 # output_images = self.process_skip_images(output_images, skip_frames)
-#                 print("WarpedSamplerCustomBatch: Decoded Images Shape: {}".format(decoded_images.shape[0]))
-#
-#                 # if output_latents:
-#                 #     output_images_latents = self.encode_tiled(output_images)
-#
-#                 print("WarpedSamplerCustomBatch: Generating {} frames in {} latents...Done.".format(num_frames, latents.shape[2]))
-#
-#                 if not is_i2v:
-#                     self.guider.model_patcher.model.to(get_offload_device())
-#                     # guider.set_i2v_model()
-#
-#                     if not self.i2v_sigmas is None:
-#                         self.use_sigmas = self.i2v_sigmas
-#
-#                 if not is_last_section:
-#                     print("HERE 9090000")
-#                     decoded_tuple = torch.split(decoded_images, 1, dim=0)
-#                     decoded_split = [item for item in decoded_tuple]
-#                     decoded_images = decoded_images.to(get_offload_device())
-#                     decoded_images = None
-#
-#                     if (not is_dummy_section) or (is_dummy_section and ((self.use_dummy_image == "last") or (self.use_dummy_image == "all"))):
-#                         print("HERE 9090000a")
-#                         start_image = decoded_split[len(decoded_split) - 1].clone().detach()
-#                     elif is_dummy_section:
-#                         print("HERE 9090000b")
-#                         if self.use_dummy_image == "first":
-#                             print("HERE 9090000c")
-#                             start_image = decoded_split[0].clone().detach()
-#                         elif self.use_dummy_image == "middle":
-#                             print("HERE 9090000d")
-#                             start_image = decoded_split[int(len(decoded_split) // 2)].clone().detach()
-#                         else:
-#                             print("HERE 9090000e")
-#                             random.seed(self.seed)
-#                             start_image = dummy_split[random.randrange(0, len(decoded_split) - 1, 1)].clone().detach()
-#
-#                     is_i2v = True
-#
-#                 if last_image is None:
-#                     last_image = start_image.clone().detach()
-#
-#                 print("HERE 9090001")
-#
-#                 samples = None
-#                 latents = None
-#
-#                 mm.soft_empty_cache()
-#                 gc.collect()
-#                 time.sleep(0.1)
-#
-#                 print("*******************************************")
-#                 print("****** WarpedSamplerCustomBatch: Total Images Generated {}".format(total_images_generated))
-#                 print("*******************************************\n")
-#
-#                 generation_status = "****** WarpedSamplerCustomBatch: Total Images Generated {} ******".format(total_images_generated)
-#
-#                 interrupted = False
-#
-#                 print("HERE 9090002")
-#
-#                 if is_dummy_section:
-#                     print("HERE 9090003")
-#
-#                     if self.gen_dummy_only:
-#                         print("HERE 9090004")
-#                         break
-#
-#                     print("HERE 9090005")
-#
-#                     is_dummy_section = False
-#
-#                 print("HERE 9090006")
-#         except mm.InterruptProcessingException as ie:
-#             interrupted = True
-#             print(f"\nWarpedSamplerCustomBatch: Processing Interrupted.")
-#             print("WarpedSamplerCustomBatch: Returning only partial results (if any).\n If zero images generated, a blank yellow image will be returned.\n")
-#             mm.unload_all_models()
-#             mm.soft_empty_cache()
-#             gc.collect()
-#             time.sleep(1)
-#
-#             generation_status = f"\nWarpedSamplerCustomBatch: Processing Interrupted."
-#
-#             traceback.print_tb(ie.__traceback__, limit=99, file=sys.stdout)
-#
-#             raise mm.InterruptProcessingException(f"WarpedSamplerCustomBatch: Processing Interrupted.")
-#
-#         except BaseException as e:
-#             print(f"\nWarpedSamplerCustomBatch: Exception During Processing: {str(e)}")
-#             print("WarpedSamplerCustomBatch: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned.\n")
-#             mm.unload_all_models()
-#             mm.soft_empty_cache()
-#             gc.collect()
-#             time.sleep(1)
-#
-#             generation_status = f"WarpedSamplerCustomBatch: Exception During Processing: {str(e)}"
-#             generation_status = "{}{}".format(generation_status, "WarpedSamplerCustomBatch: Returning only partial results (if any).\nIf zero images generated, a blank red image will be returned.")
-#
-#             traceback.print_tb(e.__traceback__, limit=99, file=sys.stdout)
-#
-#             pass
-#
-#         callback = None
-#         self.guider.model_patcher.model.to(get_offload_device())
-#
-#         latent = None
-#         latent_image = None
-#         noise_mask = None
-#         samples = None
-#
-#         torch.cuda.empty_cache()
-#         torch.cuda.ipc_collect()
-#         gc.collect()
-#         time.sleep(1)
-#
-#         mm.unload_all_models()
-#         mm.soft_empty_cache()
-#         gc.collect()
-#         time.sleep(1)
-#
-#         image = None
-#
-#         if interrupted and (len(output_images) < 1):
-#             temp_image = Image.new('RGB', (self.width * 8, self.height * 8), color = 'yellow')
-#             image = pil2tensorSwap(temp_image)
-#             final_images = image
-#         elif (len(output_images) < 1):
-#             temp_image = Image.new('RGB', (self.width * 8, self.height * 8), color = 'red')
-#             image = pil2tensorSwap(temp_image)
-#             final_images = image
-#         else:
-#             final_images = self.assemble_final_result(output_images)
-#
-#         if output_images_latents is None:
-#             output_images_latents = torch.zeros([1, 16, 1, self.height, self.width], dtype=torch.float32, device=self.offload_device)
-#
-#         return (final_images, {"samples": output_images_latents}, self.seed, generation_status, last_image,)
-#
-#     def assemble_final_result(self, image_batches):
-#         if self.blend_frames < 1:
-#             resulting_images = None
-#             for entry in image_batches:
-#                 if not resulting_images is None:
-#                     resulting_images = torch.cat((resulting_images, entry), 0)
-#                 else:
-#                     resulting_images = entry
-#
-#                 entry.to(device=self.offload_device)
-#                 entry = None
-#         else:
-#             blend_value = 1.0 / self.blend_frames
-#             i = 0
-#             while i < (len(image_batches) - 1):
-#                 alpha_blend_val = blend_value
-#                 blend_count = self.blend_frames
-#
-#                 image_batches_tuple = torch.split(image_batches[i], 1, dim=0)
-#                 image_batches_split = [item for item in image_batches_tuple]
-#                 image1 = image_batches_split[len(image_batches_split) - 1]
-#                 # image1 = image_batches_split[len(image_batches_split) - 4]
-#                 image_batches_tuple = None
-#                 image_batches_split = None
-#
-#                 image_batches_tuple = torch.split(image_batches[i + 1], 1, dim=0)
-#                 image_batches_split = [item for item in image_batches_tuple]
-#                 image2 = image_batches_split[0]
-#                 image_batches_tuple = None
-#                 image_batches_split = None
-#
-#                 image1 = tensor2pilSwap(image1)[0]
-#                 image2 = tensor2pilSwap(image2)[0]
-#
-#                 blend_latents = None
-#
-#                 while blend_count > 0:
-#                     blended_image = Image.blend(image1, image2, alpha_blend_val)
-#                     temp_latent = pil2tensorSwap(blended_image)
-#                     blended_image = None
-#
-#                     if len(temp_latent.shape) < 4:
-#                         temp_latent = temp_latent.unsqueeze(0)
-#
-#                     if not blend_latents is None:
-#                         blend_latents = torch.cat((blend_latents, temp_latent), 0)
-#                     else:
-#                         blend_latents = temp_latent
-#
-#                     alpha_blend_val += blend_value
-#                     blend_count -= 1
-#
-#                 image_batches_tuple = torch.split(image_batches[i], image_batches[i].shape[0] - 3, dim=0)
-#                 image_batches_split = [item for item in image_batches_tuple]
-#                 image_batches_tuple = None
-#
-#                 image_batches[i] = torch.cat((image_batches_split[0], blend_latents), 0)
-#                 blend_latents = None
-#                 image_batches_split = None
-#
-#                 self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
-#
-#                 i += 1
-#
-#             resulting_images = None
-#             for entry in image_batches:
-#                 if not resulting_images is None:
-#                     resulting_images = torch.cat((resulting_images, entry), 0)
-#                 else:
-#                     resulting_images = entry
-#
-#                 entry.to(device=self.offload_device)
-#
-#             image_batches = None
-#
-#             self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
-#
-#
-#         print("assemble_final_result: Full decoded images count: {}".format(resulting_images.shape[0]))
-#
-#         if self.skip_frames < 1:
-#             return resulting_images
-#
-#         skipped_frames = 1
-#
-#         image_batches_tuple = torch.split(resulting_images, 1, dim=0)
-#         image_batches_split = [item for item in image_batches_tuple]
-#
-#         resulting_images = None
-#
-#         for image in image_batches_split:
-#             if skipped_frames <= self.skip_frames:
-#                 skipped_frames += 1
-#                 continue
-#
-#             if not resulting_images is None:
-#                 resulting_images = torch.cat((resulting_images, image), 0)
-#             else:
-#                 resulting_images = image
-#
-#         print("assemble_final_result: Final decoded images count: {}".format(resulting_images.shape[0]))
-#
-#         return resulting_images
-#
-#     def cleanup(self, unload_models=False, cleanup_models=False, cleanup_cuda=False):
-#         if unload_models:
-#             mm.unload_all_models()
-#
-#         if cleanup_models:
-#             mm.cleanup_models()
-#
-#         if cleanup_cuda:
-#             mm.soft_empty_cache()
-#
-#         gc.collect()
-#         time.sleep(1)
-#
-#         return
-#
-#     def generate_noise(self, input_latent, generator=None):
-#         latent_image = input_latent["samples"]
-#         return warped_prepare_noise(latent_image, self.seed, generator=generator)
-#
-#     def setup_latent_noise(self):
-#         dummy_noise = None
-#
-#         if self.gen_dummy:
-#             rnd = torch.Generator("cpu").manual_seed(self.seed)
-#             dummy_noise = torch.randn((1, 16, self.dummy_latents, self.height, self.width), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
-#
-#         noise = []
-#
-#         for i in range(self.batch_count):
-#             rnd = torch.Generator("cpu").manual_seed(self.seed)
-#             temp_noise = torch.randn((1, 16, self.latent_window_size, self.height, self.width), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
-#
-#             noise.append(temp_noise)
-#             temp_noise = None
-#
-#         if self.verbose_messaging:
-#             if not dummy_noise is None:
-#                 print("\nsetup_latent_noise: dummy_noise Shape: {}".format(dummy_noise.shape))
-#
-#             i = 0
-#             for entry in noise:
-#                 print("setup_latent_noise: Batch: {}  |  noise Shape: {}".format(i, entry.shape))
-#                 i += 1
-#
-#             print("\n")
-#
-#         return noise, dummy_noise
-#
-#     def get_latent_window_size(self, preferred_batch_size, frame_count, use_batch_size="next_lowest"):
-#         latent_size_factor = 4
-#
-#         if self.verbose_messaging:
-#             print("get_latent_window_size: preferred_batch_size: {}".format(preferred_batch_size))
-#             print("get_latent_window_size: frame_count: {}".format(frame_count))
-#             print("get_latent_window_size: use_batch_size: {}".format(use_batch_size))
-#
-#         num_frames = int(((frame_count - 1) // 4) * 4) + 1
-#
-#         if num_frames != frame_count:
-#             print(f"Truncating video from {frame_count} to {num_frames} an because odd number of frames is not allowed.")
-#
-#         if ((num_frames - 1) % (preferred_batch_size - 1)) == 0:
-#             print("(1) latent_window_size set to: {}".format(self.decoded_to_encoded_length(preferred_batch_size)))
-#             print("(1) batch_count set to: {}".format(int((num_frames - 1) / (preferred_batch_size - 1))))
-#             return self.decoded_to_encoded_length(preferred_batch_size), int((num_frames - 1) / (preferred_batch_size - 1)), num_frames
-#
-#         if use_batch_size == "exact":
-#             num_frames_final = int(((num_frames - 1) // (preferred_batch_size - 1)) + 1) * (preferred_batch_size - 1)
-#
-#             if num_frames_final != frame_count:
-#                 print(f"Truncating video from {num_frames} to {num_frames_final} frames for preferred_batch_size compatibility.")
-#
-#             print("(2) latent_window_size set to: {}".format(self.decoded_to_encoded_length(preferred_batch_size + 1)))
-#             print("(2) batch_count set to: {}".format(int((num_frames_final - 1) / (preferred_batch_size - 1))))
-#             return self.decoded_to_encoded_length(preferred_batch_size), int((num_frames_final - 1) / (preferred_batch_size - 1)), num_frames_final
-#
-#         next_lowest_found = False
-#         next_highest_found = False
-#         next_lowest = preferred_batch_size - 1
-#         next_highest = preferred_batch_size - 1
-#
-#         if self.verbose_messaging:
-#             print("get_latent_window_size: Next Lowest Initialized To: {}".format(next_lowest))
-#             print("get_latent_window_size: Next Highest Initialized To: {}".format(next_highest))
-#
-#         num_frames_final = int(((num_frames - 1) // 4) * 4) + 1
-#
-#         if num_frames != num_frames_final:
-#             print(f"Truncating video from {num_frames} to {num_frames_final} frames for latent_window_size compatibility.")
-#
-#         if (use_batch_size == "closest") or (use_batch_size == "next_lowest"):
-#             while next_lowest >= 12:
-#                 next_lowest -= 4
-#
-#                 if (int((num_frames_final - 1) // 4) % next_lowest) == 0:
-#                     next_lowest_found = True
-#                     break
-#
-#             next_lowest += 1
-#
-#             if next_lowest_found and (use_batch_size == "next_lowest"):
-#                 print("(3) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_lowest + 1)))
-#                 print("(3) batch_count set to: {}".format(int((num_frames_final - 1) / next_lowest)))
-#                 return self.decoded_to_encoded_length(next_lowest + 1), int((num_frames_final - 1) / next_lowest), num_frames_final
-#
-#         while next_highest <= 156:
-#             next_highest += 4
-#
-#             if (int((num_frames_final - 1) // 4) % next_highest) == 0:
-#                 next_highest_found = True
-#                 break
-#
-#         if next_highest_found and (use_batch_size == "next_highest"):
-#             print("(4) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_highest + 1)))
-#             print("(4) batch_count set to: {}".format(int((num_frames_final - 1) / next_highest)))
-#             return self.decoded_to_encoded_length(next_highest + 1), int((num_frames_final - 1) / next_highest), num_frames_final
-#
-#         if next_highest_found and next_lowest_found:
-#             if (preferred_batch_size - next_lowest) <= (next_highest - preferred_batch_size):
-#                 print("(5) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_lowest + 1)))
-#                 print("(5) batch_count set to: {}".format(int((num_frames_final - 1) / next_lowest)))
-#                 return self.decoded_to_encoded_length(next_lowest + 1), int((num_frames_final - 1) / next_lowest), num_frames_final
-#             elif (next_highest - preferred_batch_size) < (preferred_batch_size - next_lowest):
-#                 print("(6) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_highest + 1)))
-#                 print("(6) batch_count set to: {}".format(int((num_frames_final - 1) / next_highest)))
-#                 return self.decoded_to_encoded_length(next_highest + 1), int((num_frames_final - 1) / next_highest), num_frames_final
-#
-#         print("Unable to find a compatible latent_window_size for number of frames = {} and preferred_batch_size = {}.".format(frame_count, preferred_batch_size))
-#         print("Recalculating Number Of Frames Based On preferred_batch_size of: {}".format(preferred_batch_size))
-#
-#         return self.calculate_new_number_of_frames(preferred_batch_size, (((frame_count - 1) // 4) * 4) + 1, use_batch_size)
-#
-#     def calculate_new_number_of_frames(self, preferred_batch_size, frame_count, use_batch_size):
-#         working_batch_size = preferred_batch_size - 1
-#         working_frame_count = frame_count - 1
-#
-#         next_lowest = next_highest = working_frame_count
-#         next_lowest_found = False
-#         next_highest_found = False
-#
-#         while next_lowest > 37:
-#             next_lowest -= 4
-#
-#             if int(next_lowest % working_batch_size) == 0:
-#                 next_lowest_found = True
-#                 break
-#
-#         if next_lowest_found and (use_batch_size == "next_lowest"):
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
-#
-#         while next_highest < 999997:
-#             next_highest += 4
-#
-#             if int(next_highest % working_batch_size) == 0:
-#                 next_highest_found = True
-#                 break
-#
-#         if next_highest_found and (use_batch_size == "next_highest"):
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
-#
-#         if next_lowest_found and next_highest_found:
-#             if (working_frame_count - next_lowest) <= (next_highest - working_frame_count):
-#                 return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
-#
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
-#
-#         if next_lowest_found:
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
-#
-#         if next_highest_found:
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
-#
-#         raise ValueError("Unable to find a compatible latent_window_size for number of frames = {} and preferred_batch_size = {}.".format(frame_count, preferred_batch_size))
-#
-#     def clip_vision_encode(self, image, crop="center"):
-#             crop_image = False
-#             if crop != "center":
-#                 crop_image = False
-#             output = self.clip_vision.encode_image(image, crop=crop_image)
-#             return output
-#
-#     def encoded_to_decoded_length(self, latent_length):
-#         if latent_length <= 0:
-#             return 0
-#
-#         result_length = ((latent_length - 1) * 4) + 1
-#
-#         return result_length
-#
-#     def decoded_to_encoded_length(self, image_length):
-#         if image_length <= 0:
-#             return 0
-#
-#         result_length = int(((image_length - 1) / 4) + 1)
-#
-#         return result_length
-#
-#     def apply_flux_guidance(self, conditioning, guidance):
-#         c = node_helpers.conditioning_set_values(conditioning, {"guidance": guidance})
-#         return c
-#
-#     def hunyuan_text_encode(self, clip, clip_vision_output, prompt, image_interleave):
-#         tokens = clip.tokenize(prompt, llama_template=PROMPT_TEMPLATE_ENCODE_VIDEO_I2V, image_embeds=clip_vision_output.mm_projected, image_interleave=image_interleave)
-#         return clip.encode_from_tokens_scheduled(tokens)
-#
-#     def hunyuan_encode(self, positive, vae, width, height, length, batch_size, guidance_type, start_image=None):
-#         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
-#         out_latent = {}
-#
-#         if start_image is not None:
-#             start_image = comfy.utils.common_upscale(start_image[:length, :, :, :3].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-#
-#             concat_latent_image = vae.encode(start_image)
-#             mask = torch.ones((1, 1, latent.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=start_image.device, dtype=start_image.dtype)
-#             mask[:, :, :((start_image.shape[0] - 1) // 4) + 1] = 0.0
-#
-#             if guidance_type == "v1 (concat)":
-#                 cond = {"concat_latent_image": concat_latent_image, "concat_mask": mask}
-#             elif guidance_type == "v2 (replace)":
-#                 cond = {'guiding_frame_index': 0}
-#                 latent[:, :, :concat_latent_image.shape[2]] = concat_latent_image
-#                 out_latent["noise_mask"] = mask
-#             elif guidance_type == "custom":
-#                 cond = {"ref_latent": concat_latent_image}
-#
-#             positive = node_helpers.conditioning_set_values(positive, cond)
-#
-#         out_latent["samples"] = latent
-#         return positive, out_latent
-#
-#     def wan_text_encode(self, clip, positive_text="", negative_text=""):
-#         print("wan_text_encode: Loading clip model to device: {}".format(clip.patcher.load_device))
-#         clip.patcher.model.to(device=clip.patcher.load_device)
-#
-#         print("wan_text_encode: Encoding Prompts...")
-#         positive_conditioning = self.do_text_encode(clip, positive_text)
-#         negative_conditioning = self.do_text_encode(clip, negative_text)
-#         print("wan_text_encode: Encoding Prompts...Done.")
-#
-#         print("wan_text_encode: Unloading clip model to device: {}".format(get_offload_device()))
-#         clip.patcher.model.to(device=get_offload_device())
-#
-#         if torch.cuda.is_available():
-#             torch.cuda.empty_cache()
-#
-#         gc.collect()
-#         time.sleep(1)
-#
-#         return positive_conditioning, negative_conditioning
-#
-#     def encode(self, clip, text):
-#         if clip is None:
-#             raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
-#         tokens = clip.tokenize(text)
-#         return clip.encode_from_tokens_scheduled(tokens)
-#
-#     def do_text_encode(self, clip, text):
-#
-#         if clip is None:
-#             raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
-#
-#         tokens = clip.tokenize(text)
-#         return_encoding = clip.encode_from_tokens_scheduled(tokens)
-#
-#         return return_encoding
-#
-#     def wan_encode(self, positive, negative, vae, width, height, length, batch_size, start_image=None, clip_vision_output=None):
-#         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
-#         if start_image is not None:
-#             start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-#             image = torch.mul(torch.ones((length, height, width, start_image.shape[-1]), device=start_image.device, dtype=start_image.dtype), 0.5)
-#             image[:start_image.shape[0]] = start_image
-#
-#             concat_latent_image = vae.encode(image[:, :, :, :3])
-#
-#             mask = torch.ones((1, 1, latent.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=start_image.device, dtype=start_image.dtype)
-#             mask[:, :, :((start_image.shape[0] - 1) // 4) + 1] = 0.0
-#
-#             positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
-#             negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
-#
-#         if clip_vision_output is not None:
-#             positive = node_helpers.conditioning_set_values(positive, {"clip_vision_output": clip_vision_output})
-#             negative = node_helpers.conditioning_set_values(negative, {"clip_vision_output": clip_vision_output})
-#
-#         out_latent = {}
-#         out_latent["samples"] = latent
-#         return positive, negative, out_latent
-#
-#     def process_skip_images(self, frames, skip_count):
-#         if len(frames.shape) < 4:
-#             frames = frames.unsqueeze(0)
-#
-#         num_frames = frames.shape[0]
-#
-#         image_batches_tuple = torch.split(frames, 1, dim=0)
-#         image_batches_split = [item for item in image_batches_tuple]
-#
-#         new_video = None
-#         i = 0
-#
-#         while i < len(image_batches_split):
-#             if i < skip_count:
-#                 i += 1
-#                 continue
-#
-#             if not new_video is None:
-#                 new_video = torch.cat((new_video, image_batches_split[i]), 0)
-#             else:
-#                 new_video = image_batches_split[i]
-#
-#             i += 1
-#
-#         return new_video
-#
-#     def get_blank_image(self, length=1):
-#         new_image = torch.zeros([length, self.height, self.width, 3], dtype=torch.float32, device=self.offload_device)
-#         return new_image
-#
-#     def get_new_noise(self, length):
-#         new_noise = torch.zeros([length, self.height, self.width, 3], dtype=torch.float32, device=self.offload_device)
-#
-#         new_noise = self.encode_tiled(new_noise)
-#
-#         new_noise = comfy.sample.fix_empty_latent_channels(self.guider.model_patcher, new_noise)
-#
-#         if len(new_noise) < 5:
-#             new_latent = new_noise.unsqueeze(0)
-#
-#         new_noise = self.generate_noise({"samples": new_noise})
-#
-#         return new_noise
-#
-#     def pad_noise(self, latent, num_frames=1):
-#         pad_frames = torch.zeros([1, 16, num_frames, self.height, self.width], dtype=torch.float32, device=self.offload_device)
-#         pad_frames = torch.cat((latent, pad_frames), 2)
-#
-#         return pad_frames
-#
-#     def setup_callbacks(self):
-#         callback = latent_preview.prepare_callback(self.guider.model_patcher, self.sigmas.shape[-1] - 1, self.g_output)
-#
-#         return callback
-#
-#     def decode_tiled(self, latents):
-#         decoded_data = partial_decode_tiled(self.vae, latents, self.dec_tile_size, self.dec_overlap, self.dec_temporal_size, self.dec_temporal_overlap)
-#
-#         if len(decoded_data.shape) < 4:
-#             decoded_data.unsqueeze(0)
-#
-#         return decoded_data
-#
-#     def initialize_noise(self, frame_count, clear_cache=True):
-#         noise_latents_full = torch.zeros([1, 16, int(frame_count), self.height, self.width], dtype=torch.float32, device=self.offload_device)
-#         print("WarpedSamplerCustomBatch: Encoded noise_latents_full Shape: {}".format(noise_latents_full.shape))
-#
-#         if Decimal(self.noise_scale).compare(Decimal(0.00)) != 0:
-#             noise_latents_full = warped_prepare_noise(noise_latents_full, self.seed)
-#             print("WarpedSamplerCustomBatch: noise_latents_full Shape: {}".format(noise_latents_full.shape))
-#
-#             noise_latents_full = torch.mul(noise_latents_full, self.noise_scale)
-#
-#         if len(noise_latents_full.shape) < 5:
-#             noise_latents_full.unsqueeze(0)
-#
-#         noise_latents_full = noise_latents_full.to(dtype=torch.float32, device=self.offload_device)
-#
-#         if clear_cache:
-#             mm.soft_empty_cache()
-#             gc.collect()
-#             time.sleep(0.1)
-#
-#         return noise_latents_full
-#
-#     def initialize_frames(self, latents):
-#         if len(latents.shape) < 5:
-#             latents = latents.unsqueeze(0)
-#
-#         print("WarpedSamplerCustomBatch: Encoded latents_full Shape: {}".format(latents.shape))
-#         latents_full = latents.clone().detach()
-#         latents_full = latents_full.to(dtype=torch.float32, device=self.offload_device)
-#
-#         noise_latents_full = self.initialize_noise(latents_full.shape[2])
-#
-#         mm.soft_empty_cache()
-#         gc.collect()
-#         time.sleep(0.1)
-#
-#         return noise_latents_full
-#
-# class WarpedSamplerCustomScripted:
-#     @classmethod
-#     def INPUT_TYPES(s):
-#         return {"required":
-#                     {
-#                     "positive": ("STRING", {"default": None} ),
-#                     "negative": ("STRING", {"default": None}),
-#                     "clip": ("CLIP", ),
-#                     "preferred_frame_count": ("INT", {"default": 81, "min": 17, "max": nodes.MAX_RESOLUTION, "step": 4}),
-#                     "preferred_batch_size": ("INT", {"default": 17, "min": 17, "max": 161, "step": 4}),
-#                     "use_batch_size": (["next_lowest", "next_highest", "closest", "exact"], {"default": "next_lowest", "tooltip": "Number of frames generated may be impacted by choice."}),
-#                     "vae": ("VAE", ),
-#                     "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-#                     "model": ("MODEL", ),
-#                     "sampler": ("SAMPLER", ),
-#                     "sigmas": ("SIGMAS", ),
-#                     "dec_tile_size": ("INT", {"default": 256, "min": 64, "max": 4096, "step": 32}),
-#                     "dec_overlap": ("INT", {"default": 64, "min": 0, "max": 4096, "step": 32}),
-#                     "dec_temporal_size": ("INT", {"default": 64, "min": 8, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to decode at a time."}),
-#                     "dec_temporal_overlap": ("INT", {"default": 8, "min": 4, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to overlap."}),
-#                     "skip_frames": ("INT", {"default": 0, "min": 0, "max": 32, "step": 4}),
-#                     "noise_scale": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 1.00, "step": 0.01}),
-#                     "mode": (["Hunyuan", "Wan"], {"default": "Hunyuan"}),
-#                     "hunyuan_guidance_type": (["v1 (concat)", "v2 (replace)", "custom"], {"default": "v2 (replace)", "tooltip": "Only used if mode is \"Hunyuan\"."}),
-#                     "hunyuan_image_interleave": ("INT", {"default": 1, "min": 1, "max": 512, "tooltip": "How much the image influences things vs the text prompt. Higher number means more influence from the text prompt."}),
-#                     },
-#                 "optional":
-#                     {"noise_strength": ("FLOAT", {"default": 1.00, "min": 0.10, "max": 1.00, "step": 0.01}),
-#                     "blend_frames": ("INT", {"default":5, "min":0, "max": 16, "step": 1}),
-#                     "t2v_width": ("INT", {"default":480, "min":256, "max": 1280, "step": 16}),
-#                     "t2v_height": ("INT", {"default":720, "min":256, "max": 1280, "step": 16}),
-#                     "scaling_strength": ("FLOAT", {"default": 1.0}),
-#                     "clip_vision_model": ("CLIP_VISION", ),
-#                     "start_image": ("IMAGE", ),
-#                     "flux_guidance": ("FLOAT", {"default": 3.5, "min": 0.0, "max": 100.0, "step": 0.1}),
-#                     "use_flux_guidance": ("BOOLEAN", {"default": False}),
-#                     "dummy_frames": ("INT", {"default":17, "min":17, "max": 121, "step": 4, "tooltip": "Number of frames to generate in dummy batch."}),
-#                     "gen_dummy": ("BOOLEAN", {"default": False, "tooltip": "For t2v or i2v only. Will generate a dummy batch to obtain a starting image for main generation."}),
-#                     "gen_dummy_only": ("BOOLEAN", {"default": False, "tooltip": "Will generate dummy batch only."}),
-#                     "use_dummy_image": (["first", "middle", "last", "random", "all"], {"default": "last", "tooltip": "Which dummy batch image to start main generation."}),
-#                     "output_latents": ("BOOLEAN", {"default": False}),
-#                     "verbose_messaging": ("BOOLEAN", {"default": False}),
-#                     "i2v_sigmas": ("SIGMAS", {"default": None}),
-#                     "i2v_model": ("MODEL", {"default": None}),
-#                     "batches_script": ("STRING", {"default": None}),
-#                     }
-#                 }
-#
-#     RETURN_TYPES = ("IMAGE", "LATENT", "INT", "STRING", "IMAGE", )
-#     RETURN_NAMES = ("images", "latents", "seed", "generation_status", "image_used",)
-#
-#     FUNCTION = "sample"
-#
-#     CATEGORY = "Warped/General/Sampling"
-#
-#     def sample(self, positive, negative, clip, preferred_frame_count, preferred_batch_size, use_batch_size, vae, seed, model, sampler, sigmas, dec_tile_size, dec_overlap, dec_temporal_size, dec_temporal_overlap,
-#                     skip_frames, noise_scale, mode="Hunyuan", hunyuan_guidance_type="v2 (replace)", hunyuan_image_interleave=2, noise_strength=1.0, blend_frames=5, t2v_width=480, t2v_height=720, scaling_strength=1.0,
-#                     clip_vision_model=None, start_image=None, flux_guidance=3.5, dummy_frames=17, gen_dummy=False, gen_dummy_only=False, use_dummy_image="last", use_flux_guidance=False, output_latents=False, verbose_messaging=False,
-#                     i2v_sigmas=None, i2v_model=None, batches_script=None):
-#
-#         batch_scripts = None
-#
-#         if (positive is None) and (batches_script is None):
-#             raise ValueError("positive and batches_script cannot both be None.")
-#         elif not batches_script is None:
-#             if verbose_messaging:
-#                 print("\n{}\n".format(batches_script))
-#
-#             batch_scripts = {}
-#             temp_strings = batches_script.split("||")
-#
-#             for entry in temp_strings:
-#                 temp_script = entry.strip().split("|")
-#                 batch_scripts[temp_script[0].strip()] = temp_script[1].strip()
-#
-#             if verbose_messaging:
-#                 print("\n{}\n".format(batch_scripts))
-#
-#         self.device = mm.get_torch_device()
-#         self.offload_device = get_offload_device()
-#         mm.unload_all_models()
-#         gc.collect()
-#         time.sleep(1)
-#
-#         self.positive = positive
-#         self.negative = negative
-#         self.clip = clip
-#         self.use_clip = clip.clone()
-#         self.preferred_frame_count = preferred_frame_count
-#         self.preferred_batch_size = preferred_batch_size
-#         self.vae = vae
-#         self.seed = seed
-#         self.sampler = sampler
-#         self.sigmas = sigmas
-#         self.i2v_sigmas = i2v_sigmas
-#         self.noise_scale = noise_scale
-#         self.mode = mode
-#         self.dec_tile_size = dec_tile_size
-#         self.dec_overlap = dec_overlap
-#         self.dec_temporal_size = dec_temporal_size
-#         self.dec_temporal_overlap = dec_temporal_overlap
-#         self.clip_vision = clip_vision_model
-#         self.noise_strength = noise_strength
-#         self.blend_frames = blend_frames
-#         self.t2v_width = t2v_width
-#         self.t2v_height = t2v_height
-#         self.dummy_frames = dummy_frames
-#         self.dummy_latents = int((dummy_frames - 1) // 4) + 1
-#         self.gen_dummy = gen_dummy
-#         self.gen_dummy_only = gen_dummy_only
-#         self.use_dummy_image = use_dummy_image
-#         self.skip_frames = skip_frames
-#         self.verbose_messaging = verbose_messaging
-#         self.model = model
-#         self.i2v_model = i2v_model
-#         self.batches_script = batches_script
-#         self.g_output = {}
-#
-#         disable_pbar = not utils.PROGRESS_BAR_ENABLED
-#
-#         self.use_sigmas = self.sigmas
-#
-#         self.guider = WarpedGuider_Basic()
-#         self.guider.set_model(self.model)
-#         callback = self.setup_callbacks()
-#
-#         self.latent_window_size, self.batch_count, self.truncated_frame_count = self.get_latent_window_size(preferred_batch_size, self.preferred_frame_count, use_batch_size=use_batch_size)
-#         self.batch_frame_count = int(((self.truncated_frame_count - 1) // self.batch_count) + 1)
-#         print("latent_window_size: {}  |  batch_count: {}  |  truncated_frame_count: {}  | batch_frame_count: {}".format(self.latent_window_size, self.batch_count, self.truncated_frame_count, self.batch_frame_count))
-#
-#         is_i2v = True
-#
-#         if start_image is None:
-#             start_image = torch.zeros([1, self.t2v_height, self.t2v_width, 3], dtype=torch.float32, device=self.offload_device)
-#             is_i2v = False
-#
-#         print("start_image Shape: {}".format(start_image.shape))
-#
-#         self.width = int(start_image.shape[2] // 8)
-#         self.height = int(start_image.shape[1] // 8)
-#
-#         noise, dummy_noise = self.setup_latent_noise()
-#
-#         output_images = []
-#         output_images_latents = None
-#         interrupted = False
-#         generation_status = ""
-#         total_images_generated = 0
-#         is_dummy_section = False
-#         is_first_section = False
-#         is_last_section = False
-#         switch_guider = True
-#         last_image = None
-#         positive_prompt = positive
-#
-#         if not self.gen_dummy:
-#             print("Generating {} Batches".format(self.batch_count))
-#         else:
-#             print("Generating Dummy Batch Plus {} Batches".format(self.batch_count))
-#
-#         generation_batches = list(range(self.batch_count))
-#
-#         if self.gen_dummy and (not self.gen_dummy_only):
-#             generation_batches = [0] + generation_batches
-#             is_dummy_section = True
-#         else:
-#             generation_batches = [0]
-#             is_dummy_section = True
-#
-#         print("generation_batches: {}".format(generation_batches))
-#
-#         try:
-#             for i, generation_batch in enumerate(generation_batches):
-#                 batch_number = generation_batches[i]
-#                 batch_key = "{}".format(batch_number)
-#
-#                 if is_dummy_section:
-#                     print("Generating Dummy Batch.")
-#                     is_first_section = False
-#
-#                     if not self.gen_dummy_only:
-#                         is_last_section = False
-#                     else:
-#                         is_last_section = True
-#
-#                     if not batch_scripts is None:
-#                         positive_prompt = batch_scripts["dummy"]
-#                         print("\nDummy Section Positive Prompt: {}\n".format(positive_prompt))
-#                         last_prompt = positive_prompt
-#                 else:
-#                     print("Generating Batch {}.".format(batch_number))
-#
-#                     is_first_section = batch_number == min(generation_batches)
-#                     is_last_section = batch_number == max(generation_batches)
-#
-#                     if not batch_scripts is None:
-#                         if batch_key in batch_scripts.keys():
-#                             positive_prompt = batch_scripts[batch_key]
-#                             last_prompt = positive_prompt
-#                         else:
-#                             positive_prompt = last_prompt
-#
-#                         print("\nBatch: {} Positive Prompt: {}\n".format(batch_number, positive_prompt))
-#
-#                 print("is_first_section: {}  |  is_last_section: {}  |  is_dummy_section: {}".format(is_first_section, is_last_section, is_dummy_section))
-#
-#                 mm.soft_empty_cache()
-#                 gc.collect()
-#                 time.sleep(0.1)
-#
-#                 image_embeds = None
-#
-#                 print("start_image Shape: {}".format(start_image.shape))
-#
-#                 if is_i2v:
-#                     if len(start_image.shape) < 4:
-#                         start_image = start_image.unsqueeze(0)
-#
-#                     print("Performing clip_vision_encode.")
-#                     image_embeds = self.clip_vision_encode(start_image.clone().detach())
-#
-#                 if not is_dummy_section:
-#                     noise_latents = noise[batch_number]
-#                 else:
-#                     noise_latents = dummy_noise
-#
-#                 print("noise_latents Shape: {}".format(noise_latents.shape))
-#
-#                 noise_mask = None
-#
-#                 if mode == "Hunyuan":
-#                     if is_i2v:
-#                         if (not self.i2v_model is None) and switch_guider:
-#                             switch_guider = False
-#                             callback = None
-#                             self.guider = WarpedGuider_Basic()
-#                             self.guider.set_model(self.i2v_model)
-#                             callback = self.setup_callbacks()
-#
-#                         self.use_clip = self.clip.clone()
-#                         temp_cond = self.hunyuan_text_encode(self.use_clip, image_embeds, positive_prompt, hunyuan_image_interleave)
-#                         positive_cond, latents = self.hunyuan_encode(temp_cond, self.vae, start_image.shape[2], start_image.shape[1], self.batch_frame_count, 1, hunyuan_guidance_type, start_image=start_image)
-#
-#                         if "noise_mask" in latents:
-#                             noise_mask = latents["noise_mask"] * scaling_strength
-#
-#                         latents = latents["samples"]
-#
-#                         # latents = latents["samples"] * (scaling_strength * vae_scaling_factor)
-#                     else:
-#                         positive_cond = self.do_text_encode(self.use_clip, positive_prompt)
-#                         latents = torch.zeros([1, 16, noise_latents.shape[2], self.height, self.width], dtype=torch.float32, device=self.offload_device)
-#
-#                         latents = latents * scaling_strength # scaling_strength
-#
-#                     if use_flux_guidance:
-#                         positive_cond = self.apply_flux_guidance(positive_cond, flux_guidance)
-#
-#                     self.guider.set_conds_single(positive_cond)
-#                 else:
-#                     # if is_i2v:
-#                     #     if (not self.i2v_model is None) and switch_guider:
-#                     #         switch_guider = False
-#                     #         callback = None
-#                     #         self.guider = WarpedGuider_Basic()
-#                     #         self.guider.set_model(self.i2v_model)
-#                     #         callback = self.setup_callbacks()
-#                     if not is_i2v:
-#                         positive_cond, negative_cond = self.wan_text_encode(self.use_clip, positive_text=positive_prompt, negative_text=negative)
-#                         positive_cond, negative_cond, latents = self.wan_encode(positive_cond, negative_cond, self.vae, start_image.shape[2], start_image.shape[1], ((noise_latents.shape[2] - 1) * 4) + 1, 1, start_image=None, clip_vision_output=None)
-#                     else:
-#                         positive_cond, negative_cond = self.wan_text_encode(self.use_clip, positive_text=positive_prompt, negative_text=negative)
-#                         positive_cond, negative_cond, latents = self.wan_encode(positive_cond, negative_cond, self.vae, start_image.shape[2], start_image.shape[1], ((noise_latents.shape[2] - 1) * 4) + 1, 1, start_image=start_image, clip_vision_output=image_embeds)
-#
-#                     latents = latents["samples"] * scaling_strength
-#
-#                     self.guider.set_conds_both(positive_cond, negative_cond)
-#
-#                 print("latents Shape: {}".format(latents.shape))
-#
-#                 num_frames = int(((latents.shape[2] - 1) * 4) + 1)
-#
-#                 print("\nDecoded Width is {}  |  Decoded Height is {}".format(int(self.width * 8), int(self.height * 8)))
-#
-#                 print("-------------------------------------------------------------------------------------------")
-#                 print("WarpedSamplerCustomScripted: Latents Shape: {}  |  Noise Latents Shape: {}".format(latents.shape, noise_latents.shape))
-#                 print("-------------------------------------------------------------------------------------------")
-#
-#                 print("Noise Shape: {}  |  Latents Shape: {}".format(noise_latents.shape, latents.shape))
-#                 print("WarpedSamplerCustomScripted: Generating {} Frames in {} Latents....".format(num_frames, latents.shape[2]))
-#
-#                 samples = self.guider.sample(noise_latents, latents, self.sampler, self.use_sigmas, denoise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=self.seed)
-#                 samples = samples.to(mm.intermediate_device())
-#
-#                 mm.unload_all_models()
-#                 mm.soft_empty_cache()
-#                 gc.collect()
-#                 time.sleep(1)
-#
-#                 if len(samples.shape) < 5:
-#                     samples = samples.unsqueeze(0)
-#
-#                 samples = samples.clone().detach() / scaling_strength # (scaling_strength * vae_scaling_factor)
-#
-#                 print("WarpedSamplerCustomScripted: Decoding Latents...")
-#                 decoded_images = self.decode_tiled(samples)
-#
-#                 if not is_dummy_section or (is_dummy_section and ((self.use_dummy_image == "all") or self.gen_dummy_only)):
-#                     output_images.append(decoded_images)
-#                     total_images_generated += decoded_images.shape[0]
-#
-#                 samples = None
-#
-#                 # output_images = self.process_skip_images(output_images, skip_frames)
-#                 print("WarpedSamplerCustomScripted: Decoded Images Shape: {}".format(decoded_images.shape[0]))
-#
-#                 # if output_latents:
-#                 #     output_images_latents = self.encode_tiled(output_images)
-#
-#                 print("WarpedSamplerCustomScripted: Generating {} frames in {} latents...Done.".format(num_frames, latents.shape[2]))
-#
-#                 if not is_i2v:
-#                     self.guider.model_patcher.model.to(get_offload_device())
-#                     # guider.set_i2v_model()
-#
-#                     if not self.i2v_sigmas is None:
-#                         self.use_sigmas = self.i2v_sigmas
-#
-#                 if not is_last_section:
-#                     print("HERE 9090000")
-#                     decoded_tuple = torch.split(decoded_images, 1, dim=0)
-#                     decoded_split = [item for item in decoded_tuple]
-#                     decoded_images = decoded_images.to(get_offload_device())
-#                     decoded_images = None
-#
-#                     if (not is_dummy_section) or (is_dummy_section and ((self.use_dummy_image == "last") or (self.use_dummy_image == "all"))):
-#                         print("HERE 9090000a")
-#                         start_image = decoded_split[len(decoded_split) - 1].clone().detach()
-#                     elif is_dummy_section:
-#                         print("HERE 9090000b")
-#                         if self.use_dummy_image == "first":
-#                             print("HERE 9090000c")
-#                             start_image = decoded_split[0].clone().detach()
-#                         elif self.use_dummy_image == "middle":
-#                             print("HERE 9090000d")
-#                             start_image = decoded_split[int(len(decoded_split) // 2)].clone().detach()
-#                         else:
-#                             print("HERE 9090000e")
-#                             random.seed(self.seed)
-#                             start_image = dummy_split[random.randrange(0, len(decoded_split) - 1, 1)].clone().detach()
-#
-#                     is_i2v = True
-#
-#                 if last_image is None:
-#                     last_image = start_image.clone().detach()
-#
-#                 print("HERE 9090001")
-#
-#                 samples = None
-#                 latents = None
-#
-#                 mm.soft_empty_cache()
-#                 gc.collect()
-#                 time.sleep(0.1)
-#
-#                 print("*******************************************")
-#                 print("****** WarpedSamplerCustomScripted: Total Images Generated {}".format(total_images_generated))
-#                 print("*******************************************\n")
-#
-#                 generation_status = "****** WarpedSamplerCustomScripted: Total Images Generated {} ******".format(total_images_generated)
-#
-#                 interrupted = False
-#
-#                 print("HERE 9090002")
-#
-#                 if is_dummy_section:
-#                     print("HERE 9090003")
-#
-#                     if self.gen_dummy_only:
-#                         print("HERE 9090004")
-#                         break
-#
-#                     print("HERE 9090005")
-#
-#                     is_dummy_section = False
-#
-#                 print("HERE 9090006")
-#         except mm.InterruptProcessingException as ie:
-#             interrupted = True
-#             print(f"\nWarpedSamplerCustomScripted: Processing Interrupted.")
-#             print("WarpedSamplerCustomScripted: Returning only partial results (if any).\n If zero images generated, a blank yellow image will be returned.\n")
-#             mm.unload_all_models()
-#             mm.soft_empty_cache()
-#             gc.collect()
-#             time.sleep(1)
-#
-#             generation_status = f"\nWarpedSamplerCustomScripted: Processing Interrupted."
-#
-#             traceback.print_tb(ie.__traceback__, limit=99, file=sys.stdout)
-#
-#             raise mm.InterruptProcessingException(f"WarpedSamplerCustomScripted: Processing Interrupted.")
-#
-#         except BaseException as e:
-#             print(f"\nWarpedSamplerCustomScripted: Exception During Processing: {str(e)}")
-#             print("WarpedSamplerCustomScripted: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned.\n")
-#             mm.unload_all_models()
-#             mm.soft_empty_cache()
-#             gc.collect()
-#             time.sleep(1)
-#
-#             generation_status = f"WarpedSamplerCustomScripted: Exception During Processing: {str(e)}"
-#             generation_status = "{}{}".format(generation_status, "WarpedSamplerCustomScripted: Returning only partial results (if any).\nIf zero images generated, a blank red image will be returned.")
-#
-#             traceback.print_tb(e.__traceback__, limit=99, file=sys.stdout)
-#
-#             pass
-#
-#         callback = None
-#         self.guider.model_patcher.model.to(get_offload_device())
-#
-#         latent = None
-#         latent_image = None
-#         noise_mask = None
-#         samples = None
-#
-#         torch.cuda.empty_cache()
-#         torch.cuda.ipc_collect()
-#         gc.collect()
-#         time.sleep(1)
-#
-#         mm.unload_all_models()
-#         mm.soft_empty_cache()
-#         gc.collect()
-#         time.sleep(1)
-#
-#         image = None
-#
-#         if interrupted and (len(output_images) < 1):
-#             temp_image = Image.new('RGB', (self.width * 8, self.height * 8), color = 'yellow')
-#             image = pil2tensorSwap(temp_image)
-#             final_images = image
-#         elif (len(output_images) < 1):
-#             temp_image = Image.new('RGB', (self.width * 8, self.height * 8), color = 'red')
-#             image = pil2tensorSwap(temp_image)
-#             final_images = image
-#         else:
-#             final_images = self.assemble_final_result(output_images)
-#
-#         if output_images_latents is None:
-#             output_images_latents = torch.zeros([1, 16, 1, self.height, self.width], dtype=torch.float32, device=self.offload_device)
-#
-#         return (final_images, {"samples": output_images_latents}, self.seed, generation_status, last_image,)
-#
-#     def assemble_final_result(self, image_batches):
-#         if self.blend_frames < 1:
-#             resulting_images = None
-#             for entry in image_batches:
-#                 if not resulting_images is None:
-#                     resulting_images = torch.cat((resulting_images, entry), 0)
-#                 else:
-#                     resulting_images = entry
-#
-#                 entry.to(device=self.offload_device)
-#                 entry = None
-#         else:
-#             blend_value = 1.0 / self.blend_frames
-#             i = 0
-#             while i < (len(image_batches) - 1):
-#                 alpha_blend_val = blend_value
-#                 blend_count = self.blend_frames
-#
-#                 image_batches_tuple = torch.split(image_batches[i], 1, dim=0)
-#                 image_batches_split = [item for item in image_batches_tuple]
-#                 image1 = image_batches_split[len(image_batches_split) - 1]
-#                 # image1 = image_batches_split[len(image_batches_split) - 4]
-#                 image_batches_tuple = None
-#                 image_batches_split = None
-#
-#                 image_batches_tuple = torch.split(image_batches[i + 1], 1, dim=0)
-#                 image_batches_split = [item for item in image_batches_tuple]
-#                 image2 = image_batches_split[0]
-#                 image_batches_tuple = None
-#                 image_batches_split = None
-#
-#                 image1 = tensor2pilSwap(image1)[0]
-#                 image2 = tensor2pilSwap(image2)[0]
-#
-#                 blend_latents = None
-#
-#                 while blend_count > 0:
-#                     blended_image = Image.blend(image1, image2, alpha_blend_val)
-#                     temp_latent = pil2tensorSwap(blended_image)
-#                     blended_image = None
-#
-#                     if len(temp_latent.shape) < 4:
-#                         temp_latent = temp_latent.unsqueeze(0)
-#
-#                     if not blend_latents is None:
-#                         blend_latents = torch.cat((blend_latents, temp_latent), 0)
-#                     else:
-#                         blend_latents = temp_latent
-#
-#                     alpha_blend_val += blend_value
-#                     blend_count -= 1
-#
-#                 image_batches_tuple = torch.split(image_batches[i], image_batches[i].shape[0] - 3, dim=0)
-#                 image_batches_split = [item for item in image_batches_tuple]
-#                 image_batches_tuple = None
-#
-#                 image_batches[i] = torch.cat((image_batches_split[0], blend_latents), 0)
-#                 blend_latents = None
-#                 image_batches_split = None
-#
-#                 self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
-#
-#                 i += 1
-#
-#             resulting_images = None
-#             for entry in image_batches:
-#                 if not resulting_images is None:
-#                     resulting_images = torch.cat((resulting_images, entry), 0)
-#                 else:
-#                     resulting_images = entry
-#
-#                 entry.to(device=self.offload_device)
-#
-#             image_batches = None
-#
-#             self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
-#
-#
-#         print("assemble_final_result: Full decoded images count: {}".format(resulting_images.shape[0]))
-#
-#         if self.skip_frames < 1:
-#             return resulting_images
-#
-#         skipped_frames = 1
-#
-#         image_batches_tuple = torch.split(resulting_images, 1, dim=0)
-#         image_batches_split = [item for item in image_batches_tuple]
-#
-#         resulting_images = None
-#
-#         for image in image_batches_split:
-#             if skipped_frames <= self.skip_frames:
-#                 skipped_frames += 1
-#                 continue
-#
-#             if not resulting_images is None:
-#                 resulting_images = torch.cat((resulting_images, image), 0)
-#             else:
-#                 resulting_images = image
-#
-#         print("assemble_final_result: Final decoded images count: {}".format(resulting_images.shape[0]))
-#
-#         return resulting_images
-#
-#     def cleanup(self, unload_models=False, cleanup_models=False, cleanup_cuda=False):
-#         if unload_models:
-#             mm.unload_all_models()
-#
-#         if cleanup_models:
-#             mm.cleanup_models()
-#
-#         if cleanup_cuda:
-#             mm.soft_empty_cache()
-#
-#         gc.collect()
-#         time.sleep(1)
-#
-#         return
-#
-#     def generate_noise(self, input_latent, generator=None):
-#         latent_image = input_latent["samples"]
-#         return warped_prepare_noise(latent_image, self.seed, generator=generator)
-#
-#     def setup_latent_noise(self):
-#         dummy_noise = None
-#
-#         if self.gen_dummy:
-#             rnd = torch.Generator("cpu").manual_seed(self.seed)
-#             dummy_noise = torch.randn((1, 16, self.dummy_latents, self.height, self.width), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
-#
-#         noise = []
-#
-#         for i in range(self.batch_count):
-#             rnd = torch.Generator("cpu").manual_seed(self.seed)
-#             temp_noise = torch.randn((1, 16, self.latent_window_size, self.height, self.width), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
-#
-#             noise.append(temp_noise)
-#             temp_noise = None
-#
-#         if self.verbose_messaging:
-#             if not dummy_noise is None:
-#                 print("\nsetup_latent_noise: dummy_noise Shape: {}".format(dummy_noise.shape))
-#
-#             i = 0
-#             for entry in noise:
-#                 print("setup_latent_noise: Batch: {}  |  noise Shape: {}".format(i, entry.shape))
-#                 i += 1
-#
-#             print("\n")
-#
-#         return noise, dummy_noise
-#
-#     def get_latent_window_size(self, preferred_batch_size, frame_count, use_batch_size="next_lowest"):
-#         latent_size_factor = 4
-#
-#         if self.verbose_messaging:
-#             print("get_latent_window_size: preferred_batch_size: {}".format(preferred_batch_size))
-#             print("get_latent_window_size: frame_count: {}".format(frame_count))
-#             print("get_latent_window_size: use_batch_size: {}".format(use_batch_size))
-#
-#         num_frames = int(((frame_count - 1) // 4) * 4) + 1
-#
-#         if num_frames != frame_count:
-#             print(f"Truncating video from {frame_count} to {num_frames} an because odd number of frames is not allowed.")
-#
-#         if ((num_frames - 1) % (preferred_batch_size - 1)) == 0:
-#             print("(1) latent_window_size set to: {}".format(self.decoded_to_encoded_length(preferred_batch_size)))
-#             print("(1) batch_count set to: {}".format(int((num_frames - 1) / (preferred_batch_size - 1))))
-#             return self.decoded_to_encoded_length(preferred_batch_size), int((num_frames - 1) / (preferred_batch_size - 1)), num_frames
-#
-#         if use_batch_size == "exact":
-#             num_frames_final = int(((num_frames - 1) // (preferred_batch_size - 1)) + 1) * (preferred_batch_size - 1)
-#
-#             if num_frames_final != frame_count:
-#                 print(f"Truncating video from {num_frames} to {num_frames_final} frames for preferred_batch_size compatibility.")
-#
-#             print("(2) latent_window_size set to: {}".format(self.decoded_to_encoded_length(preferred_batch_size + 1)))
-#             print("(2) batch_count set to: {}".format(int((num_frames_final - 1) / (preferred_batch_size - 1))))
-#             return self.decoded_to_encoded_length(preferred_batch_size), int((num_frames_final - 1) / (preferred_batch_size - 1)), num_frames_final
-#
-#         next_lowest_found = False
-#         next_highest_found = False
-#         next_lowest = preferred_batch_size - 1
-#         next_highest = preferred_batch_size - 1
-#
-#         if self.verbose_messaging:
-#             print("get_latent_window_size: Next Lowest Initialized To: {}".format(next_lowest))
-#             print("get_latent_window_size: Next Highest Initialized To: {}".format(next_highest))
-#
-#         num_frames_final = int(((num_frames - 1) // 4) * 4) + 1
-#
-#         if num_frames != num_frames_final:
-#             print(f"Truncating video from {num_frames} to {num_frames_final} frames for latent_window_size compatibility.")
-#
-#         if (use_batch_size == "closest") or (use_batch_size == "next_lowest"):
-#             while next_lowest >= 12:
-#                 next_lowest -= 4
-#
-#                 if (int((num_frames_final - 1) // 4) % next_lowest) == 0:
-#                     next_lowest_found = True
-#                     break
-#
-#             next_lowest += 1
-#
-#             if next_lowest_found and (use_batch_size == "next_lowest"):
-#                 print("(3) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_lowest + 1)))
-#                 print("(3) batch_count set to: {}".format(int((num_frames_final - 1) / next_lowest)))
-#                 return self.decoded_to_encoded_length(next_lowest + 1), int((num_frames_final - 1) / next_lowest), num_frames_final
-#
-#         while next_highest <= 156:
-#             next_highest += 4
-#
-#             if (int((num_frames_final - 1) // 4) % next_highest) == 0:
-#                 next_highest_found = True
-#                 break
-#
-#         if next_highest_found and (use_batch_size == "next_highest"):
-#             print("(4) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_highest + 1)))
-#             print("(4) batch_count set to: {}".format(int((num_frames_final - 1) / next_highest)))
-#             return self.decoded_to_encoded_length(next_highest + 1), int((num_frames_final - 1) / next_highest), num_frames_final
-#
-#         if next_highest_found and next_lowest_found:
-#             if (preferred_batch_size - next_lowest) <= (next_highest - preferred_batch_size):
-#                 print("(5) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_lowest + 1)))
-#                 print("(5) batch_count set to: {}".format(int((num_frames_final - 1) / next_lowest)))
-#                 return self.decoded_to_encoded_length(next_lowest + 1), int((num_frames_final - 1) / next_lowest), num_frames_final
-#             elif (next_highest - preferred_batch_size) < (preferred_batch_size - next_lowest):
-#                 print("(6) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_highest + 1)))
-#                 print("(6) batch_count set to: {}".format(int((num_frames_final - 1) / next_highest)))
-#                 return self.decoded_to_encoded_length(next_highest + 1), int((num_frames_final - 1) / next_highest), num_frames_final
-#
-#         print("Unable to find a compatible latent_window_size for number of frames = {} and preferred_batch_size = {}.".format(frame_count, preferred_batch_size))
-#         print("Recalculating Number Of Frames Based On preferred_batch_size of: {}".format(preferred_batch_size))
-#
-#         return self.calculate_new_number_of_frames(preferred_batch_size, (((frame_count - 1) // 4) * 4) + 1, use_batch_size)
-#
-#     def calculate_new_number_of_frames(self, preferred_batch_size, frame_count, use_batch_size):
-#         working_batch_size = preferred_batch_size - 1
-#         working_frame_count = frame_count - 1
-#
-#         next_lowest = next_highest = working_frame_count
-#         next_lowest_found = False
-#         next_highest_found = False
-#
-#         while next_lowest > 37:
-#             next_lowest -= 4
-#
-#             if int(next_lowest % working_batch_size) == 0:
-#                 next_lowest_found = True
-#                 break
-#
-#         if next_lowest_found and (use_batch_size == "next_lowest"):
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
-#
-#         while next_highest < 999997:
-#             next_highest += 4
-#
-#             if int(next_highest % working_batch_size) == 0:
-#                 next_highest_found = True
-#                 break
-#
-#         if next_highest_found and (use_batch_size == "next_highest"):
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
-#
-#         if next_lowest_found and next_highest_found:
-#             if (working_frame_count - next_lowest) <= (next_highest - working_frame_count):
-#                 return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
-#
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
-#
-#         if next_lowest_found:
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
-#
-#         if next_highest_found:
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
-#
-#         raise ValueError("Unable to find a compatible latent_window_size for number of frames = {} and preferred_batch_size = {}.".format(frame_count, preferred_batch_size))
-#
-#     def clip_vision_encode(self, image, crop="center"):
-#             crop_image = False
-#             if crop != "center":
-#                 crop_image = False
-#             output = self.clip_vision.encode_image(image, crop=crop_image)
-#             return output
-#
-#     def encoded_to_decoded_length(self, latent_length):
-#         if latent_length <= 0:
-#             return 0
-#
-#         result_length = ((latent_length - 1) * 4) + 1
-#
-#         return result_length
-#
-#     def decoded_to_encoded_length(self, image_length):
-#         if image_length <= 0:
-#             return 0
-#
-#         result_length = int(((image_length - 1) / 4) + 1)
-#
-#         return result_length
-#
-#     def apply_flux_guidance(self, conditioning, guidance):
-#         c = node_helpers.conditioning_set_values(conditioning, {"guidance": guidance})
-#         return c
-#
-#     def hunyuan_text_encode(self, clip, clip_vision_output, prompt, image_interleave):
-#         tokens = clip.tokenize(prompt, llama_template=PROMPT_TEMPLATE_ENCODE_VIDEO_I2V, image_embeds=clip_vision_output.mm_projected, image_interleave=image_interleave)
-#         return clip.encode_from_tokens_scheduled(tokens)
-#
-#     def hunyuan_encode(self, positive, vae, width, height, length, batch_size, guidance_type, start_image=None):
-#         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
-#         out_latent = {}
-#
-#         if start_image is not None:
-#             start_image = comfy.utils.common_upscale(start_image[:length, :, :, :3].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-#
-#             concat_latent_image = vae.encode(start_image)
-#             mask = torch.ones((1, 1, latent.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=start_image.device, dtype=start_image.dtype)
-#             mask[:, :, :((start_image.shape[0] - 1) // 4) + 1] = 0.0
-#
-#             if guidance_type == "v1 (concat)":
-#                 cond = {"concat_latent_image": concat_latent_image, "concat_mask": mask}
-#             elif guidance_type == "v2 (replace)":
-#                 cond = {'guiding_frame_index': 0}
-#                 latent[:, :, :concat_latent_image.shape[2]] = concat_latent_image
-#                 out_latent["noise_mask"] = mask
-#             elif guidance_type == "custom":
-#                 cond = {"ref_latent": concat_latent_image}
-#
-#             positive = node_helpers.conditioning_set_values(positive, cond)
-#
-#         out_latent["samples"] = latent
-#         return positive, out_latent
-#
-#     def wan_text_encode(self, clip, positive_text="", negative_text=""):
-#         print("wan_text_encode: Loading clip model to device: {}".format(clip.patcher.load_device))
-#         clip.patcher.model.to(device=clip.patcher.load_device)
-#
-#         print("wan_text_encode: Encoding Prompts...")
-#         positive_conditioning = self.do_text_encode(clip, positive_text)
-#         negative_conditioning = self.do_text_encode(clip, negative_text)
-#         print("wan_text_encode: Encoding Prompts...Done.")
-#
-#         print("wan_text_encode: Unloading clip model to device: {}".format(get_offload_device()))
-#         clip.patcher.model.to(device=get_offload_device())
-#
-#         if torch.cuda.is_available():
-#             torch.cuda.empty_cache()
-#
-#         gc.collect()
-#         time.sleep(1)
-#
-#         return positive_conditioning, negative_conditioning
-#
-#     def encode(self, clip, text):
-#         if clip is None:
-#             raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
-#         tokens = clip.tokenize(text)
-#         return clip.encode_from_tokens_scheduled(tokens)
-#
-#     def do_text_encode(self, clip, text):
-#
-#         if clip is None:
-#             raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
-#
-#         tokens = clip.tokenize(text)
-#         return_encoding = clip.encode_from_tokens_scheduled(tokens)
-#
-#         return return_encoding
-#
-#     def wan_encode(self, positive, negative, vae, width, height, length, batch_size, start_image=None, clip_vision_output=None):
-#         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
-#         if start_image is not None:
-#             start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-#             image = torch.mul(torch.ones((length, height, width, start_image.shape[-1]), device=start_image.device, dtype=start_image.dtype), 0.5)
-#             image[:start_image.shape[0]] = start_image
-#
-#             concat_latent_image = vae.encode(image[:, :, :, :3])
-#
-#             mask = torch.ones((1, 1, latent.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=start_image.device, dtype=start_image.dtype)
-#             mask[:, :, :((start_image.shape[0] - 1) // 4) + 1] = 0.0
-#
-#             positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
-#             negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
-#
-#         if clip_vision_output is not None:
-#             positive = node_helpers.conditioning_set_values(positive, {"clip_vision_output": clip_vision_output})
-#             negative = node_helpers.conditioning_set_values(negative, {"clip_vision_output": clip_vision_output})
-#
-#         out_latent = {}
-#         out_latent["samples"] = latent
-#         return positive, negative, out_latent
-#
-#     def process_skip_images(self, frames, skip_count):
-#         if len(frames.shape) < 4:
-#             frames = frames.unsqueeze(0)
-#
-#         num_frames = frames.shape[0]
-#
-#         image_batches_tuple = torch.split(frames, 1, dim=0)
-#         image_batches_split = [item for item in image_batches_tuple]
-#
-#         new_video = None
-#         i = 0
-#
-#         while i < len(image_batches_split):
-#             if i < skip_count:
-#                 i += 1
-#                 continue
-#
-#             if not new_video is None:
-#                 new_video = torch.cat((new_video, image_batches_split[i]), 0)
-#             else:
-#                 new_video = image_batches_split[i]
-#
-#             i += 1
-#
-#         return new_video
-#
-#     def get_blank_image(self, length=1):
-#         new_image = torch.zeros([length, self.height, self.width, 3], dtype=torch.float32, device=self.offload_device)
-#         return new_image
-#
-#     def get_new_noise(self, length):
-#         new_noise = torch.zeros([length, self.height, self.width, 3], dtype=torch.float32, device=self.offload_device)
-#
-#         new_noise = self.encode_tiled(new_noise)
-#
-#         new_noise = comfy.sample.fix_empty_latent_channels(self.guider.model_patcher, new_noise)
-#
-#         if len(new_noise) < 5:
-#             new_latent = new_noise.unsqueeze(0)
-#
-#         new_noise = self.generate_noise({"samples": new_noise})
-#
-#         return new_noise
-#
-#     def pad_noise(self, latent, num_frames=1):
-#         pad_frames = torch.zeros([1, 16, num_frames, self.height, self.width], dtype=torch.float32, device=self.offload_device)
-#         pad_frames = torch.cat((latent, pad_frames), 2)
-#
-#         return pad_frames
-#
-#     def setup_callbacks(self):
-#         callback = latent_preview.prepare_callback(self.guider.model_patcher, self.sigmas.shape[-1] - 1, self.g_output)
-#
-#         return callback
-#
-#     def decode_tiled(self, latents):
-#         decoded_data = partial_decode_tiled(self.vae, latents, self.dec_tile_size, self.dec_overlap, self.dec_temporal_size, self.dec_temporal_overlap)
-#
-#         if len(decoded_data.shape) < 4:
-#             decoded_data.unsqueeze(0)
-#
-#         return decoded_data
-#
-#     def initialize_noise(self, frame_count, clear_cache=True):
-#         noise_latents_full = torch.zeros([1, 16, int(frame_count), self.height, self.width], dtype=torch.float32, device=self.offload_device)
-#         print("WarpedSamplerCustomScripted: Encoded noise_latents_full Shape: {}".format(noise_latents_full.shape))
-#
-#         if Decimal(self.noise_scale).compare(Decimal(0.00)) != 0:
-#             noise_latents_full = warped_prepare_noise(noise_latents_full, self.seed)
-#             print("WarpedSamplerCustomScripted: noise_latents_full Shape: {}".format(noise_latents_full.shape))
-#
-#             noise_latents_full = torch.mul(noise_latents_full, self.noise_scale)
-#
-#         if len(noise_latents_full.shape) < 5:
-#             noise_latents_full.unsqueeze(0)
-#
-#         noise_latents_full = noise_latents_full.to(dtype=torch.float32, device=self.offload_device)
-#
-#         if clear_cache:
-#             mm.soft_empty_cache()
-#             gc.collect()
-#             time.sleep(0.1)
-#
-#         return noise_latents_full
-#
-#     def initialize_frames(self, latents):
-#         if len(latents.shape) < 5:
-#             latents = latents.unsqueeze(0)
-#
-#         print("WarpedSamplerCustomScripted: Encoded latents_full Shape: {}".format(latents.shape))
-#         latents_full = latents.clone().detach()
-#         latents_full = latents_full.to(dtype=torch.float32, device=self.offload_device)
-#
-#         noise_latents_full = self.initialize_noise(latents_full.shape[2])
-#
-#         mm.soft_empty_cache()
-#         gc.collect()
-#         time.sleep(0.1)
-#
-#         return noise_latents_full
+class WarpedSamplerCustomScripted:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {
+                    "positive": ("STRING", {"default": None} ),
+                    "negative": ("STRING", {"default": None}),
+                    "clip": ("CLIP", ),
+                    "preferred_frame_count": ("INT", {"default": 81, "min": 17, "max": nodes.MAX_RESOLUTION, "step": 4}),
+                    "preferred_batch_size": ("INT", {"default": 17, "min": 17, "max": 161, "step": 4}),
+                    "use_batch_size": (["next_lowest", "next_highest", "closest", "exact"], {"default": "next_lowest", "tooltip": "Number of frames generated may be impacted by choice."}),
+                    "vae": ("VAE", ),
+                    "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                    "model": ("MODEL", ),
+                    "sampler": ("SAMPLER", ),
+                    "sigmas": ("SIGMAS", ),
+                    "dec_tile_size": ("INT", {"default": 256, "min": 64, "max": 4096, "step": 32}),
+                    "dec_overlap": ("INT", {"default": 64, "min": 0, "max": 4096, "step": 32}),
+                    "dec_temporal_size": ("INT", {"default": 64, "min": 8, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to decode at a time."}),
+                    "dec_temporal_overlap": ("INT", {"default": 8, "min": 4, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to overlap."}),
+                    "skip_frames": ("INT", {"default": 0, "min": 0, "max": 32, "step": 4}),
+                    "noise_scale": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 1.00, "step": 0.01}),
+                    "mode": (["Hunyuan", "Wan 2.1", "Wan 2.2 TI2V", "Wan 2.2 Standard"], {"default": "Hunyuan"}),
+                    "hunyuan_guidance_type": (["v1 (concat)", "v2 (replace)", "custom"], {"default": "v2 (replace)", "tooltip": "Only used if mode is \"Hunyuan\"."}),
+                    "hunyuan_image_interleave": ("INT", {"default": 1, "min": 1, "max": 512, "tooltip": "How much the image influences things vs the text prompt. Higher number means more influence from the text prompt."}),
+                    },
+                "optional":
+                    {"noise_strength": ("FLOAT", {"default": 1.00, "min": 0.10, "max": 1.00, "step": 0.01}),
+                    "blend_frames": ("INT", {"default":0, "min":0, "max": 16, "step": 1}),
+                    "t2v_width": ("INT", {"default":480, "min":256, "max": 1280, "step": 16}),
+                    "t2v_height": ("INT", {"default":720, "min":256, "max": 1280, "step": 16}),
+                    "scaling_strength": ("FLOAT", {"default": 1.0}),
+                    "clip_vision_model": ("CLIP_VISION", ),
+                    "start_image": ("IMAGE", ),
+                    "flux_guidance": ("FLOAT", {"default": 7, "min": 0.0, "max": 100.0, "step": 0.1}),
+                    "use_flux_guidance": ("BOOLEAN", {"default": False}),
+                    "dummy_frames": ("INT", {"default":17, "min":17, "max": 121, "step": 4, "tooltip": "Number of frames to generate in dummy batch."}),
+                    "gen_dummy": ("BOOLEAN", {"default": False, "tooltip": "For t2v or i2v only. Will generate a dummy batch to obtain a starting image for main generation."}),
+                    "gen_dummy_only": ("BOOLEAN", {"default": False, "tooltip": "Will generate dummy batch only."}),
+                    "use_dummy_image": (["first", "middle", "last", "random", "all"], {"default": "last", "tooltip": "Which dummy batch image to start main generation."}),
+                    "output_latents": ("BOOLEAN", {"default": False}),
+                    "verbose_messaging": ("BOOLEAN", {"default": False}),
+                    "secondary_sigmas": ("SIGMAS", {"default": None}),
+                    "secondary_model": ("MODEL", {"default": None}),
+                    "batches_script": ("WARPEDSCRIPTS", {"default": None}),
+                    }
+                }
+
+    RETURN_TYPES = ("IMAGE", "LATENT", "INT", "STRING", "IMAGE", "BOOLEAN",)
+    RETURN_NAMES = ("images", "latents", "seed", "generation_status", "image_used", "valid_output",)
+
+    FUNCTION = "sample"
+
+    CATEGORY = "Warped/General/Sampling"
+
+    def sample(self, positive, negative, clip, preferred_frame_count, preferred_batch_size, use_batch_size, vae, seed, model, sampler, sigmas, dec_tile_size, dec_overlap, dec_temporal_size, dec_temporal_overlap,
+                    skip_frames, noise_scale, mode="Hunyuan", hunyuan_guidance_type="v2 (replace)", hunyuan_image_interleave=2, noise_strength=1.0, blend_frames=5, t2v_width=480, t2v_height=720, scaling_strength=1.0,
+                    clip_vision_model=None, start_image=None, flux_guidance=3.5, dummy_frames=17, gen_dummy=False, gen_dummy_only=False, use_dummy_image="last", use_flux_guidance=False, output_latents=False, verbose_messaging=False,
+                    secondary_sigmas=None, secondary_model=None, batches_script=None):
+
+        batch_scripts = batches_script
+
+        if (positive is None) and (batches_script is None):
+            raise ValueError("positive and batches_script cannot both be None.")
+        # elif not batches_script is None:
+        #     if verbose_messaging:
+        #         print("\n{}\n".format(batches_script))
+        #
+        #     batch_scripts = {}
+        #     temp_strings = batches_script.split("||")
+        #
+        #     for entry in temp_strings:
+        #         temp_script = entry.strip().split("|")
+        #         batch_scripts[temp_script[0].strip()] = temp_script[1].strip()
+        #
+        #     if verbose_messaging:
+        #         print("\n{}\n".format(batch_scripts))
+
+        self.device = mm.get_torch_device()
+        self.offload_device = get_offload_device()
+        mm.unload_all_models()
+        gc.collect()
+        time.sleep(1)
+
+        self.positive = positive
+        self.negative = negative
+        self.clip = clip
+        self.use_clip = clip.clone()
+        self.preferred_frame_count = preferred_frame_count
+        self.preferred_batch_size = preferred_batch_size
+        self.vae = vae
+        self.seed = seed
+        self.sampler = sampler
+        self.sigmas = sigmas
+        self.secondary_sigmas = secondary_sigmas
+        self.noise_scale = noise_scale
+        self.mode = mode
+        self.dec_tile_size = dec_tile_size
+        self.dec_overlap = dec_overlap
+        self.dec_temporal_size = dec_temporal_size
+        self.dec_temporal_overlap = dec_temporal_overlap
+        self.clip_vision = clip_vision_model
+        self.noise_strength = noise_strength
+        self.blend_frames = blend_frames
+        self.t2v_width = t2v_width
+        self.t2v_height = t2v_height
+        self.dummy_frames = dummy_frames
+        self.dummy_latents = int((dummy_frames - 1) // 4) + 1
+        self.gen_dummy = gen_dummy
+        self.gen_dummy_only = gen_dummy_only
+        self.use_dummy_image = use_dummy_image
+        self.skip_frames = skip_frames
+        self.verbose_messaging = verbose_messaging
+        self.model = model
+        self.secondary_model = secondary_model
+        self.batches_script = batches_script
+        self.g_output = {}
+
+        disable_pbar = not utils.PROGRESS_BAR_ENABLED
+
+        self.use_sigmas = self.sigmas
+
+        self.guider = WarpedGuider_Basic()
+        self.guider.set_model(self.model)
+        callback = self.setup_callbacks()
+
+        self.latent_window_size, self.batch_count, self.truncated_frame_count = self.get_latent_window_size(preferred_batch_size, self.preferred_frame_count, use_batch_size=use_batch_size)
+        self.batch_frame_count = int(((self.truncated_frame_count - 1) // self.batch_count) + 1)
+        print("latent_window_size: {}  |  batch_count: {}  |  truncated_frame_count: {}  | batch_frame_count: {}".format(self.latent_window_size, self.batch_count, self.truncated_frame_count, self.batch_frame_count))
+
+        is_i2v = True
+
+        if start_image is None:
+            start_image = torch.zeros([1, self.t2v_height, self.t2v_width, 3], dtype=torch.float32, device=self.offload_device)
+            is_i2v = False
+
+        if self.mode == "Wan 2.2 TI2V":
+            self.latent_depth = 48
+        else:
+            self.latent_depth = 16
+
+        print("start_image Shape: {}".format(start_image.shape))
+
+        if self.mode != "Wan 2.2 TI2V":
+            self.width = int(start_image.shape[2] // 8)
+            self.height = int(start_image.shape[1] // 8)
+        else:
+            self.width = int(start_image.shape[2] // 16)
+            self.height = int(start_image.shape[1] // 16)
+
+        noise, dummy_noise = self.setup_latent_noise()
+
+        output_images = []
+        output_images_latents = None
+        interrupted = False
+        generation_status = ""
+        total_images_generated = 0
+        is_dummy_section = False
+        is_first_section = False
+        is_last_section = False
+        switch_guider = True
+        last_image = None
+        positive_prompt = positive
+        valid_output = False
+
+        if not self.gen_dummy:
+            print("Generating {} Batches".format(self.batch_count))
+        else:
+            if not self.gen_dummy_only:
+                print("Generating Dummy Batch Plus {} Batches".format(self.batch_count))
+            else:
+                print("Generating Dummy Batch Only")
+
+        generation_batches = list(range(self.batch_count))
+
+        if self.gen_dummy and (not self.gen_dummy_only):
+            generation_batches = [0] + generation_batches
+            is_dummy_section = True
+        else:
+            generation_batches = [0]
+            is_dummy_section = True
+
+        print("generation_batches: {}".format(generation_batches))
+
+        try:
+            for i, generation_batch in enumerate(generation_batches):
+                batch_number = generation_batches[i]
+                batch_key = "{}".format(batch_number)
+
+                if is_dummy_section:
+                    print("Generating Dummy Batch.")
+                    is_first_section = False
+
+                    if not self.gen_dummy_only:
+                        is_last_section = False
+                    else:
+                        is_last_section = True
+
+                    if not batch_scripts is None:
+                        positive_prompt = batch_scripts["dummy"]
+                        print("\nDummy Section Positive Prompt: {}\n".format(positive_prompt))
+                        last_prompt = positive_prompt
+                else:
+                    print("Generating Batch {}.".format(batch_number))
+
+                    is_first_section = batch_number == min(generation_batches)
+                    is_last_section = batch_number == max(generation_batches)
+
+                    if not batch_scripts is None:
+                        if batch_key in batch_scripts.keys():
+                            positive_prompt = batch_scripts[batch_key]
+                            last_prompt = positive_prompt
+                        else:
+                            positive_prompt = last_prompt
+
+                        print("\nBatch: {} Positive Prompt: {}\n".format(batch_number, positive_prompt))
+
+                print("is_first_section: {}  |  is_last_section: {}  |  is_dummy_section: {}".format(is_first_section, is_last_section, is_dummy_section))
+
+                mm.soft_empty_cache()
+                gc.collect()
+                time.sleep(0.1)
+
+                image_embeds = None
+
+                print("start_image Shape: {}".format(start_image.shape))
+
+                if is_i2v:
+                    print("GENERAL HERE 1")
+
+                    if len(start_image.shape) < 4:
+                        start_image = start_image.unsqueeze(0)
+
+                    if mode != "Wan 2.2 TI2V":
+                        print("Performing clip_vision_encode.")
+                        image_embeds = self.clip_vision_encode(start_image.clone().detach())
+
+                if not is_dummy_section:
+                    noise_latents = noise[batch_number]
+                else:
+                    noise_latents = dummy_noise
+
+                print("noise_latents Shape: {}".format(noise_latents.shape))
+
+                noise_mask = None
+
+                if is_i2v:
+                    if (not self.secondary_model is None) and switch_guider:
+                        switch_guider = False
+                        callback = None
+                        self.guider = WarpedGuider_Basic()
+                        self.guider.set_model(self.secondary_model)
+                        callback = self.setup_callbacks()
+                        self.use_clip = self.clip.clone()
+
+                if mode == "Hunyuan":
+                    if is_i2v:
+                        temp_cond = self.hunyuan_text_encode(self.use_clip, image_embeds, positive_prompt, hunyuan_image_interleave)
+                        positive_cond, latents = self.hunyuan_encode(temp_cond, self.vae, start_image.shape[2], start_image.shape[1], ((noise_latents.shape[2] - 1) * 4) + 1, 1, hunyuan_guidance_type, start_image=start_image)
+
+                        if "noise_mask" in latents:
+                            noise_mask = latents["noise_mask"] * scaling_strength
+
+                        latents = latents["samples"] * scaling_strength
+                    else:
+                        positive_cond = self.do_text_encode(self.use_clip, positive_prompt)
+                        latents = torch.zeros([1, 16, noise_latents.shape[2], self.height, self.width], dtype=torch.float32, device=self.offload_device)
+
+                        latents = latents * scaling_strength
+
+                    if use_flux_guidance:
+                        positive_cond = self.apply_flux_guidance(positive_cond, flux_guidance)
+
+                    self.guider.set_conds_single(positive_cond)
+                else:
+                    if not is_i2v:
+                        print("HERE WAN 1")
+                        positive_cond, negative_cond = self.wan_text_encode(self.use_clip, positive_text=positive_prompt, negative_text=negative)
+                        positive_cond, negative_cond, latents = self.wan_encode(positive_cond, negative_cond, self.vae, start_image.shape[2], start_image.shape[1], ((noise_latents.shape[2] - 1) * 4) + 1, 1, start_image=None, clip_vision_output=None)
+
+                        if "noise_mask" in latents:
+                            noise_mask = latents["noise_mask"] * scaling_strength
+
+                        latents = latents["samples"] * scaling_strength
+                    else:
+                        print("HERE WAN 2")
+
+                        temp_cond, negative_cond = self.wan_text_encode(self.use_clip, positive_text=positive_prompt, negative_text=negative)
+                        positive_cond, negative_cond, latents = self.wan_encode(temp_cond, negative_cond, self.vae, start_image.shape[2], start_image.shape[1], ((noise_latents.shape[2] - 1) * 4) + 1, 1, start_image=start_image, clip_vision_output=image_embeds)
+
+                        if "noise_mask" in latents:
+                            noise_mask = latents["noise_mask"] * scaling_strength
+
+                        latents = latents["samples"] * scaling_strength
+
+                    self.guider.set_conds_both(positive_cond, negative_cond)
 
 
-# class WarpedSamplerCustomBatch:
-#     @classmethod
-#     def INPUT_TYPES(s):
-#         return {"required":
-#                     {
-#                     "positive": ("STRING", ),
-#                     "negative": ("STRING", {"default": None}),
-#                     "clip": ("CLIP", ),
-#                     "preferred_frame_count": ("INT", {"default": 81, "min": 17, "max": nodes.MAX_RESOLUTION, "step": 4}),
-#                     "preferred_batch_size": ("INT", {"default": 17, "min": 17, "max": 161, "step": 4}),
-#                     "use_batch_size": (["next_lowest", "next_highest", "closest", "exact"], {"default": "next_lowest", "tooltip": "Number of frames generated may be impacted by choice."}),
-#                     "vae": ("VAE", ),
-#                     "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-#                     "guider": ("GUIDER", ),
-#                     "sampler": ("SAMPLER", ),
-#                     "sigmas": ("SIGMAS", ),
-#                     "dec_tile_size": ("INT", {"default": 256, "min": 64, "max": 4096, "step": 32}),
-#                     "dec_overlap": ("INT", {"default": 64, "min": 0, "max": 4096, "step": 32}),
-#                     "dec_temporal_size": ("INT", {"default": 64, "min": 8, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to decode at a time."}),
-#                     "dec_temporal_overlap": ("INT", {"default": 8, "min": 4, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to overlap."}),
-#                     "skip_frames": ("INT", {"default": 0, "min": 0, "max": 32, "step": 4}),
-#                     "noise_scale": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 1.00, "step": 0.01}),
-#                     "mode": (["Hunyuan", "Wan"], {"default": "Hunyuan"}),
-#                     "hunyuan_guidance_type": (["v1 (concat)", "v2 (replace)", "custom"], {"default": "v2 (replace)", "tooltip": "Only used if mode is \"Hunyuan\"."}),
-#                     "hunyuan_image_interleave": ("INT", {"default": 1, "min": 1, "max": 512, "tooltip": "How much the image influences things vs the text prompt. Higher number means more influence from the text prompt."}),
-#                     },
-#                 "optional":
-#                     {"noise_strength": ("FLOAT", {"default": 1.00, "min": 0.10, "max": 1.00, "step": 0.01}),
-#                     "blend_frames": ("INT", {"default":5, "min":0, "max": 16, "step": 1}),
-#                     "t2v_width": ("INT", {"default":480, "min":256, "max": 1280, "step": 16}),
-#                     "t2v_height": ("INT", {"default":720, "min":256, "max": 1280, "step": 16}),
-#                     "scaling_strength": ("FLOAT", {"default": 1.0}),
-#                     "clip_vision_model": ("CLIP_VISION", ),
-#                     "start_image": ("IMAGE", ),
-#                     "flux_guidance": ("FLOAT", {"default": 3.5, "min": 0.0, "max": 100.0, "step": 0.1}),
-#                     "use_flux_guidance": ("BOOLEAN", {"default": False}),
-#                     "dummy_frames": ("INT", {"default":17, "min":17, "max": 121, "step": 4, "tooltip": "Number of frames to generate in dummy batch."}),
-#                     "gen_dummy": ("BOOLEAN", {"default": False, "tooltip": "For t2v or i2v only. Will generate a dummy batch to obtain a starting image for main generation."}),
-#                     "gen_dummy_only": ("BOOLEAN", {"default": False, "tooltip": "Will generate dummy batch only."}),
-#                     "use_dummy_image": (["first", "middle", "last", "random", "all"], {"default": "last", "tooltip": "Which dummy batch image to start main generation."}),
-#                     "output_latents": ("BOOLEAN", {"default": False}),
-#                     "verbose_messaging": ("BOOLEAN", {"default": False}),
-#                     "i2v_sigmas": ("SIGMAS", {"default": None}),
-#                     "i2v_model": ("MODEL", {"default": None}),
-#                     "temp_cond": ("CONDITIONING", ),
-#                     "temp_latent": ("LATENT", ),
-#                     }
-#                 }
-#
-#     RETURN_TYPES = ("IMAGE", "LATENT", "INT", "STRING", "IMAGE", )
-#     RETURN_NAMES = ("images", "latents", "seed", "generation_status", "last_image",)
-#
-#     FUNCTION = "sample"
-#
-#     CATEGORY = "Warped/General/Sampling"
-#
-#     def sample(self, positive, negative, clip, preferred_frame_count, preferred_batch_size, use_batch_size, vae, seed, guider, sampler, sigmas, dec_tile_size, dec_overlap, dec_temporal_size, dec_temporal_overlap,
-#                     skip_frames, noise_scale, mode="Hunyuan", hunyuan_guidance_type="v2 (replace)", hunyuan_image_interleave=2, noise_strength=1.0, blend_frames=5, t2v_width=480, t2v_height=720, scaling_strength=1.0,
-#                     clip_vision_model=None, start_image=None, flux_guidance=3.5, dummy_frames=17, gen_dummy=False, gen_dummy_only=False, use_dummy_image="last", use_flux_guidance=False, output_latents=False, verbose_messaging=False,
-#                     i2v_sigmas=None, i2v_model=None, temp_cond=None, temp_latent=None):
-#         self.device = mm.get_torch_device()
-#         self.offload_device = get_offload_device()
-#         mm.unload_all_models()
-#         gc.collect()
-#         time.sleep(1)
-#
-#         self.positive = positive
-#         self.negative = negative
-#         self.clip = clip
-#         self.use_clip = clip.clone()
-#         self.preferred_frame_count = preferred_frame_count
-#         self.preferred_batch_size = preferred_batch_size
-#         self.vae = vae
-#         self.seed = seed
-#         self.sampler = sampler
-#         self.sigmas = sigmas
-#         self.i2v_sigmas = i2v_sigmas
-#         self.noise_scale = noise_scale
-#         self.mode = mode
-#         self.dec_tile_size = dec_tile_size
-#         self.dec_overlap = dec_overlap
-#         self.dec_temporal_size = dec_temporal_size
-#         self.dec_temporal_overlap = dec_temporal_overlap
-#         self.clip_vision = clip_vision_model
-#         self.noise_strength = noise_strength
-#         self.blend_frames = blend_frames
-#         self.t2v_width = t2v_width
-#         self.t2v_height = t2v_height
-#         self.dummy_frames = dummy_frames
-#         self.dummy_latents = int((dummy_frames - 1) // 4) + 1
-#         self.gen_dummy = gen_dummy
-#         self.gen_dummy_only = gen_dummy_only
-#         self.use_dummy_image = use_dummy_image
-#         self.skip_frames = skip_frames
-#         self.verbose_messaging = verbose_messaging
-#         self.guider = guider
-#         self.i2v_model = i2v_model
-#         self.g_output = {}
-#
-#         disable_pbar = not utils.PROGRESS_BAR_ENABLED
-#
-#         self.use_sigmas = self.sigmas
-#
-#         # self.guider = WarpedGuider_Basic()
-#         # self.guider.set_model(self.model)
-#         callback = self.setup_callbacks()
-#
-#         self.latent_window_size, self.batch_count, self.truncated_frame_count = self.get_latent_window_size(preferred_batch_size, self.preferred_frame_count, use_batch_size=use_batch_size)
-#
-#         # if not self.start_image is None:
-#         #     start_latent = partial_encode_basic(self.vae, start_image)
-#         is_i2v = True
-#
-#         if start_image is None:
-#             start_image = torch.zeros([1, self.t2v_height, self.t2v_width, 3], dtype=torch.float32, device=self.offload_device)
-#             is_i2v = False
-#
-#         print("start_image Shape: {}".format(start_image.shape))
-#
-#         self.width = int(start_image.shape[2] // 8)
-#         self.height = int(start_image.shape[1] // 8)
-#
-#         noise, dummy_noise = self.setup_latent_noise()
-#
-#         output_images = []
-#         output_images_latents = None
-#         interrupted = False
-#         generation_status = ""
-#         total_images_generated = 0
-#         is_dummy_section = False
-#         is_first_section = False
-#         is_last_section = False
-#         switch_guider = True
-#         last_image = None
-#
-#         if not self.gen_dummy:
-#             print("Generating {} Batches".format(self.batch_count))
-#         else:
-#             print("Generating Dummy Batch Plus {} Batches".format(self.batch_count))
-#
-#         generation_batches = list(range(self.batch_count))
-#
-#         if self.gen_dummy and (not self.gen_dummy_only):
-#             generation_batches = [0] + generation_batches
-#             is_dummy_section = True
-#         else:
-#             generation_batches = [0]
-#             is_dummy_section = True
-#
-#         print("generation_batches: {}".format(generation_batches))
-#
-#         try:
-#             # if not self.gen_dummy:
-#             #     i = -1
-#             # else:
-#             #     i = -2
-#             #     is_dummy_section = True
-#
-#             # for batch_number in range(self.batch_count):
-#             for i, generation_batch in enumerate(generation_batches):
-#                 batch_number = generation_batches[i]
-#                 # batch_key = "{}".format(batch_number)
-#
-#                 if is_dummy_section:
-#                     print("Generating Dummy Batch.")
-#                     is_first_section = False
-#
-#                     if not self.gen_dummy_only:
-#                         is_last_section = False
-#                     else:
-#                         is_last_section = True
-#                 else:
-#                     print("Generating Batch {}.".format(batch_number))
-#
-#                     is_first_section = batch_number == min(generation_batches)
-#                     is_last_section = batch_number == max(generation_batches)
-#
-#                 print("is_first_section: {}  |  is_last_section: {}  |  is_dummy_section: {}".format(is_first_section, is_last_section, is_dummy_section))
-#
-#                 mm.soft_empty_cache()
-#                 gc.collect()
-#                 time.sleep(0.1)
-#
-#                 image_embeds = None
-#
-#                 print("start_image Shape: {}".format(start_image.shape))
-#
-#                 if is_i2v:
-#                     if len(start_image.shape) < 4:
-#                         start_image = start_image.unsqueeze(0)
-#
-#                     # print("Performing clip_vision_encode.")
-#                     # image_embeds = self.clip_vision_encode(start_image.clone().detach())
-#
-#                 if not is_dummy_section:
-#                     noise_latents = noise[batch_number]
-#                 else:
-#                     noise_latents = dummy_noise
-#
-#                 print("noise_latents Shape: {}".format(noise_latents.shape))
-#
-#                 if mode == "Hunyuan":
-#                     if is_i2v:
-#                         # if (not self.i2v_model is None) and switch_guider:
-#                         #     switch_guider = False
-#                         #     callback = None
-#                         #     self.guider = WarpedGuider_Basic()
-#                         #     self.guider.set_model(self.i2v_model)
-#                         #     callback = self.setup_callbacks()
-#                         #
-#                         # self.use_clip = self.clip.clone()
-#                                         # hunyuan_text_encode(self, clip, clip_vision_output, prompt, image_interleave)
-#                         # temp_cond = self.hunyuan_text_encode(self.use_clip, image_embeds, positive, hunyuan_image_interleave)
-#                         # positive_cond, latents = self.hunyuan_encode(temp_cond, self.vae, start_image.shape[2], start_image.shape[1], self.truncated_frame_count, 1, hunyuan_guidance_type, start_image=start_image)
-#
-#                         print("HERE 90210")
-#                         positive_cond = temp_cond
-#                         latents = temp_latent
-#
-#                         noise_mask = None
-#                         if "noise_mask" in latents:
-#                             noise_mask = latents["noise_mask"]
-#
-#                         latents = latents["samples"] # * scaling_strength
-#
-#                         if len(latents.shape) < 5:
-#                             latents = latents.unsqueeze(0)
-#
-#                         # latents = latents["samples"] * (scaling_strength * vae_scaling_factor)
-#                     # else:
-#                     #     positive_cond = self.do_text_encode(self.use_clip, positive)
-#                     #     latents = torch.zeros([1, 16, noise_latents.shape[2], self.height, self.width], dtype=torch.float32, device=self.offload_device)
-#                     #
-#                     #     latents = latents * scaling_strength # scaling_strength
-#                         # latents = latents * (scaling_strength * vae_scaling_factor)
-#                     #
-#                     # if use_flux_guidance:
-#                     #     positive_cond = self.apply_flux_guidance(positive_cond, flux_guidance)
-#
-#                     # self.guider.set_conds(positive_cond)
-#                 # else:
-#                 #     positive_cond, negative_cond = wan_text_encode(self.use_clip, positive_text=positive, negative_text=negative)
-#                 #     positive_cond, negative_cond, latents = self.wan_encode(positive_cond, negative_cond, self.vae, start_image.shape[3], start_image.shape[2], ((noise_latents.shape[2] - 1) * 4) + 1, 1, start_image=start_image, clip_vision_output=image_embeds)
-#
-#                     # self.guider.set_conds(positive_cond, negative_cond)
-#
-#                 print("latents Shape: {}".format(latents.shape))
-#
-#                 num_frames = int(((latents.shape[2] - 1) * 4) + 1)
-#
-#                 print("\nDecoded Width is {}  |  Decoded Height is {}".format(int(self.width * 8), int(self.height * 8)))
-#
-#                 print("-------------------------------------------------------------------------------------------")
-#                 print("WarpedSamplerCustomBatch: Latents Shape: {}  |  Noise Latents Shape: {}".format(latents.shape, noise_latents.shape))
-#                 print("-------------------------------------------------------------------------------------------")
-#
-#                 print("Noise Shape: {}  |  Latents Shape: {}".format(noise_latents.shape, latents.shape))
-#                 print("WarpedSamplerCustomBatch: Generating {} Frames in {} Latents....".format(num_frames, latents.shape[2]))
-#
-#                 samples = self.guider.sample(noise_latents, latents, self.sampler, self.sigmas, denoise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=self.seed)
-#                 samples = samples.to(mm.intermediate_device())
-#
-#                 mm.unload_all_models()
-#                 mm.soft_empty_cache()
-#                 gc.collect()
-#                 time.sleep(1)
-#
-#                 if len(samples.shape) < 5:
-#                     samples = samples.unsqueeze(0)
-#
-#                 samples = samples.clone().detach() / scaling_strength # (scaling_strength * vae_scaling_factor)
-#
-#                 print("WarpedSamplerCustomBatch: Decoding Latents...")
-#                 decoded_images = self.decode_tiled(samples)
-#
-#                 if not is_dummy_section or (is_dummy_section and ((self.use_dummy_image == "all")) or self.gen_dummy_only):
-#                     output_images.append(decoded_images)
-#                     total_images_generated += decoded_images.shape[0]
-#
-#                 samples = None
-#
-#                 # output_images = self.process_skip_images(output_images, skip_frames)
-#                 print("WarpedSamplerCustomBatch: Decoded Images Shape: {}".format(decoded_images.shape[0]))
-#
-#                 # if output_latents:
-#                 #     output_images_latents = self.encode_tiled(output_images)
-#
-#                 print("WarpedSamplerCustomBatch: Generating {} frames in {} latents...Done.".format(num_frames, latents.shape[2]))
-#
-#                 # if not is_i2v:
-#                 #     self.guider.model_patcher.model.to(get_offload_device())
-#                 #     # guider.set_i2v_model()
-#                 #
-#                 #     if not self.i2v_sigmas is None:
-#                 #         self.use_sigmas = self.i2v_sigmas
-#
-#                 if not is_last_section:
-#                     print("HERE 9090000")
-#                     decoded_tuple = torch.split(decoded_images, 1, dim=0)
-#                     decoded_split = [item for item in decoded_tuple]
-#                     decoded_images = decoded_images.to(get_offload_device())
-#                     decoded_images = None
-#
-#                     if (not is_dummy_section) or (is_dummy_section and ((self.use_dummy_image == "last") or (self.use_dummy_image == "all"))):
-#                         print("HERE 9090000a")
-#                         start_image = decoded_split[len(decoded_split) - 1].clone().detach()
-#                     elif is_dummy_section:
-#                         print("HERE 9090000b")
-#                         if self.use_dummy_image == "first":
-#                             print("HERE 9090000c")
-#                             start_image = decoded_split[0].clone().detach()
-#                         elif self.use_dummy_image == "middle":
-#                             print("HERE 9090000d")
-#                             start_image = decoded_split[int(len(decoded_split) // 2)].clone().detach()
-#                         else:
-#                             print("HERE 9090000e")
-#                             random.seed(self.seed)
-#                             start_image = dummy_split[random.randrange(0, len(decoded_split) - 1, 1)].clone().detach()
-#
-#                     is_i2v = True
-#
-#                 if last_image is None:
-#                     last_image = start_image.clone().detach()
-#
-#                 print("HERE 9090001")
-#
-#                 samples = None
-#                 latents = None
-#
-#                 mm.soft_empty_cache()
-#                 gc.collect()
-#                 time.sleep(0.1)
-#
-#                 print("*******************************************")
-#                 print("****** WarpedSamplerCustomBatch: Total Images Generated {}".format(total_images_generated))
-#                 print("*******************************************\n")
-#
-#                 generation_status = "****** WarpedSamplerCustomBatch: Total Images Generated {} ******".format(total_images_generated)
-#
-#                 interrupted = False
-#
-#                 print("HERE 9090002")
-#
-#                 if is_dummy_section:
-#                     print("HERE 9090003")
-#
-#                     if self.gen_dummy_only:
-#                         print("HERE 9090004")
-#                         break
-#
-#                     print("HERE 9090005")
-#
-#                     is_dummy_section = False
-#
-#                 print("HERE 9090006")
-#         except mm.InterruptProcessingException as ie:
-#             interrupted = True
-#             print(f"\nWarpedSamplerCustomBatch: Processing Interrupted.")
-#             print("WarpedSamplerCustomBatch: Returning only partial results (if any).\n If zero images generated, a blank yellow image will be returned.\n")
-#             mm.unload_all_models()
-#             mm.soft_empty_cache()
-#             gc.collect()
-#             time.sleep(1)
-#
-#             generation_status = f"\nWarpedSamplerCustomBatch: Processing Interrupted."
-#
-#             traceback.print_tb(ie.__traceback__, limit=99, file=sys.stdout)
-#
-#             raise mm.InterruptProcessingException(f"WarpedSamplerCustomBatch: Processing Interrupted.")
-#
-#         except BaseException as e:
-#             print(f"\nWarpedSamplerCustomBatch: Exception During Processing: {str(e)}")
-#             print("WarpedSamplerCustomBatch: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned.\n")
-#             mm.unload_all_models()
-#             mm.soft_empty_cache()
-#             gc.collect()
-#             time.sleep(1)
-#
-#             generation_status = f"WarpedSamplerCustomBatch: Exception During Processing: {str(e)}"
-#             generation_status = "{}{}".format(generation_status, "WarpedSamplerCustomBatch: Returning only partial results (if any).\nIf zero images generated, a blank red image will be returned.")
-#
-#             traceback.print_tb(e.__traceback__, limit=99, file=sys.stdout)
-#
-#             pass
-#
-#         callback = None
-#         self.guider.model_patcher.model.to(get_offload_device())
-#
-#         latent = None
-#         latent_image = None
-#         noise_mask = None
-#         samples = None
-#
-#         torch.cuda.empty_cache()
-#         torch.cuda.ipc_collect()
-#         gc.collect()
-#         time.sleep(1)
-#
-#         mm.unload_all_models()
-#         mm.soft_empty_cache()
-#         gc.collect()
-#         time.sleep(1)
-#
-#         image = None
-#
-#         if interrupted and (len(output_images) < 1):
-#             temp_image = Image.new('RGB', (self.width * 8, self.height * 8), color = 'yellow')
-#             image = pil2tensorSwap(temp_image)
-#             final_images = image
-#         elif (len(output_images) < 1):
-#             temp_image = Image.new('RGB', (self.width * 8, self.height * 8), color = 'red')
-#             image = pil2tensorSwap(temp_image)
-#             final_images = image
-#         else:
-#             final_images = self.assemble_final_result(output_images)
-#
-#         if output_images_latents is None:
-#             output_images_latents = torch.zeros([1, 16, 1, self.height, self.width], dtype=torch.float32, device=self.offload_device)
-#
-#         return (final_images, {"samples": output_images_latents}, self.seed, generation_status, last_image,)
-#
-#     def assemble_final_result(self, image_batches):
-#         if self.blend_frames < 1:
-#             resulting_images = None
-#             for entry in image_batches:
-#                 if not resulting_images is None:
-#                     resulting_images = torch.cat((resulting_images, entry), 0)
-#                 else:
-#                     resulting_images = entry
-#
-#                 entry.to(device=self.offload_device)
-#                 entry = None
-#         else:
-#             blend_value = 1.0 / self.blend_frames
-#             i = 0
-#             while i < (len(image_batches) - 1):
-#                 alpha_blend_val = blend_value
-#                 blend_count = self.blend_frames
-#
-#                 image_batches_tuple = torch.split(image_batches[i], 1, dim=0)
-#                 image_batches_split = [item for item in image_batches_tuple]
-#                 image1 = image_batches_split[len(image_batches_split) - 1]
-#                 # image1 = image_batches_split[len(image_batches_split) - 4]
-#                 image_batches_tuple = None
-#                 image_batches_split = None
-#
-#                 image_batches_tuple = torch.split(image_batches[i + 1], 1, dim=0)
-#                 image_batches_split = [item for item in image_batches_tuple]
-#                 image2 = image_batches_split[0]
-#                 image_batches_tuple = None
-#                 image_batches_split = None
-#
-#                 image1 = tensor2pilSwap(image1)[0]
-#                 image2 = tensor2pilSwap(image2)[0]
-#
-#                 blend_latents = None
-#
-#                 while blend_count > 0:
-#                     blended_image = Image.blend(image1, image2, alpha_blend_val)
-#                     temp_latent = pil2tensorSwap(blended_image)
-#                     blended_image = None
-#
-#                     if len(temp_latent.shape) < 4:
-#                         temp_latent = temp_latent.unsqueeze(0)
-#
-#                     if not blend_latents is None:
-#                         blend_latents = torch.cat((blend_latents, temp_latent), 0)
-#                     else:
-#                         blend_latents = temp_latent
-#
-#                     alpha_blend_val += blend_value
-#                     blend_count -= 1
-#
-#                 image_batches_tuple = torch.split(image_batches[i], image_batches[i].shape[0] - 3, dim=0)
-#                 image_batches_split = [item for item in image_batches_tuple]
-#                 image_batches_tuple = None
-#
-#                 image_batches[i] = torch.cat((image_batches_split[0], blend_latents), 0)
-#                 blend_latents = None
-#                 image_batches_split = None
-#
-#                 self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
-#
-#                 i += 1
-#
-#             resulting_images = None
-#             for entry in image_batches:
-#                 if not resulting_images is None:
-#                     resulting_images = torch.cat((resulting_images, entry), 0)
-#                 else:
-#                     resulting_images = entry
-#
-#                 entry.to(device=self.offload_device)
-#
-#             image_batches = None
-#
-#             self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
-#
-#
-#         print("assemble_final_result: Full decoded images count: {}".format(resulting_images.shape[0]))
-#
-#         if self.skip_frames < 1:
-#             return resulting_images
-#
-#         skipped_frames = 1
-#
-#         image_batches_tuple = torch.split(resulting_images, 1, dim=0)
-#         image_batches_split = [item for item in image_batches_tuple]
-#
-#         resulting_images = None
-#
-#         for image in image_batches_split:
-#             if skipped_frames <= self.skip_frames:
-#                 skipped_frames += 1
-#                 continue
-#
-#             if not resulting_images is None:
-#                 resulting_images = torch.cat((resulting_images, image), 0)
-#             else:
-#                 resulting_images = image
-#
-#         print("assemble_final_result: Final decoded images count: {}".format(resulting_images.shape[0]))
-#
-#         return resulting_images
-#
-#     def cleanup(self, unload_models=False, cleanup_models=False, cleanup_cuda=False):
-#         if unload_models:
-#             mm.unload_all_models()
-#
-#         if cleanup_models:
-#             mm.cleanup_models()
-#
-#         if cleanup_cuda:
-#             mm.soft_empty_cache()
-#
-#         gc.collect()
-#         time.sleep(1)
-#
-#         return
-#
-#     def generate_noise(self, input_latent, generator=None):
-#         latent_image = input_latent["samples"]
-#         return warped_prepare_noise(latent_image, self.seed, generator=generator)
-#
-#     def setup_latent_noise(self):
-#         dummy_noise = None
-#
-#         if self.gen_dummy:
-#             rnd = torch.Generator("cpu").manual_seed(self.seed)
-#             dummy_noise = torch.randn((1, 16, self.dummy_latents, self.height, self.width), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
-#
-#         noise = []
-#
-#         for i in range(self.batch_count):
-#             rnd = torch.Generator("cpu").manual_seed(self.seed)
-#             temp_noise = torch.randn((1, 16, self.latent_window_size, self.height, self.width), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
-#
-#             noise.append(temp_noise)
-#             temp_noise = None
-#
-#         if self.verbose_messaging:
-#             if not dummy_noise is None:
-#                 print("\nsetup_latent_noise: dummy_noise Shape: {}".format(dummy_noise.shape))
-#
-#             i = 0
-#             for entry in noise:
-#                 print("setup_latent_noise: Batch: {}  |  noise Shape: {}".format(i, entry.shape))
-#                 i += 1
-#
-#             print("\n")
-#
-#         return noise, dummy_noise
-#
-#     def get_latent_window_size(self, preferred_batch_size, frame_count, use_batch_size="next_lowest"):
-#         latent_size_factor = 4
-#
-#         if self.verbose_messaging:
-#             print("get_latent_window_size: preferred_batch_size: {}".format(preferred_batch_size))
-#             print("get_latent_window_size: frame_count: {}".format(frame_count))
-#             print("get_latent_window_size: use_batch_size: {}".format(use_batch_size))
-#
-#         num_frames = int(((frame_count - 1) // 4) * 4) + 1
-#
-#         if num_frames != frame_count:
-#             print(f"Truncating video from {frame_count} to {num_frames} an because odd number of frames is not allowed.")
-#
-#         if ((num_frames - 1) % (preferred_batch_size - 1)) == 0:
-#             print("(1) latent_window_size set to: {}".format(self.decoded_to_encoded_length(preferred_batch_size)))
-#             print("(1) batch_count set to: {}".format(int((num_frames - 1) / (preferred_batch_size - 1))))
-#             return self.decoded_to_encoded_length(preferred_batch_size), int((num_frames - 1) / (preferred_batch_size - 1)), num_frames
-#
-#         if use_batch_size == "exact":
-#             num_frames_final = int(((num_frames - 1) // (preferred_batch_size - 1)) + 1) * (preferred_batch_size - 1)
-#
-#             if num_frames_final != frame_count:
-#                 print(f"Truncating video from {num_frames} to {num_frames_final} frames for preferred_batch_size compatibility.")
-#
-#             print("(2) latent_window_size set to: {}".format(self.decoded_to_encoded_length(preferred_batch_size + 1)))
-#             print("(2) batch_count set to: {}".format(int((num_frames_final - 1) / (preferred_batch_size - 1))))
-#             return self.decoded_to_encoded_length(preferred_batch_size), int((num_frames_final - 1) / (preferred_batch_size - 1)), num_frames_final
-#
-#         next_lowest_found = False
-#         next_highest_found = False
-#         next_lowest = preferred_batch_size - 1
-#         next_highest = preferred_batch_size - 1
-#
-#         if self.verbose_messaging:
-#             print("get_latent_window_size: Next Lowest Initialized To: {}".format(next_lowest))
-#             print("get_latent_window_size: Next Highest Initialized To: {}".format(next_highest))
-#
-#         num_frames_final = int(((num_frames - 1) // 4) * 4) + 1
-#
-#         if num_frames != num_frames_final:
-#             print(f"Truncating video from {num_frames} to {num_frames_final} frames for latent_window_size compatibility.")
-#
-#         if (use_batch_size == "closest") or (use_batch_size == "next_lowest"):
-#             while next_lowest >= 12:
-#                 next_lowest -= 4
-#
-#                 if (int((num_frames_final - 1) // 4) % next_lowest) == 0:
-#                     next_lowest_found = True
-#                     break
-#
-#             next_lowest += 1
-#
-#             if next_lowest_found and (use_batch_size == "next_lowest"):
-#                 print("(3) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_lowest + 1)))
-#                 print("(3) batch_count set to: {}".format(int((num_frames_final - 1) / next_lowest)))
-#                 return self.decoded_to_encoded_length(next_lowest + 1), int((num_frames_final - 1) / next_lowest), num_frames_final
-#
-#         while next_highest <= 156:
-#             next_highest += 4
-#
-#             if (int((num_frames_final - 1) // 4) % next_highest) == 0:
-#                 next_highest_found = True
-#                 break
-#
-#         if next_highest_found and (use_batch_size == "next_highest"):
-#             print("(4) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_highest + 1)))
-#             print("(4) batch_count set to: {}".format(int((num_frames_final - 1) / next_highest)))
-#             return self.decoded_to_encoded_length(next_highest + 1), int((num_frames_final - 1) / next_highest), num_frames_final
-#
-#         if next_highest_found and next_lowest_found:
-#             if (preferred_batch_size - next_lowest) <= (next_highest - preferred_batch_size):
-#                 print("(5) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_lowest + 1)))
-#                 print("(5) batch_count set to: {}".format(int((num_frames_final - 1) / next_lowest)))
-#                 return self.decoded_to_encoded_length(next_lowest + 1), int((num_frames_final - 1) / next_lowest), num_frames_final
-#             elif (next_highest - preferred_batch_size) < (preferred_batch_size - next_lowest):
-#                 print("(6) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_highest + 1)))
-#                 print("(6) batch_count set to: {}".format(int((num_frames_final - 1) / next_highest)))
-#                 return self.decoded_to_encoded_length(next_highest + 1), int((num_frames_final - 1) / next_highest), num_frames_final
-#
-#         print("Unable to find a compatible latent_window_size for number of frames = {} and preferred_batch_size = {}.".format(frame_count, preferred_batch_size))
-#         print("Recalculating Number Of Frames Based On preferred_batch_size of: {}".format(preferred_batch_size))
-#
-#         return self.calculate_new_number_of_frames(preferred_batch_size, (((frame_count - 1) // 4) * 4) + 1, use_batch_size)
-#
-#     def calculate_new_number_of_frames(self, preferred_batch_size, frame_count, use_batch_size):
-#         working_batch_size = preferred_batch_size - 1
-#         working_frame_count = frame_count - 1
-#
-#         next_lowest = next_highest = working_frame_count
-#         next_lowest_found = False
-#         next_highest_found = False
-#
-#         while next_lowest > 37:
-#             next_lowest -= 4
-#
-#             if int(next_lowest % working_batch_size) == 0:
-#                 next_lowest_found = True
-#                 break
-#
-#         if next_lowest_found and (use_batch_size == "next_lowest"):
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
-#
-#         while next_highest < 999997:
-#             next_highest += 4
-#
-#             if int(next_highest % working_batch_size) == 0:
-#                 next_highest_found = True
-#                 break
-#
-#         if next_highest_found and (use_batch_size == "next_highest"):
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
-#
-#         if next_lowest_found and next_highest_found:
-#             if (working_frame_count - next_lowest) <= (next_highest - working_frame_count):
-#                 return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
-#
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
-#
-#         if next_lowest_found:
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
-#
-#         if next_highest_found:
-#             return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
-#
-#         raise ValueError("Unable to find a compatible latent_window_size for number of frames = {} and preferred_batch_size = {}.".format(frame_count, preferred_batch_size))
-#
-#     def clip_vision_encode(self, image, crop="center"):
-#             crop_image = False
-#             if crop != "center":
-#                 crop_image = False
-#             output = self.clip_vision.encode_image(image, crop=crop_image)
-#             return output
-#
-#     def encoded_to_decoded_length(self, latent_length):
-#         if latent_length <= 0:
-#             return 0
-#
-#         result_length = ((latent_length - 1) * 4) + 1
-#
-#         return result_length
-#
-#     def decoded_to_encoded_length(self, image_length):
-#         if image_length <= 0:
-#             return 0
-#
-#         result_length = int(((image_length - 1) / 4) + 1)
-#
-#         return result_length
-#
-#     def apply_flux_guidance(self, conditioning, guidance):
-#         c = node_helpers.conditioning_set_values(conditioning, {"guidance": guidance})
-#         return c
-#
-#     def hunyuan_text_encode(self, clip, clip_vision_output, prompt, image_interleave):
-#         tokens = clip.tokenize(prompt, llama_template=PROMPT_TEMPLATE_ENCODE_VIDEO_I2V, image_embeds=clip_vision_output.mm_projected, image_interleave=image_interleave)
-#         return clip.encode_from_tokens_scheduled(tokens)
-#
-#     def hunyuan_encode(self, positive, vae, width, height, length, batch_size, guidance_type, start_image=None):
-#         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
-#         out_latent = {}
-#
-#         if start_image is not None:
-#             start_image = comfy.utils.common_upscale(start_image[:length, :, :, :3].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-#
-#             concat_latent_image = vae.encode(start_image)
-#             mask = torch.ones((1, 1, latent.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=start_image.device, dtype=start_image.dtype)
-#             mask[:, :, :((start_image.shape[0] - 1) // 4) + 1] = 0.0
-#
-#             if guidance_type == "v1 (concat)":
-#                 cond = {"concat_latent_image": concat_latent_image, "concat_mask": mask}
-#             elif guidance_type == "v2 (replace)":
-#                 cond = {'guiding_frame_index': 0}
-#                 latent[:, :, :concat_latent_image.shape[2]] = concat_latent_image
-#                 out_latent["noise_mask"] = mask
-#             elif guidance_type == "custom":
-#                 cond = {"ref_latent": concat_latent_image}
-#
-#             positive = node_helpers.conditioning_set_values(positive, cond)
-#
-#         out_latent["samples"] = latent
-#         return positive, out_latent
-#
-#     def wan_text_encode(self, clip, positive_text="", negative_text=""):
-#         print("wan_text_encode: Loading clip model to device: {}".format(clip.patcher.load_device))
-#         clip.patcher.model.to(device=clip.patcher.load_device)
-#
-#         print("wan_text_encode: Encoding Prompts...")
-#         positive_conditioning = self.do_text_encode(clip, positive_text)
-#         negative_conditioning = self.do_text_encode(clip, negative_text)
-#         print("wan_text_encode: Encoding Prompts...Done.")
-#
-#         print("wan_text_encode: Unloading clip model to device: {}".format(get_offload_device()))
-#         clip.patcher.model.to(device=get_offload_device())
-#
-#         if torch.cuda.is_available():
-#             torch.cuda.empty_cache()
-#
-#         gc.collect()
-#         time.sleep(1)
-#
-#         return positive_conditioning, negative_conditioning
-#
-#     def encode(self, clip, text):
-#         if clip is None:
-#             raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
-#         tokens = clip.tokenize(text)
-#         return clip.encode_from_tokens_scheduled(tokens)
-#
-#     def do_text_encode(self, clip, text):
-#
-#         if clip is None:
-#             raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
-#
-#         tokens = clip.tokenize(text)
-#         return_encoding = clip.encode_from_tokens_scheduled(tokens)
-#
-#         return return_encoding
-#
-#     def wan_encode(self, positive, negative, vae, width, height, length, batch_size, start_image=None, clip_vision_output=None):
-#         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
-#         if start_image is not None:
-#             start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-#             image = torch.mul(torch.ones((length, height, width, start_image.shape[-1]), device=start_image.device, dtype=start_image.dtype), 0.5)
-#             image[:start_image.shape[0]] = start_image
-#
-#             concat_latent_image = vae.encode(image[:, :, :, :3])
-#
-#             mask = torch.ones((1, 1, latent.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=start_image.device, dtype=start_image.dtype)
-#             mask[:, :, :((start_image.shape[0] - 1) // 4) + 1] = 0.0
-#
-#             positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
-#             negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
-#
-#         if clip_vision_output is not None:
-#             positive = node_helpers.conditioning_set_values(positive, {"clip_vision_output": clip_vision_output})
-#             negative = node_helpers.conditioning_set_values(negative, {"clip_vision_output": clip_vision_output})
-#
-#         out_latent = {}
-#         out_latent["samples"] = latent
-#         return positive, negative, out_latent
-#
-#     def process_skip_images(self, frames, skip_count):
-#         if len(frames.shape) < 4:
-#             frames = frames.unsqueeze(0)
-#
-#         num_frames = frames.shape[0]
-#
-#         image_batches_tuple = torch.split(frames, 1, dim=0)
-#         image_batches_split = [item for item in image_batches_tuple]
-#
-#         new_video = None
-#         i = 0
-#
-#         while i < len(image_batches_split):
-#             if i < skip_count:
-#                 i += 1
-#                 continue
-#
-#             if not new_video is None:
-#                 new_video = torch.cat((new_video, image_batches_split[i]), 0)
-#             else:
-#                 new_video = image_batches_split[i]
-#
-#             i += 1
-#
-#         return new_video
-#
-#     def get_blank_image(self, length=1):
-#         new_image = torch.zeros([length, self.height, self.width, 3], dtype=torch.float32, device=self.offload_device)
-#         return new_image
-#
-#     def get_new_noise(self, length):
-#         new_noise = torch.zeros([length, self.height, self.width, 3], dtype=torch.float32, device=self.offload_device)
-#
-#         new_noise = self.encode_tiled(new_noise)
-#
-#         new_noise = comfy.sample.fix_empty_latent_channels(self.guider.model_patcher, new_noise)
-#
-#         if len(new_noise) < 5:
-#             new_latent = new_noise.unsqueeze(0)
-#
-#         new_noise = self.generate_noise({"samples": new_noise})
-#
-#         return new_noise
-#
-#     def pad_noise(self, latent, num_frames=1):
-#         pad_frames = torch.zeros([1, 16, num_frames, self.height, self.width], dtype=torch.float32, device=self.offload_device)
-#         pad_frames = torch.cat((latent, pad_frames), 2)
-#
-#         return pad_frames
-#
-#     def setup_callbacks(self):
-#         callback = latent_preview.prepare_callback(self.guider.model_patcher, self.sigmas.shape[-1] - 1, self.g_output)
-#
-#         return callback
-#
-#     def decode_tiled(self, latents):
-#         decoded_data = partial_decode_tiled(self.vae, latents, self.dec_tile_size, self.dec_overlap, self.dec_temporal_size, self.dec_temporal_overlap)
-#
-#         if len(decoded_data.shape) < 4:
-#             decoded_data.unsqueeze(0)
-#
-#         return decoded_data
-#
-#     def initialize_noise(self, frame_count, clear_cache=True):
-#         noise_latents_full = torch.zeros([1, 16, int(frame_count), self.height, self.width], dtype=torch.float32, device=self.offload_device)
-#         print("WarpedSamplerCustomBatch: Encoded noise_latents_full Shape: {}".format(noise_latents_full.shape))
-#
-#         if Decimal(self.noise_scale).compare(Decimal(0.00)) != 0:
-#             noise_latents_full = warped_prepare_noise(noise_latents_full, self.seed)
-#             print("WarpedSamplerCustomBatch: noise_latents_full Shape: {}".format(noise_latents_full.shape))
-#
-#             noise_latents_full = torch.mul(noise_latents_full, self.noise_scale)
-#
-#         if len(noise_latents_full.shape) < 5:
-#             noise_latents_full.unsqueeze(0)
-#
-#         noise_latents_full = noise_latents_full.to(dtype=torch.float32, device=self.offload_device)
-#
-#         if clear_cache:
-#             mm.soft_empty_cache()
-#             gc.collect()
-#             time.sleep(0.1)
-#
-#         return noise_latents_full
-#
-#     def initialize_frames(self, latents):
-#         if len(latents.shape) < 5:
-#             latents = latents.unsqueeze(0)
-#
-#         print("WarpedSamplerCustomBatch: Encoded latents_full Shape: {}".format(latents.shape))
-#         latents_full = latents.clone().detach()
-#         latents_full = latents_full.to(dtype=torch.float32, device=self.offload_device)
-#
-#         noise_latents_full = self.initialize_noise(latents_full.shape[2])
-#
-#         mm.soft_empty_cache()
-#         gc.collect()
-#         time.sleep(0.1)
-#
-#         return noise_latents_full
+                print("latents Shape: {}".format(latents.shape))
+
+                num_frames = int(((latents.shape[2] - 1) * 4) + 1)
+
+                print("\nDecoded Width is {}  |  Decoded Height is {}".format(int(self.width * 8), int(self.height * 8)))
+
+                print("-------------------------------------------------------------------------------------------")
+                print("WarpedSamplerCustomScripted: Latents Shape: {}  |  Noise Latents Shape: {}".format(latents.shape, noise_latents.shape))
+                print("-------------------------------------------------------------------------------------------")
+
+                print("Noise Shape: {}  |  Latents Shape: {}".format(noise_latents.shape, latents.shape))
+                print("WarpedSamplerCustomScripted: Generating {} Frames in {} Latents....".format(num_frames, latents.shape[2]))
+
+                samples = self.guider.sample(noise_latents, latents, self.sampler, self.use_sigmas, denoise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=self.seed)
+                samples = samples.to(mm.intermediate_device())
+
+                mm.unload_all_models()
+                mm.soft_empty_cache()
+                gc.collect()
+                time.sleep(1)
+
+                if len(samples.shape) < 5:
+                    samples = samples.unsqueeze(0)
+
+                samples = samples.clone().detach() / scaling_strength # (scaling_strength * vae_scaling_factor)
+
+                print("WarpedSamplerCustomScripted: Decoding Latents...")
+                decoded_images = self.decode_tiled(samples)
+
+                if not is_dummy_section or (is_dummy_section and ((self.use_dummy_image == "all") or self.gen_dummy_only)):
+                    output_images.append(decoded_images)
+                    total_images_generated += decoded_images.shape[0]
+                    valid_output = True
+
+                samples = None
+
+                # output_images = self.process_skip_images(output_images, skip_frames)
+                print("WarpedSamplerCustomScripted: Decoded Images Shape: {}".format(decoded_images.shape[0]))
+
+                # if output_latents:
+                #     output_images_latents = self.encode_tiled(output_images)
+
+                print("WarpedSamplerCustomScripted: Generating {} frames in {} latents...Done.".format(num_frames, latents.shape[2]))
+
+                if not is_i2v:
+                    if not self.secondary_model is None:
+                        self.guider.model_patcher.model.to(get_offload_device())
+
+                        if not self.secondary_sigmas is None:
+                            self.use_sigmas = self.secondary_sigmas
+
+                if not is_last_section:
+                    decoded_tuple = torch.split(decoded_images, 1, dim=0)
+                    decoded_split = [item for item in decoded_tuple]
+                    decoded_images = decoded_images.to(get_offload_device())
+                    decoded_images = None
+
+                    if (not is_dummy_section) or (is_dummy_section and ((self.use_dummy_image == "last") or (self.use_dummy_image == "all"))):
+                        start_image = decoded_split[len(decoded_split) - 1].clone().detach()
+                    elif is_dummy_section:
+                        if self.use_dummy_image == "first":
+                            start_image = decoded_split[0].clone().detach()
+                        elif self.use_dummy_image == "middle":
+                            start_image = decoded_split[int(len(decoded_split) // 2)].clone().detach()
+                        else:
+                            random.seed(self.seed)
+                            start_image = dummy_split[random.randrange(0, len(decoded_split) - 1, 1)].clone().detach()
+
+                    is_i2v = True
+
+                if last_image is None:
+                    last_image = start_image.clone().detach()
+
+                samples = None
+                latents = None
+
+                mm.soft_empty_cache()
+                gc.collect()
+                time.sleep(0.1)
+
+                print("*******************************************")
+                print("****** WarpedSamplerCustomScripted: Total Images Generated {}".format(total_images_generated))
+                print("*******************************************\n")
+
+                generation_status = "****** WarpedSamplerCustomScripted: Total Images Generated {} ******".format(total_images_generated)
+
+                interrupted = False
+
+                if is_dummy_section:
+                    if self.gen_dummy_only:
+                        break
+
+                    is_dummy_section = False
+        except mm.InterruptProcessingException as ie:
+            interrupted = True
+            print(f"\nWarpedSamplerCustomScripted: Processing Interrupted.")
+            print("WarpedSamplerCustomScripted: Returning only partial results (if any).\n If zero images generated, a blank yellow image will be returned, and valid_output will return False.\n")
+            mm.unload_all_models()
+            mm.soft_empty_cache()
+            gc.collect()
+            time.sleep(1)
+
+            generation_status = f"\nWarpedSamplerCustomScripted: Processing Interrupted."
+
+            traceback.print_tb(ie.__traceback__, limit=99, file=sys.stdout)
+
+            # raise mm.InterruptProcessingException(f"WarpedSamplerCustomScripted: Processing Interrupted.")
+            pass
+
+        except BaseException as e:
+            print(f"\nWarpedSamplerCustomScripted: Exception During Processing: {str(e)}")
+            print("WarpedSamplerCustomScripted: Returning only partial results (if any).\n If zero images generated, a blank red image will be returned, and valid_output will return False.\n")
+            mm.unload_all_models()
+            mm.soft_empty_cache()
+            gc.collect()
+            time.sleep(1)
+
+            generation_status = f"WarpedSamplerCustomScripted: Exception During Processing: {str(e)}"
+            generation_status = "{}{}".format(generation_status, "WarpedSamplerCustomScripted: Returning only partial results (if any).\nIf zero images generated, a blank red image will be returned, and valid_output will return False.")
+
+            traceback.print_tb(e.__traceback__, limit=99, file=sys.stdout)
+
+            pass
+
+        callback = None
+        self.guider.model_patcher.model.to(get_offload_device())
+
+        latent = None
+        latent_image = None
+        noise_mask = None
+        samples = None
+
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+        gc.collect()
+        time.sleep(1)
+
+        mm.unload_all_models()
+        mm.soft_empty_cache()
+        gc.collect()
+        time.sleep(1)
+
+        image = None
+
+        if interrupted and not valid_output:
+            temp_image = Image.new('RGB', (self.width * 8, self.height * 8), color = 'yellow')
+            image = pil2tensorSwap(temp_image)
+            final_images = image
+        elif not valid_output:
+            temp_image = Image.new('RGB', (self.width * 8, self.height * 8), color = 'red')
+            image = pil2tensorSwap(temp_image)
+            final_images = image
+        else:
+            final_images = self.assemble_final_result(output_images)
+
+        if output_images_latents is None:
+            output_images_latents = torch.zeros([1, 16, 1, self.height, self.width], dtype=torch.float32, device=self.offload_device)
+
+        return (final_images, {"samples": output_images_latents}, self.seed, generation_status, last_image, valid_output,)
+
+    def assemble_final_result(self, image_batches):
+        if self.blend_frames < 1:
+            resulting_images = None
+            for entry in image_batches:
+                if not resulting_images is None:
+                    resulting_images = torch.cat((resulting_images, entry), 0)
+                else:
+                    resulting_images = entry
+
+                entry.to(device=self.offload_device)
+                entry = None
+        else:
+            blend_value = 1.0 / self.blend_frames
+            i = 0
+            while i < (len(image_batches) - 1):
+                alpha_blend_val = blend_value
+                blend_count = self.blend_frames
+
+                image_batches_tuple = torch.split(image_batches[i], 1, dim=0)
+                image_batches_split = [item for item in image_batches_tuple]
+                image1 = image_batches_split[len(image_batches_split) - 1]
+                # image1 = image_batches_split[len(image_batches_split) - 4]
+                image_batches_tuple = None
+                image_batches_split = None
+
+                image_batches_tuple = torch.split(image_batches[i + 1], 1, dim=0)
+                image_batches_split = [item for item in image_batches_tuple]
+                image2 = image_batches_split[0]
+                image_batches_tuple = None
+                image_batches_split = None
+
+                image1 = tensor2pilSwap(image1)[0]
+                image2 = tensor2pilSwap(image2)[0]
+
+                blend_latents = None
+
+                while blend_count > 0:
+                    blended_image = Image.blend(image1, image2, alpha_blend_val)
+                    temp_latent = pil2tensorSwap(blended_image)
+                    blended_image = None
+
+                    if len(temp_latent.shape) < 4:
+                        temp_latent = temp_latent.unsqueeze(0)
+
+                    if not blend_latents is None:
+                        blend_latents = torch.cat((blend_latents, temp_latent), 0)
+                    else:
+                        blend_latents = temp_latent
+
+                    alpha_blend_val += blend_value
+                    blend_count -= 1
+
+                image_batches_tuple = torch.split(image_batches[i], image_batches[i].shape[0] - 3, dim=0)
+                image_batches_split = [item for item in image_batches_tuple]
+                image_batches_tuple = None
+
+                image_batches[i] = torch.cat((image_batches_split[0], blend_latents), 0)
+                blend_latents = None
+                image_batches_split = None
+
+                self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
+
+                i += 1
+
+            resulting_images = None
+            for entry in image_batches:
+                if not resulting_images is None:
+                    resulting_images = torch.cat((resulting_images, entry), 0)
+                else:
+                    resulting_images = entry
+
+                entry.to(device=self.offload_device)
+
+            image_batches = None
+
+            self.cleanup(unload_models=False, cleanup_models=False, cleanup_cuda=True)
+
+
+        print("assemble_final_result: Full decoded images count: {}".format(resulting_images.shape[0]))
+
+        if self.skip_frames < 1:
+            return resulting_images
+
+        skipped_frames = 1
+
+        image_batches_tuple = torch.split(resulting_images, 1, dim=0)
+        image_batches_split = [item for item in image_batches_tuple]
+
+        resulting_images = None
+
+        for image in image_batches_split:
+            if skipped_frames <= self.skip_frames:
+                skipped_frames += 1
+                continue
+
+            if not resulting_images is None:
+                resulting_images = torch.cat((resulting_images, image), 0)
+            else:
+                resulting_images = image
+
+        print("assemble_final_result: Final decoded images count: {}".format(resulting_images.shape[0]))
+
+        return resulting_images
+
+    def cleanup(self, unload_models=False, cleanup_models=False, cleanup_cuda=False):
+        if unload_models:
+            mm.unload_all_models()
+
+        if cleanup_models:
+            mm.cleanup_models()
+
+        if cleanup_cuda:
+            mm.soft_empty_cache()
+
+        gc.collect()
+        time.sleep(1)
+
+        return
+
+    def generate_noise(self, input_latent, generator=None):
+        latent_image = input_latent["samples"]
+        return warped_prepare_noise(latent_image, self.seed, generator=generator)
+
+    def setup_latent_noise(self):
+        dummy_noise = None
+
+        if self.gen_dummy:
+            rnd = torch.Generator("cpu").manual_seed(self.seed)
+            dummy_noise = torch.randn((1, self.latent_depth, self.dummy_latents, self.height, self.width), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
+
+        noise = []
+
+        for i in range(self.batch_count):
+            rnd = torch.Generator("cpu").manual_seed(self.seed)
+            temp_noise = torch.randn((1, self.latent_depth, self.latent_window_size, self.height, self.width), generator=rnd, device=rnd.device).to(device=rnd.device, dtype=torch.float32)
+
+            noise.append(temp_noise)
+            temp_noise = None
+
+        if self.verbose_messaging:
+            if not dummy_noise is None:
+                print("\nsetup_latent_noise: dummy_noise Shape: {}".format(dummy_noise.shape))
+
+            i = 0
+            for entry in noise:
+                print("setup_latent_noise: Batch: {}  |  noise Shape: {}".format(i, entry.shape))
+                i += 1
+
+            print("\n")
+
+        return noise, dummy_noise
+
+    def get_latent_window_size(self, preferred_batch_size, frame_count, use_batch_size="next_lowest"):
+        latent_size_factor = 4
+
+        if self.verbose_messaging:
+            print("get_latent_window_size: preferred_batch_size: {}".format(preferred_batch_size))
+            print("get_latent_window_size: frame_count: {}".format(frame_count))
+            print("get_latent_window_size: use_batch_size: {}".format(use_batch_size))
+
+        num_frames = int(((frame_count - 1) // 4) * 4) + 1
+
+        if num_frames != frame_count:
+            print(f"Truncating video from {frame_count} to {num_frames} an because odd number of frames is not allowed.")
+
+        if ((num_frames - 1) % (preferred_batch_size - 1)) == 0:
+            print("(1) latent_window_size set to: {}".format(self.decoded_to_encoded_length(preferred_batch_size)))
+            print("(1) batch_count set to: {}".format(int((num_frames - 1) / (preferred_batch_size - 1))))
+            return self.decoded_to_encoded_length(preferred_batch_size), int((num_frames - 1) / (preferred_batch_size - 1)), num_frames
+
+        if use_batch_size == "exact":
+            num_frames_final = int(((num_frames - 1) // (preferred_batch_size - 1)) + 1) * (preferred_batch_size - 1)
+
+            if num_frames_final != frame_count:
+                print(f"Truncating video from {num_frames} to {num_frames_final} frames for preferred_batch_size compatibility.")
+
+            print("(2) latent_window_size set to: {}".format(self.decoded_to_encoded_length(preferred_batch_size + 1)))
+            print("(2) batch_count set to: {}".format(int((num_frames_final - 1) / (preferred_batch_size - 1))))
+            return self.decoded_to_encoded_length(preferred_batch_size), int((num_frames_final - 1) / (preferred_batch_size - 1)), num_frames_final
+
+        next_lowest_found = False
+        next_highest_found = False
+        next_lowest = preferred_batch_size - 1
+        next_highest = preferred_batch_size - 1
+
+        if self.verbose_messaging:
+            print("get_latent_window_size: Next Lowest Initialized To: {}".format(next_lowest))
+            print("get_latent_window_size: Next Highest Initialized To: {}".format(next_highest))
+
+        num_frames_final = int(((num_frames - 1) // 4) * 4) + 1
+
+        if num_frames != num_frames_final:
+            print(f"Truncating video from {num_frames} to {num_frames_final} frames for latent_window_size compatibility.")
+
+        if (use_batch_size == "closest") or (use_batch_size == "next_lowest"):
+            while next_lowest >= 12:
+                next_lowest -= 4
+
+                if (int((num_frames_final - 1) // 4) % next_lowest) == 0:
+                    next_lowest_found = True
+                    break
+
+            next_lowest += 1
+
+            if next_lowest_found and (use_batch_size == "next_lowest"):
+                print("(3) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_lowest + 1)))
+                print("(3) batch_count set to: {}".format(int((num_frames_final - 1) / next_lowest)))
+                return self.decoded_to_encoded_length(next_lowest + 1), int((num_frames_final - 1) / next_lowest), num_frames_final
+
+        while next_highest <= 156:
+            next_highest += 4
+
+            if (int((num_frames_final - 1) // 4) % next_highest) == 0:
+                next_highest_found = True
+                break
+
+        if next_highest_found and (use_batch_size == "next_highest"):
+            print("(4) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_highest + 1)))
+            print("(4) batch_count set to: {}".format(int((num_frames_final - 1) / next_highest)))
+            return self.decoded_to_encoded_length(next_highest + 1), int((num_frames_final - 1) / next_highest), num_frames_final
+
+        if next_highest_found and next_lowest_found:
+            if (preferred_batch_size - next_lowest) <= (next_highest - preferred_batch_size):
+                print("(5) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_lowest + 1)))
+                print("(5) batch_count set to: {}".format(int((num_frames_final - 1) / next_lowest)))
+                return self.decoded_to_encoded_length(next_lowest + 1), int((num_frames_final - 1) / next_lowest), num_frames_final
+            elif (next_highest - preferred_batch_size) < (preferred_batch_size - next_lowest):
+                print("(6) latent_window_size set to: {}".format(self.decoded_to_encoded_length(next_highest + 1)))
+                print("(6) batch_count set to: {}".format(int((num_frames_final - 1) / next_highest)))
+                return self.decoded_to_encoded_length(next_highest + 1), int((num_frames_final - 1) / next_highest), num_frames_final
+
+        print("Unable to find a compatible latent_window_size for number of frames = {} and preferred_batch_size = {}.".format(frame_count, preferred_batch_size))
+        print("Recalculating Number Of Frames Based On preferred_batch_size of: {}".format(preferred_batch_size))
+
+        return self.calculate_new_number_of_frames(preferred_batch_size, (((frame_count - 1) // 4) * 4) + 1, use_batch_size)
+
+    def calculate_new_number_of_frames(self, preferred_batch_size, frame_count, use_batch_size):
+        working_batch_size = preferred_batch_size - 1
+        working_frame_count = frame_count - 1
+
+        next_lowest = next_highest = working_frame_count
+        next_lowest_found = False
+        next_highest_found = False
+
+        while next_lowest > 37:
+            next_lowest -= 4
+
+            if int(next_lowest % working_batch_size) == 0:
+                next_lowest_found = True
+                break
+
+        if next_lowest_found and (use_batch_size == "next_lowest"):
+            return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
+
+        while next_highest < 999997:
+            next_highest += 4
+
+            if int(next_highest % working_batch_size) == 0:
+                next_highest_found = True
+                break
+
+        if next_highest_found and (use_batch_size == "next_highest"):
+            return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
+
+        if next_lowest_found and next_highest_found:
+            if (working_frame_count - next_lowest) <= (next_highest - working_frame_count):
+                return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
+
+            return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
+
+        if next_lowest_found:
+            return self.decoded_to_encoded_length(preferred_batch_size), int(next_lowest // working_batch_size), next_lowest + 1
+
+        if next_highest_found:
+            return self.decoded_to_encoded_length(preferred_batch_size), int(next_highest // working_batch_size), next_highest + 1
+
+        raise ValueError("Unable to find a compatible latent_window_size for number of frames = {} and preferred_batch_size = {}.".format(frame_count, preferred_batch_size))
+
+    def clip_vision_encode(self, image, crop="center"):
+            crop_image = False
+            if crop != "center":
+                crop_image = False
+            output = self.clip_vision.encode_image(image, crop=crop_image)
+            return output
+
+    def encoded_to_decoded_length(self, latent_length):
+        if latent_length <= 0:
+            return 0
+
+        result_length = ((latent_length - 1) * 4) + 1
+
+        return result_length
+
+    def decoded_to_encoded_length(self, image_length):
+        if image_length <= 0:
+            return 0
+
+        result_length = int(((image_length - 1) / 4) + 1)
+
+        return result_length
+
+    def apply_flux_guidance(self, conditioning, guidance):
+        c = node_helpers.conditioning_set_values(conditioning, {"guidance": guidance})
+        return c
+
+    def hunyuan_text_encode(self, clip, clip_vision_output, prompt, image_interleave):
+        tokens = clip.tokenize(prompt, llama_template=PROMPT_TEMPLATE_ENCODE_VIDEO_I2V, image_embeds=clip_vision_output.mm_projected, image_interleave=image_interleave)
+        return clip.encode_from_tokens_scheduled(tokens)
+
+    def hunyuan_encode(self, positive, vae, width, height, length, batch_size, guidance_type, start_image=None):
+        latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+        out_latent = {}
+
+        if start_image is not None:
+            start_image = comfy.utils.common_upscale(start_image[:length, :, :, :3].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+
+            concat_latent_image = vae.encode(start_image)
+            mask = torch.ones((1, 1, latent.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=start_image.device, dtype=start_image.dtype)
+            mask[:, :, :((start_image.shape[0] - 1) // 4) + 1] = 0.0
+
+            if guidance_type == "v1 (concat)":
+                cond = {"concat_latent_image": concat_latent_image, "concat_mask": mask}
+            elif guidance_type == "v2 (replace)":
+                cond = {'guiding_frame_index': 0}
+                latent[:, :, :concat_latent_image.shape[2]] = concat_latent_image
+                out_latent["noise_mask"] = mask
+            elif guidance_type == "custom":
+                cond = {"ref_latent": concat_latent_image}
+
+            positive = node_helpers.conditioning_set_values(positive, cond)
+
+        out_latent["samples"] = latent
+        return positive, out_latent
+
+    def wan_text_encode(self, clip, positive_text="", negative_text=""):
+        print("wan_text_encode: Loading clip model to device: {}".format(clip.patcher.load_device))
+        clip.patcher.model.to(device=clip.patcher.load_device)
+
+        print("wan_text_encode: Encoding Prompts...")
+        positive_conditioning = self.do_text_encode(clip, positive_text)
+        negative_conditioning = self.do_text_encode(clip, negative_text)
+        print("wan_text_encode: Encoding Prompts...Done.")
+
+        print("wan_text_encode: Unloading clip model to device: {}".format(get_offload_device()))
+        clip.patcher.model.to(device=get_offload_device())
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        gc.collect()
+        time.sleep(1)
+
+        return positive_conditioning, negative_conditioning
+
+    def wan_encode_image(self, vae, width, height, length, batch_size, start_image=None):
+        latent = torch.zeros([1, self.latent_depth, ((length - 1) // 4) + 1, height // 16, width // 16], device=comfy.model_management.intermediate_device())
+
+        if start_image is None:
+            out_latent = {}
+            out_latent["samples"] = latent
+            return out_latent
+
+        mask = torch.ones([latent.shape[0], 1, ((length - 1) // 4) + 1, latent.shape[-2], latent.shape[-1]], device=comfy.model_management.intermediate_device())
+
+        if start_image is not None:
+            start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+            latent_temp = vae.encode(start_image)
+            latent[:, :, :latent_temp.shape[-3]] = latent_temp
+            mask[:, :, :latent_temp.shape[-3]] *= 0.0
+
+        out_latent = {}
+        latent_format = comfy.latent_formats.Wan22()
+        latent = latent_format.process_out(latent) * mask + latent * (1.0 - mask)
+        out_latent["samples"] = latent.repeat((batch_size, ) + (1,) * (latent.ndim - 1))
+        out_latent["noise_mask"] = mask.repeat((batch_size, ) + (1,) * (mask.ndim - 1))
+
+        return out_latent
+
+
+    def encode(self, clip, text):
+        if clip is None:
+            raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
+        tokens = clip.tokenize(text)
+        return clip.encode_from_tokens_scheduled(tokens)
+
+    def do_text_encode(self, clip, text):
+
+        if clip is None:
+            raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
+
+        tokens = clip.tokenize(text)
+        return_encoding = clip.encode_from_tokens_scheduled(tokens)
+
+        return return_encoding
+
+    def wan_encode(self, positive, negative, vae, width, height, length, batch_size, start_image=None, clip_vision_output=None):
+        if self.mode == "Wan 2.1" or self.mode == "Wan 2.2 Standard":
+            latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+            if start_image is not None:
+                start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+                image = torch.mul(torch.ones((length, height, width, start_image.shape[-1]), device=start_image.device, dtype=start_image.dtype), 0.5)
+                image[:start_image.shape[0]] = start_image
+
+                concat_latent_image = vae.encode(image[:, :, :, :3])
+
+                mask = torch.ones((1, 1, latent.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=start_image.device, dtype=start_image.dtype)
+                mask[:, :, :((start_image.shape[0] - 1) // 4) + 1] = 0.0
+
+                positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
+                negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
+
+            if clip_vision_output is not None:
+                positive = node_helpers.conditioning_set_values(positive, {"clip_vision_output": clip_vision_output})
+                negative = node_helpers.conditioning_set_values(negative, {"clip_vision_output": clip_vision_output})
+
+            out_latent = {}
+            out_latent["samples"] = latent
+        else:
+            out_latent = self.wan_encode_image(vae, width, height, length, batch_size, start_image)
+
+        return positive, negative, out_latent
+
+    def process_skip_images(self, frames, skip_count):
+        if len(frames.shape) < 4:
+            frames = frames.unsqueeze(0)
+
+        num_frames = frames.shape[0]
+
+        image_batches_tuple = torch.split(frames, 1, dim=0)
+        image_batches_split = [item for item in image_batches_tuple]
+
+        new_video = None
+        i = 0
+
+        while i < len(image_batches_split):
+            if i < skip_count:
+                i += 1
+                continue
+
+            if not new_video is None:
+                new_video = torch.cat((new_video, image_batches_split[i]), 0)
+            else:
+                new_video = image_batches_split[i]
+
+            i += 1
+
+        return new_video
+
+    def get_blank_image(self, length=1):
+        new_image = torch.zeros([length, self.height, self.width, 3], dtype=torch.float32, device=self.offload_device)
+        return new_image
+
+    def get_new_noise(self, length):
+        new_noise = torch.zeros([length, self.height, self.width, 3], dtype=torch.float32, device=self.offload_device)
+
+        new_noise = self.encode_tiled(new_noise)
+
+        new_noise = comfy.sample.fix_empty_latent_channels(self.guider.model_patcher, new_noise)
+
+        if len(new_noise) < 5:
+            new_latent = new_noise.unsqueeze(0)
+
+        new_noise = self.generate_noise({"samples": new_noise})
+
+        return new_noise
+
+    def pad_noise(self, latent, num_frames=1):
+        pad_frames = torch.zeros([1, 16, num_frames, self.height, self.width], dtype=torch.float32, device=self.offload_device)
+        pad_frames = torch.cat((latent, pad_frames), 2)
+
+        return pad_frames
+
+    def setup_callbacks(self):
+        callback = latent_preview.prepare_callback(self.guider.model_patcher, self.sigmas.shape[-1] - 1, self.g_output)
+
+        return callback
+
+    def decode_tiled(self, latents):
+        decoded_data = partial_decode_tiled(self.vae, latents, self.dec_tile_size, self.dec_overlap, self.dec_temporal_size, self.dec_temporal_overlap)
+
+        if len(decoded_data.shape) < 4:
+            decoded_data.unsqueeze(0)
+
+        return decoded_data
+
+    def initialize_noise(self, frame_count, clear_cache=True):
+        noise_latents_full = torch.zeros([1, 16, int(frame_count), self.height, self.width], dtype=torch.float32, device=self.offload_device)
+        print("WarpedSamplerCustomScripted: Encoded noise_latents_full Shape: {}".format(noise_latents_full.shape))
+
+        if Decimal(self.noise_scale).compare(Decimal(0.00)) != 0:
+            noise_latents_full = warped_prepare_noise(noise_latents_full, self.seed)
+            print("WarpedSamplerCustomScripted: noise_latents_full Shape: {}".format(noise_latents_full.shape))
+
+            noise_latents_full = torch.mul(noise_latents_full, self.noise_scale)
+
+        if len(noise_latents_full.shape) < 5:
+            noise_latents_full.unsqueeze(0)
+
+        noise_latents_full = noise_latents_full.to(dtype=torch.float32, device=self.offload_device)
+
+        if clear_cache:
+            mm.soft_empty_cache()
+            gc.collect()
+            time.sleep(0.1)
+
+        return noise_latents_full
+
+    def initialize_frames(self, latents):
+        if len(latents.shape) < 5:
+            latents = latents.unsqueeze(0)
+
+        print("WarpedSamplerCustomScripted: Encoded latents_full Shape: {}".format(latents.shape))
+        latents_full = latents.clone().detach()
+        latents_full = latents_full.to(dtype=torch.float32, device=self.offload_device)
+
+        noise_latents_full = self.initialize_noise(latents_full.shape[2])
+
+        mm.soft_empty_cache()
+        gc.collect()
+        time.sleep(0.1)
+
+        return noise_latents_full
 
 def sd3_patch(model, shift, multiplier=1000):
     m = model.clone()
@@ -7863,7 +6100,6 @@ class WarpedHunyuanMultiLoraLoader:
 
         # Load the LoRA weights
         lora_weights = utils.load_torch_file(lora_path)
-
         lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
 
         # Filter the LoRA weights based on the block type
@@ -7905,6 +6141,12 @@ class WarpedHunyuanMultiLoraLoader:
                 # Apply the LoRA weights to the model
                 if filtered_lora:
                     model, _ = load_lora_for_models(model, None, filtered_lora, temp_strength, 0)
+
+        # print("\n\nmodel.model:")
+        # print(model.model)
+        # print("\n\nmodel:")
+        # print(model)
+        # print("\n\n")
 
         return (model, lora_metadata, )
 
@@ -8247,6 +6489,70 @@ class WarpedHunyuanLoraConvertKeys:
 
         return {"ui": {"tags": [save_message]}}
 
+# class WarpedHunyuanLoraConvertKeys2:
+#     def __init__(self):
+#         self.base_output_dir = get_default_output_folder()
+#         os.makedirs(self.base_output_dir, exist_ok = True)
+#
+#     @classmethod
+#     def INPUT_TYPES(s):
+#         return {
+#             "required": {
+#                 "save_path": ("STRING", {"default": get_default_output_path()}),
+#                 "lora": (get_lora_list(),),
+#                 "convert_to": (["diffusion_model", "transformer", "framepack"], {"default": "diffusion_model"}),
+#                 "save_metadata": ("BOOLEAN", {"default": True}),
+#             },
+#         }
+#
+#     RETURN_TYPES = ()
+#     OUTPUT_NODE = True
+#     OUTPUT_IS_LIST = (True,)
+#     FUNCTION = "convert_lora"
+#     CATEGORY = "Warped/Hunyuan/Lora"
+#     DESCRIPTION = "Convert Keys For Hunyuan LORA and Save Modified LORA."
+#
+#     def load_lora(self, lora_name: str) -> Tuple[Dict[str, torch.Tensor],]:
+#         """Load and filter a single LoRA model."""
+#         if not lora_name:
+#             return {}
+#
+#         # Get the full path to the LoRA file
+#         lora_path = folder_paths.get_full_path("loras", lora_name)
+#         if not os.path.exists(lora_path):
+#             raise ValueError(f"LoRA file not found: {lora_path}")
+#
+#         # Load the LoRA weights
+#         lora_weights = utils.load_torch_file(lora_path)
+#
+#         return lora_weights
+#
+#     def convert_lora(self, save_path, lora, convert_to, save_metadata=True):
+#         metadata = {"original_lora": "{}".format(lora)}
+#
+#         # Load the LoRA weights
+#         temp_lora = self.load_lora(lora)
+#
+#         if convert_to != "framepack":
+#             new_lora = convert_lora(temp_lora, convert_to=convert_to)
+#         else:
+#             new_lora = convert_lora(temp_lora, convert_to="diffusion_model")
+#
+#         for key in new_lora.keys():
+#             print("LORA Key: {}".format(key))
+#
+#         if not save_metadata:
+#             metadata = None
+#
+#         if len(new_lora) < 1:
+#             utils.save_torch_file(temp_lora, save_path, metadata=metadata)
+#         else:
+#             utils.save_torch_file(new_lora, save_path, metadata=metadata)
+#
+#         save_message = "Weights Saved To: {}".format(save_path)
+#
+#         return {"ui": {"tags": [save_message]}}
+
 class WarpedLoraKeysAndMetadataReader:
     def __init__(self):
         pass
@@ -8486,8 +6792,8 @@ class WarpedFramepackSampler:
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "STRING", "INT", )
-    RETURN_NAMES = ("images", "generation_status", "seed", )
+    RETURN_TYPES = ("IMAGE", "STRING", "INT", "BOOLEAN",)
+    RETURN_NAMES = ("images", "generation_status", "seed", "valid_output",)
     FUNCTION = "process"
     CATEGORY = "Warped/Framepack/Sampling"
 
@@ -8723,6 +7029,7 @@ class WarpedFramepackSampler:
         dummy_images = None
         dummy_gen_latents = None
         generated_image_batches = []
+        valid_output = False
 
         self.cleanup(unload_models=True, cleanup_models=False, cleanup_cuda=True)
 
@@ -8843,6 +7150,7 @@ class WarpedFramepackSampler:
 
                     decoded_images = partial_decode_tiled(self.vae, generated_latents.clone().detach()  / vae_scaling_factor, self.dec_tile_size, self.dec_overlap, self.dec_temporal_size, self.dec_temporal_overlap)
                     generated_image_batches.append(decoded_images.clone().detach())
+                    valid_output = True
 
                     decoded_tuple = torch.split(decoded_images, 1, dim=0)
                     decoded_split = [item for item in decoded_tuple]
@@ -8888,8 +7196,9 @@ class WarpedFramepackSampler:
 
                     dummy_images = dummy_decoded.clone().detach()
 
-                    if self.use_dummy_image == "all":
+                    if (self.use_dummy_image == "all") or self.gen_dummy_only:
                         generated_image_batches.append(dummy_images)
+                        valid_output = True
 
                     if not self.gen_dummy_only:
                         dummy_tuple = torch.split(dummy_decoded, 1, dim=0)
@@ -9000,7 +7309,7 @@ class WarpedFramepackSampler:
         if self.verbose_messaging:
             print("output_images Shape: {}".format(output_images.shape))
 
-        return (output_images, generation_status, self.seed, )
+        return (output_images, generation_status, self.seed, valid_output,)
 
     def process_v2v(self, video_image_batch):
         if len(video_image_batch.shape) < 4:
@@ -9059,6 +7368,7 @@ class WarpedFramepackSampler:
         generation_status = ""
         temp_history_latents = None
         original_history_latents = None
+        valid_output = False
 
         self.cleanup(unload_models=True, cleanup_models=False, cleanup_cuda=True)
 
@@ -9153,6 +7463,7 @@ class WarpedFramepackSampler:
                     print("generated_latents for batch {}: Shape: {}\n".format(latent_padding, generated_latents.shape))
 
                 latent_batches_gend.append(generated_latents.clone().detach()  / vae_scaling_factor)
+                valid_output = True
                 total_generated_latent_frames += int(generated_latents.shape[2])
 
                 generated_latents.to(dtype=torch.float32, device=self.offload_device)
@@ -9248,7 +7559,7 @@ class WarpedFramepackSampler:
         if self.verbose_messaging:
             print("output_images Shape: {}".format(output_images.shape))
 
-        return (output_images, generation_status, self.seed, )
+        return (output_images, generation_status, self.seed, valid_output,)
 
     def generate_video(self, width, height, num_frames, seed_generator, noise_latent, llama_vec, llama_attention_mask, clip_l_pooler, llama_vec_n, llama_attention_mask_n, clip_l_pooler_n, image_encoder_last_hidden_state,
                         latent_indices, clean_latents, clean_latent_indices, clean_latents_2x, clean_latent_2x_indices, clean_latents_4x, clean_latent_4x_indices, callback):
@@ -10182,33 +8493,6 @@ class WarpedDualEncoder(ComfyNodeABC):
 
         return return_encoding
 
-# class CLIPLoader:
-#     @classmethod
-#     def INPUT_TYPES(s):
-#         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-#                               "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace"], ),
-#                               },
-#                 "optional": {
-#                               "device": (["default", "cpu"], {"advanced": True}),
-#                              }}
-#     RETURN_TYPES = ("CLIP",)
-#     FUNCTION = "load_clip"
-#
-#     CATEGORY = "advanced/loaders"
-#
-#     DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 xxl/ clip-g / clip-l\nstable_audio: t5 base\nmochi: t5 xxl\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\n hidream: llama-3.1 (Recommend) or t5"
-#
-#     def load_clip(self, clip_name, type="stable_diffusion", device="default"):
-#         clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
-#
-#         model_options = {}
-#         if device == "cpu":
-#             model_options["load_device"] = model_options["offload_device"] = torch.device("cpu")
-#
-#         clip_path = folder_paths.get_full_path_or_raise("text_encoders", clip_name)
-#         clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type, model_options=model_options)
-#         return (clip,)
-
 class WarpedCLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
@@ -10377,7 +8661,7 @@ class WarpedLoadFramePackModel:
 
             "base_precision": (["fp32", "bf16", "fp16"], {"default": "bf16"}),
             "quantization": (['disabled', 'fp8_e4m3fn', 'fp8_e4m3fn_fast', 'fp8_e5m2'], {"default": 'disabled', "tooltip": "optional quantization method"}),
-            "load_device": (get_available_devices(), {"default": "cpu", "tooltip": "set load device."}),
+            "load_device": (get_available_devices(), {"default": "cuda", "tooltip": "set load device."}),
             },
             "optional": {
                 "attention_mode": ([
@@ -10437,6 +8721,9 @@ class WarpedLoadFramePackModel:
 
         gc.collect()
         time.sleep(1)
+
+        # for key in sd.keys():
+        #     print("Framepack Model Key: {}".format(key))
 
         # sd = load_torch_file(model_path, device=offload_device, safe_load=True)
         model_weight_dtype = sd['single_transformer_blocks.0.attn.to_k.weight'].dtype
@@ -10907,3 +9194,698 @@ class WarpedCheckpointLoader:
             raise RuntimeError("ERROR: Could not detect model type of: {}".format(ckpt_path))
 
         return out
+
+class WarpedDatabase:
+    def __init__(self, the_dictionary):
+        self.data = the_dictionary
+
+    def catExists(self, category):
+        return category in self.data
+
+    def keyExists(self, category, key):
+        return category in self.data and key in self.data[category]
+
+    def insert(self, category, key, value):
+        if not isinstance(category, str) or not isinstance(key, str):
+            cstr("Category and key must be strings").error.print()
+            return
+
+        if category not in self.data:
+            self.data[category] = {}
+        self.data[category][key] = value
+        self._save()
+
+    def update(self, category, key, value):
+        if category in self.data and key in self.data[category]:
+            self.data[category][key] = value
+            self._save()
+
+    def updateCat(self, category, dictionary):
+        self.data[category].update(dictionary)
+        self._save()
+
+    def get(self, category, key):
+        return self.data.get(category, {}).get(key, None)
+
+    def getDB(self):
+        return self.data
+
+    def insertCat(self, category):
+        if not isinstance(category, str):
+            cstr("Category must be a string").error.print()
+            return
+
+        if category in self.data:
+            cstr(f"The database category '{category}' already exists!").error.print()
+            return
+        self.data[category] = {}
+        self._save()
+
+    def getDict(self, category):
+        if category not in self.data:
+            cstr(f"The database category '{category}' does not exist!").error.print()
+            return {}
+        return self.data[category]
+
+warped_DB = WarpedDatabase({"custom_tokens": {}})
+
+class TextTokens:
+    def __init__(self):
+        self.WDB = warped_DB
+        if not self.WDB.getDB().__contains__('custom_tokens'):
+            self.WDB.insertCat('custom_tokens')
+        self.custom_tokens = self.WDB.getDict('custom_tokens')
+
+        self.tokens = {
+            '[time]': str(time.time()).replace('.','_'),
+            '[hostname]': socket.gethostname(),
+            '[cuda_device]': str(comfy.model_management.get_torch_device()),
+            '[cuda_name]': str(comfy.model_management.get_torch_device_name(device=comfy.model_management.get_torch_device())),
+        }
+
+        if '.' in self.tokens['[time]']:
+            self.tokens['[time]'] = self.tokens['[time]'].split('.')[0]
+
+        try:
+            self.tokens['[user]'] = os.getlogin() if os.getlogin() else 'null'
+        except Exception:
+            self.tokens['[user]'] = 'null'
+
+    def addToken(self, name, value):
+        self.custom_tokens.update({name: value})
+        self._update()
+
+    def removeToken(self, name):
+        self.custom_tokens.pop(name)
+        self._update()
+
+    def format_time(self, format_code):
+        return time.strftime(format_code, time.localtime(time.time()))
+
+    def parseTokens(self, text):
+        tokens = self.tokens.copy()
+        if self.custom_tokens:
+            tokens.update(self.custom_tokens)
+
+        # Update time
+        tokens['[time]'] = str(time.time())
+        if '.' in tokens['[time]']:
+            tokens['[time]'] = tokens['[time]'].split('.')[0]
+
+        for token, value in tokens.items():
+            if token.startswith('[time('):
+                continue
+            pattern = re.compile(re.escape(token))
+            text = pattern.sub(value, text)
+
+        def replace_custom_time(match):
+            format_code = match.group(1)
+            return self.format_time(format_code)
+
+        text = re.sub(r'\[time\((.*?)\)\]', replace_custom_time, text)
+
+        return text
+
+    def _update(self):
+        self.WDB.updateCat('custom_tokens', self.custom_tokens)
+
+class WarpedSamplerScriptsBase:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        arg_dict = {
+            "required": {
+            },
+            "optional": {
+            }
+        }
+
+        arg_dict["optional"]["dummy"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        for i in range(self.num_batchs):
+            arg_dict["optional"][f"batch_{i}"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        return arg_dict
+
+    RETURN_TYPES = ("WARPEDSCRIPTS",)
+    RETURN_NAMES = ("scripts", )
+    FUNCTION = "do_scripts"
+
+    CATEGORY = "Warped/General/Scripts"
+
+    def do_scripts(self, **kwargs):
+        scripts = {}
+
+        temp_text = kwargs.get(f"dummy")
+
+        if len(temp_text) > 0:
+            scripts["dummy"] = self.get_tokens(temp_text)
+
+        for i in range(12):
+            temp_text = kwargs.get(f"batch_{i}")
+
+            if len(temp_text) > 0:
+                scripts["{}".format(i)] = self.get_tokens(temp_text)
+
+        return (scripts, )
+
+    def get_tokens(self, text):
+        new_text = []
+        for line in io.StringIO(text):
+            if not line.strip().startswith('#'):
+                new_text.append(line.replace("\n", ''))
+        new_text = "\n".join(new_text)
+
+        tokens = TextTokens()
+        new_text = tokens.parseTokens(new_text)
+
+        return new_text
+
+class WarpedSamplerScripts5(WarpedSamplerScriptsBase):
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(self):
+        arg_dict = {
+            "required": {
+            },
+            "optional": {
+            }
+        }
+
+        arg_dict["optional"]["dummy"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        for i in range(5):
+            arg_dict["optional"][f"batch_{i}"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        return arg_dict
+
+    def do_scripts(self, **kwargs):
+        scripts = {}
+
+        temp_text = kwargs.get(f"dummy")
+
+        if len(temp_text) > 0:
+            scripts["dummy"] = self.get_tokens(temp_text)
+
+        for i in range(5):
+            temp_text = kwargs.get(f"batch_{i}")
+
+            if len(temp_text) > 0:
+                scripts["{}".format(i)] = self.get_tokens(temp_text)
+
+        return (scripts, )
+
+class WarpedSamplerScripts8(WarpedSamplerScriptsBase):
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(self):
+        arg_dict = {
+            "required": {
+            },
+            "optional": {
+            }
+        }
+
+        arg_dict["optional"]["dummy"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        for i in range(8):
+            arg_dict["optional"][f"batch_{i}"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        return arg_dict
+
+    def do_scripts(self, **kwargs):
+        scripts = {}
+
+        temp_text = kwargs.get(f"dummy")
+
+        if len(temp_text) > 0:
+            scripts["dummy"] = self.get_tokens(temp_text)
+
+        for i in range(8):
+            temp_text = kwargs.get(f"batch_{i}")
+
+            if len(temp_text) > 0:
+                scripts["{}".format(i)] = self.get_tokens(temp_text)
+
+        return (scripts, )
+
+class WarpedSamplerScripts12(WarpedSamplerScriptsBase):
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(self):
+        arg_dict = {
+            "required": {
+            },
+            "optional": {
+            }
+        }
+
+        arg_dict["optional"]["dummy"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        for i in range(12):
+            arg_dict["optional"][f"batch_{i}"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        return arg_dict
+
+    def do_scripts(self, **kwargs):
+        scripts = {}
+
+        temp_text = kwargs.get(f"dummy")
+
+        if len(temp_text) > 0:
+            scripts["dummy"] = self.get_tokens(temp_text)
+
+        for i in range(12):
+            temp_text = kwargs.get(f"batch_{i}")
+
+            if len(temp_text) > 0:
+                scripts["{}".format(i)] = self.get_tokens(temp_text)
+
+        return (scripts, )
+
+class WarpedSamplerScripts16(WarpedSamplerScriptsBase):
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(self):
+        arg_dict = {
+            "required": {
+            },
+            "optional": {
+            }
+        }
+
+        arg_dict["optional"]["dummy"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        for i in range(16):
+            arg_dict["optional"][f"batch_{i}"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        return arg_dict
+
+    def do_scripts(self, **kwargs):
+        scripts = {}
+
+        temp_text = kwargs.get(f"dummy")
+
+        if len(temp_text) > 0:
+            scripts["dummy"] = self.get_tokens(temp_text)
+
+        for i in range(16):
+            temp_text = kwargs.get(f"batch_{i}")
+
+            if len(temp_text) > 0:
+                scripts["{}".format(i)] = self.get_tokens(temp_text)
+
+        return (scripts, )
+
+class WarpedSamplerScripts20(WarpedSamplerScriptsBase):
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(self):
+        arg_dict = {
+            "required": {
+            },
+            "optional": {
+            }
+        }
+
+        arg_dict["optional"]["dummy"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        for i in range(20):
+            arg_dict["optional"][f"batch_{i}"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        return arg_dict
+
+    def do_scripts(self, **kwargs):
+        scripts = {}
+
+        temp_text = kwargs.get(f"dummy")
+
+        if len(temp_text) > 0:
+            scripts["dummy"] = self.get_tokens(temp_text)
+
+        for i in range(20):
+            temp_text = kwargs.get(f"batch_{i}")
+
+            if len(temp_text) > 0:
+                scripts["{}".format(i)] = self.get_tokens(temp_text)
+
+        return (scripts, )
+
+class WarpedSamplerScripts30(WarpedSamplerScriptsBase):
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(self):
+        arg_dict = {
+            "required": {
+            },
+            "optional": {
+            }
+        }
+
+        arg_dict["optional"]["dummy"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        for i in range(30):
+            arg_dict["optional"][f"batch_{i}"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        return arg_dict
+
+    def do_scripts(self, **kwargs):
+        scripts = {}
+
+        temp_text = kwargs.get(f"dummy")
+
+        if len(temp_text) > 0:
+            scripts["dummy"] = self.get_tokens(temp_text)
+
+        for i in range(30):
+            temp_text = kwargs.get(f"batch_{i}")
+
+            if len(temp_text) > 0:
+                scripts["{}".format(i)] = self.get_tokens(temp_text)
+
+        return (scripts, )
+
+class WarpedSamplerScripts40(WarpedSamplerScriptsBase):
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(self):
+        arg_dict = {
+            "required": {
+            },
+            "optional": {
+            }
+        }
+
+        arg_dict["optional"]["dummy"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        for i in range(40):
+            arg_dict["optional"][f"batch_{i}"] = ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True})
+
+        return arg_dict
+
+    def do_scripts(self, **kwargs):
+        scripts = {}
+
+        temp_text = kwargs.get(f"dummy")
+
+        if len(temp_text) > 0:
+            scripts["dummy"] = self.get_tokens(temp_text)
+
+        for i in range(40):
+            temp_text = kwargs.get(f"batch_{i}")
+
+            if len(temp_text) > 0:
+                scripts["{}".format(i)] = self.get_tokens(temp_text)
+
+        return (scripts, )
+
+class WarpedLoadImages:
+    def __init__(self, index=0):
+        self.index = index
+        self.output_dir = folder_paths.get_output_directory()
+        self.previous_path = ""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "mode": (["incremental_image", "random"], {"default": "incremental_image"}),
+                "index": ("INT", {"default": 0, "min": 0, "max": 150000, "step": 1}),
+                "label": ("STRING", {"default": 'Batch 001', "multiline": False}),
+                "path": ("STRING", {"default": '', "multiline": False}),
+            },
+            "optional": {
+                "suffix": ("STRING", {"default": '', "multiline": False})
+            }
+        }
+
+    RETURN_TYPES = ("STRING", "INT", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("filename", "index", "prefixorg", "prefixseg", "prefixmsk")
+
+    FUNCTION = "load_batch_images"
+
+    CATEGORY = "Warped/General/Image"
+
+    def load_batch_images(self, path, index=0, mode="incremental_image", label='Batch 001', suffix=""):
+        if not os.path.exists(path):
+            return (None, )
+
+        if path != self.previous_path:
+            self.index = index
+            self.previous_path = path
+
+        fl = self.BatchImageLoader(path, label, '*', index)
+        new_paths = fl.image_paths
+
+        retry = True
+
+        try:
+            filename = fl.image_paths[self.index]
+        except:
+            if retry:
+                retry = False
+                self.index = 0
+                filename = fl.image_paths[self.index]
+
+        print("Filename: {}".format(filename))
+
+        temp_strings = filename.split(".")
+        temp_fileend = temp_strings[len(temp_strings) - 1]
+
+        temp_filename = ""
+
+        i = 0
+        while i < (len(temp_strings) - 1):
+            temp_filename = "{}{}".format(temp_filename, temp_strings[i])
+            i += 1
+
+        tempFilename = "{}/{}_{}.{}"
+        tempFilenamesuffix = "{}/{}_{}_{}.{}"
+
+        tempStrings1 = temp_filename.split("\\")
+        temp_filename = tempStrings1[len(tempStrings1) - 1]
+
+        if len(suffix) < 1:
+            prefixorg = tempFilename.format(self.output_dir, temp_filename, "org", temp_fileend)
+            prefixseg = tempFilename.format(self.output_dir, temp_filename, "seg", temp_fileend)
+            prefixmsk = tempFilename.format(self.output_dir, temp_filename, "msk", temp_fileend)
+        else:
+            prefixorg = tempFilenamesuffix.format(self.output_dir, temp_filename, "org", suffix, temp_fileend)
+            prefixseg = tempFilenamesuffix.format(self.output_dir, temp_filename, "seg", suffix, temp_fileend)
+            prefixmsk = tempFilenamesuffix.format(self.output_dir, temp_filename, "msk", suffix, temp_fileend)
+
+        self.index += 1
+
+        if self.index >= len(fl.image_paths):
+            self.index = 0
+
+        return filename, self.index - 1, prefixorg, prefixseg, prefixmsk,
+
+    class BatchImageLoader:
+        def __init__(self, directory_path, label, pattern, index):
+            self.image_paths = []
+            self.load_images(directory_path, pattern)
+            self.image_paths.sort()
+
+            self.index = index
+            self.label = label
+
+        def load_images(self, directory_path, pattern):
+            for file_name in glob.glob(os.path.join(directory_path, pattern), recursive=True):
+                if file_name.lower().endswith(ALLOWED_EXT):
+                    abs_file_path = os.path.abspath(file_name)
+                    self.image_paths.append(abs_file_path)
+
+        def get_image_by_id(self, image_id):
+            if image_id < 0 or image_id >= len(self.image_paths):
+                cstr(f"Invalid image index `{image_id}`").error.print()
+                return
+
+            return self.image_paths[image_id]
+
+        def get_next_image(self):
+            if self.index >= len(self.image_paths):
+                self.index = 0
+
+            image_path = self.image_paths[self.index]
+            self.index += 1
+
+            if self.index == len(self.image_paths):
+                self.index = 0
+
+            cstr(f'{cstr.color.YELLOW}{self.label}{cstr.color.END} Index: {self.index}').msg.print()
+
+            return image_path
+
+        def get_current_image(self):
+            if self.index >= len(self.image_paths):
+                self.index = 0
+            image_path = self.image_paths[self.index]
+
+            return image_path
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return float("NaN")
+
+class WarpedSaveImageCaption:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"image_path": ("STRING", {"forceInput": True}),
+                     "caption": ("STRING", {"forceInput": True}),
+                    },
+                }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("caption",)
+    OUTPUT_NODE = True
+    FUNCTION = "save_caption"
+
+    CATEGORY = "Warped/General/Captioning"
+
+    def save_caption(self, image_path, caption):
+        tempStrings = image_path.split('.')
+        caption_path = tempStrings[0]
+
+        i = 1
+
+        while i < (len(tempStrings) - 1):
+            caption_path = "{}.{}".format(caption_path, tempStrings[i])
+            i += 1
+
+        caption_path = "{}.txt".format(caption_path)
+
+        with open(caption_path, 'w') as fp:
+            fp.write(caption)
+
+        return {"ui": {"string": [caption,]}, "result": (caption,)}
+
+class WarpedModifyCaptionFile:
+    def __init__(self, index=0):
+        self.index = index
+        self.previous_path = ""
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"mode": (["incremental_caption", "random"], {"default": "incremental_caption"}),
+                     "index": ("INT", {"default": 0, "min": 0, "max": 150000, "step": 1}),
+                     "caption_path": ("STRING", {"forceInput": False}),
+                     "find_text": ("STRING", {"forceInput": False}),
+                     "replace_text": ("STRING", {"forceInput": False}),
+                    },
+                }
+
+    RETURN_TYPES = ("STRING", "STRING", "STRING", )
+    RETURN_NAMES = ("filename", "original", "modified", )
+    OUTPUT_NODE = True
+    FUNCTION = "load_batch_captions"
+
+    CATEGORY = "Warped/General/Captioning"
+
+    def load_batch_captions(self, mode="incremental_caption", index=0, caption_path="", find_text="", replace_text=""):
+        if (len(caption_path) == 0) or (len(find_text) == 0) or (not os.path.exists(caption_path)):
+            return ("None", "None", "None")
+
+        if caption_path != self.previous_path:
+            self.index = index
+            self.previous_path = caption_path
+
+        fl = self.BatchCaptionLoader(caption_path, '*', index)
+
+        retry = True
+
+        try:
+            filename = fl.caption_paths[self.index]
+        except:
+            if retry:
+                retry = False
+                self.index = 0
+                filename = fl.caption_paths[self.index]
+
+        print("Filename: {}".format(filename))
+
+        original, modified = self.find_replace(filename, find_text, replace_text)
+
+        self.index += 1
+
+        if self.index >= len(fl.caption_paths):
+            self.index = 0
+
+        return {"ui": {"string": [filename, original, modified]}, "result": (filename, original, modified)}
+
+    def find_replace(self, filename, find_text, replace_text):
+        with open(filename, "r") as fp:
+            original = fp.read()
+
+        modified = original.replace(find_text, replace_text)
+
+        with open(filename, "w") as fp:
+            fp.write(modified)
+
+        return (original, modified)
+
+    class BatchCaptionLoader:
+        def __init__(self, directory_path, pattern, index):
+            self.caption_paths = []
+            self.load_captions(directory_path, pattern)
+            self.caption_paths.sort()
+            self.index = index
+
+        def load_captions(self, directory_path, pattern):
+            for file_name in glob.glob(os.path.join(directory_path, pattern), recursive=True):
+                if file_name.lower().endswith(ALLOWED_CAPTION_EXT):
+                    abs_file_path = os.path.abspath(file_name)
+                    self.caption_paths.append(abs_file_path)
+
+        def get_caption_by_id(self, caption_id):
+            if caption_id < 0 or caption_id >= len(self.caption_paths):
+                cstr(f"Invalid caption index `{caption_id}`").error.print()
+                return
+
+            return self.caption_paths[caption_id]
+
+        def get_next_caption(self):
+            if self.index >= len(self.caption_paths):
+                self.index = 0
+
+            caption_path = self.caption_paths[self.index]
+            self.index += 1
+
+            if self.index == len(self.caption_paths):
+                self.index = 0
+
+            cstr(f'{cstr.color.YELLOW}{self.label}{cstr.color.END} Index: {self.index}').msg.print()
+
+            return caption_path
+
+        def get_current_caption(self):
+            if self.index >= len(self.caption_paths):
+                self.index = 0
+            caption_path = self.caption_paths[self.index]
+
+            return caption_path
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return float("NaN")

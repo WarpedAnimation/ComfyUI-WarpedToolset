@@ -31,6 +31,14 @@
 
 <div align="left">
 
+# V1.7.2 Updates
+
+1) Added Scripting Nodes, Sampler, and Capabilities
+2) New/Updated Sample Workflows
+3) Added Captioning Capability
+   
+<div align="left">
+
 # V1.7.1 Updates
 
 1) Added Fast Loading GGUF Unet, Clip, and Dual Clip Loader Nodes

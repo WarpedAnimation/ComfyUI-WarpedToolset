@@ -337,6 +337,40 @@
       }
     },
     {
+      "id": 201,
+      "type": "UpscaleModelLoader",
+      "pos": [
+        381.0227966308594,
+        339.8635559082031
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "UPSCALE_MODEL",
+          "type": "UPSCALE_MODEL",
+          "slot_index": 0,
+          "links": [
+            885
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "UpscaleModelLoader"
+      },
+      "widgets_values": [
+        "4x_foolhardy_Remacri.pth"
+      ]
+    },
+    {
       "id": 276,
       "type": "WarpedUpscaleWithModel",
       "pos": [
@@ -380,44 +414,10 @@
       },
       "widgets_values": [
         2,
-        "bilinear"
+        "lanczos"
       ],
       "color": "#323",
       "bgcolor": "#535"
-    },
-    {
-      "id": 201,
-      "type": "UpscaleModelLoader",
-      "pos": [
-        381.0227966308594,
-        339.8635559082031
-      ],
-      "size": [
-        315,
-        58
-      ],
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "UPSCALE_MODEL",
-          "type": "UPSCALE_MODEL",
-          "slot_index": 0,
-          "links": [
-            885
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.27",
-        "Node name for S&R": "UpscaleModelLoader"
-      },
-      "widgets_values": [
-        "4x_foolhardy_Remacri.pth"
-      ]
     }
   ],
   "links": [
@@ -507,7 +507,7 @@
         -103.0950000000065
       ]
     },
-    "frontendVersion": "1.20.5",
+    "frontendVersion": "1.23.4",
     "groupNodes": {},
     "ue_links": [],
     "VHS_latentpreview": true,
