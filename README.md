@@ -31,11 +31,9 @@
 
 <div align="left">
 
-#### [V1.7.2 Overview Video](https://mega.nz/file/Wug3wapL#TkrEIQrwoMbMCJ5-IgtPjlJF8J_yr8NtNudGqCEO_lM)
-  
-<div align="left">
-
 # V1.7.2 Updates
+
+#### [V1.7.2 Overview Video](https://mega.nz/file/Wug3wapL#TkrEIQrwoMbMCJ5-IgtPjlJF8J_yr8NtNudGqCEO_lM)
 
 1) Added Scripting Nodes, Sampler, and Capabilities
 2) New/Updated Sample Workflows
