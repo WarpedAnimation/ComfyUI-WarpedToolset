@@ -486,6 +486,105 @@ class WarpedLoaderGGUF:
 
         return model,
 
+class WarpedWan22MergeLoaderGGUF:
+    @classmethod
+    def INPUT_TYPES(s):
+        gguf_names = [x for x in folder_paths.get_filename_list('model_gguf')]
+        return {'required': {
+                   "model1": (gguf_names,),
+                   "strength1": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
+                   "model2": (gguf_names,),
+                   "strength2": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
+                   }
+               }
+
+    RETURN_TYPES = ("MODEL", )
+    RETURN_NAMES = ("model", )
+    FUNCTION = 'do_merge'
+    CATEGORY = 'Warped/GGUF/Loaders'
+
+    def load_state_dict(self, gguf_name, dequant_dtype=None):
+        ops = GGMLOps()
+        if dequant_dtype in ('default', None):
+            ops.Linear.dequant_dtype = None
+        elif dequant_dtype in ['target']:
+            ops.Linear.dequant_dtype = dequant_dtype
+        else:
+            ops.Linear.dequant_dtype = getattr(torch, dequant_dtype)
+        if patch_dtype in ('default', None):
+            ops.Linear.patch_dtype = None
+        elif patch_dtype in ['target']:
+            ops.Linear.patch_dtype = patch_dtype
+        else:
+            ops.Linear.patch_dtype = getattr(torch, patch_dtype)
+        model_path = folder_paths.get_full_path('unet', gguf_name)
+
+        print("Reading Checkpoint: {}...".format(model_path))
+        with open(model_path, "rb") as file:
+            checkpoint_temp = file.read()
+        print("Reading Checkpoint: {}...Done!".format(model_path))
+
+        print("Loading Checkpoint...")
+
+        temp_io = io.BytesIO(checkpoint_temp)
+
+        sd = load_gguf_sd(temp_io)
+        print("Loading Checkpoint...Done!")
+
+        print("\ngguf_name: {}\n".format(gguf_name))
+        for key in sd.keys():
+            print(key)
+        print("\n")
+
+        temp_io = None
+        checkpoint_temp = None
+        gc.collect()
+        time.sleep(1)
+
+        return sd
+
+    def do_merge(self, model1, strength1, model2, strength2, dequant_dtype=None):
+        state_dict1 = self.load_state_dict(self, gguf_name, dequant_dtype=dequant_dtype)
+        state_dict2 = self.load_state_dict(self, gguf_name, dequant_dtype=dequant_dtype)
+
+        new_state_dict = {}
+
+        for key in state_dict1.keys():
+            temp_weights1 = torch.mul(state_dict1[key], strength1)
+
+            if key in temp_weights.keys():
+                temp_weights2 = torch.mul(state_dict2[key], strength2)
+                new_state_dict[key] = torch.add(temp_weights1, temp_weights2)
+            else:
+                new_state_dict[key] = temp_weights1
+
+        for key in state_dict2.keys():
+            if key in new_state_dict.keys():
+                continue
+
+            new_state_dict[key] = state_dict2[key]
+
+        model = comfy.sd.load_diffusion_model_state_dict(new_state_dict, model_options={'custom_operations': ops})
+
+        if model is None:
+            logging.error('ERROR UNSUPPORTED MODEL {}'.format(model_path))
+            raise RuntimeError('ERROR: Could not detect model type of: {}'.
+                format(model_path))
+
+        # print("\n")
+        # print(model.model)
+        # print("\n")
+
+        model = GGUFModelPatcher.clone(model)
+        model.patch_on_device = patch_on_device
+
+        temp_io = None
+        checkpoint_temp = None
+        gc.collect()
+        time.sleep(1)
+
+        return model,
+
 def warped_load_torch_file(ckpt, return_metadata=False):
     from safetensors.torch import load as safeload
 

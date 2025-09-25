@@ -288,12 +288,110 @@ def filter_lora_keys(lora: Dict[str, torch.Tensor], blocks_type: str) -> Dict[st
     """Filter LoRA weights based on block type."""
     if blocks_type == "all":
         return lora
+
     filtered_lora = {}
+
     for key, value in lora.items():
         base_key = convert_key_format(key)
         if blocks_type in base_key:
             filtered_lora[key] = value
     return filtered_lora
+
+def convert_to_musubi(lora: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    """Checks for and converts to Musubi Tuner format which supports Network Alpha and uses different naming."""
+    prefix = "lora_unet_"
+    musubi = False
+    lora_alphas = {}
+    for key, value in lora.items():
+        if key.startswith(prefix):
+            lora_name = key.split(".", 1)[0]  # before first dot
+
+            if lora_name not in lora_alphas and "alpha" in key:
+                lora_alphas[lora_name] = value
+                musubi = True
+
+    if musubi:
+        print("Lora is already in musubi format. Nothing to convert.")
+        return lora
+
+    print("Converting lora to musubi format.")
+
+    temp_lora = convert_lora(lora, do_check_for_musuibi=False)
+
+    for key in temp_lora.keys():
+        print("Intermediate Lora Key: {}".format(key))
+
+    print("\n")
+
+    converted_lora = {}
+    prefix = "diffusion_model."
+    has_double_blocks = False
+    has_single_blocks = False
+
+    for key, weight in temp_lora.items():
+        print("Converting Key: {}".format(key))
+
+        if "mod.linear" in key:
+            print("Skipping Key.")
+            continue
+
+        if ("double.blocks" in key) or ("double_blocks" in key):
+            has_double_blocks = True
+
+        elif ("single.blocks" in key) or ("single_blocks" in key):
+            has_single_blocks = True
+
+        # lora_name = key.split("_", 1)[0]  # before first dot
+
+        # HunyuanVideo lora name to module name: ugly but works
+        # module_name = lora_name[len(prefix) :]  # remove "diffusion_model."
+
+        module_name = key.replace(prefix, "")
+
+        print("module_name: {}".format(module_name))
+
+        module_name = module_name.replace(".", "_")  # replace "_" with "."
+        module_name = module_name.replace("double.blocks.", "double_blocks_")  # fix double blocks
+        module_name = module_name.replace("single.blocks.", "single_blocks_")  # fix single blocks
+        module_name = module_name.replace("img.", "img_")  # fix img
+        module_name = module_name.replace("txt.", "txt_")  # fix txt
+        module_name = module_name.replace("attn.", "attn_")  # fix attn
+
+        musubi_prefix = "lora_unet"
+
+        if "lora_A" in key:
+            new_key = f"{musubi_prefix}_{module_name.replace("_lora_A_weight", ".lora_down.weight")}"
+        elif "lora_B" in key:
+            new_key = f"{musubi_prefix}_{module_name.replace("_lora_B_weight", ".lora_up.weight")}"
+        else:
+            print(f"unexpected key: {key} in diffusion_model LoRA format")
+            continue
+
+        print("New Key: {}".format(new_key))
+
+        converted_lora[new_key] = weight
+
+    if has_double_blocks:
+        print("Lora Has Double Blocks.")
+
+        for block_num in range(20):
+            converted_lora[f"lora_unet_double_blocks_{block_num}_img_attn_proj.alpha"] = torch.empty([])
+            converted_lora[f"lora_unet_double_blocks_{block_num}_img_attn_qkv.alpha"] = torch.empty([])
+            converted_lora[f"lora_unet_double_blocks_{block_num}_img_mlp_fc1.alpha"] = torch.empty([])
+            converted_lora[f"lora_unet_double_blocks_{block_num}_img_mlp_fc2.alpha"] = torch.empty([])
+            converted_lora[f"lora_unet_double_blocks_{block_num}_txt_attn_proj.alpha"] = torch.empty([])
+            converted_lora[f"lora_unet_double_blocks_{block_num}_txt_attn_qkv.alpha"] = torch.empty([])
+            converted_lora[f"lora_unet_double_blocks_{block_num}_txt_mlp_fc1.alpha"] = torch.empty([])
+            converted_lora[f"lora_unet_double_blocks_{block_num}_txt_mlp_fc2.alpha"] = torch.empty([])
+
+    if has_single_blocks:
+        print("Lora Has Single Blocks.")
+
+        for block_num in range(40):
+            converted_lora[f"lora_unet_single_blocks_{block_num}_linear1.alpha"] = torch.Tensor([])
+            converted_lora[f"lora_unet_single_blocks_{block_num}_linear2.alpha"] = torch.Tensor([])
+
+    return converted_lora
 
 def check_for_musubi(lora: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
     """Checks for and converts from Musubi Tuner format which supports Network Alpha and uses different naming. Largely copied from that project"""
@@ -303,17 +401,22 @@ def check_for_musubi(lora: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
     for key, value in lora.items():
         if key.startswith(prefix):
             lora_name = key.split(".", 1)[0]  # before first dot
+
             if lora_name not in lora_alphas and "alpha" in key:
                 lora_alphas[lora_name] = value
                 musubi = True
     if musubi:
         print("Loading Musubi Tuner format LoRA...")
+
         converted_lora = {}
+
         for key, weight in lora.items():
             if key.startswith(prefix):
                 if "alpha" in key:
                     continue
+
             lora_name = key.split(".", 1)[0]  # before first dot
+
             # HunyuanVideo lora name to module name: ugly but works
             module_name = lora_name[len(prefix) :]  # remove "lora_unet_"
             module_name = module_name.replace("_", ".")  # replace "_" with "."
@@ -322,7 +425,9 @@ def check_for_musubi(lora: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
             module_name = module_name.replace("img.", "img_")  # fix img
             module_name = module_name.replace("txt.", "txt_")  # fix txt
             module_name = module_name.replace("attn.", "attn_")  # fix attn
+
             diffusers_prefix = "diffusion_model"
+
             if "lora_down" in key:
                 new_key = f"{diffusers_prefix}.{module_name}.lora_A.weight"
                 dim = weight.shape[0]
@@ -342,30 +447,35 @@ def check_for_musubi(lora: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
                 print(f"missing alpha for {lora_name}")
 
             converted_lora[new_key] = weight
+
         return converted_lora
     else:
         print("Loading Diffusers format LoRA...")
+
         return lora
 
-def convert_lora(lora, convert_to="diffusion_model"):
-    # Load the LoRA weights
-    temp_lora = check_for_musubi(lora)
+def convert_lora(lora, convert_to="diffusion_model", do_check_for_musuibi=True):
+    if do_check_for_musuibi:
+        temp_lora = check_for_musubi(lora)
+    else:
+        temp_lora = lora
 
     new_lora = {}
 
-    for key in lora.keys():
+    for key in temp_lora.keys():
         if convert_to in key:
-            new_lora = lora
+            print("HERE 67000")
+            new_lora = temp_lora
             break
 
         if key.startswith("transformer.") and (convert_to == "diffusion_model"):
             new_key = key.replace("transformer.", "diffusion_model.")
-            new_lora[new_key] = lora[key]
+            new_lora[new_key] = temp_lora[key]
             continue
 
         if key.startswith("diffusion_model.") and  (convert_to == "transformer"):
             new_key = key.replace("diffusion_model.", "transformer.")
-            new_lora[new_key] = lora[key]
+            new_lora[new_key] = temp_lora[key]
             continue
 
         if key.startswith("lora_unet_"):
@@ -444,6 +554,37 @@ def get_upscale_methods():
 
 def get_rescale_methods():
     return ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
+
+def convert_lora_dimensions(max_dimension, lora):
+    new_lora = {}
+
+    for key in lora.keys():
+        temp_weights = lora[key]
+
+        if (temp_weights.shape[0] == max_dimension) or (temp_weights.shape[1] == max_dimension):
+            return lora
+
+        if temp_weights.shape[0] < temp_weights.shape[1]:
+            padding = torch.zeros([max_dimension, temp_weights.shape[1]])
+
+            if temp_weights.shape[0] <= max_dimension:
+                padding[:temp_weights.shape[0],:] = temp_weights
+                new_lora[key] = padding
+            else:
+                padding[:max_dimension,:] = temp_weights[:max_dimension,:]
+                new_lora[key] = padding
+        else:
+            padding = torch.zeros([temp_weights.shape[0], max_dimension])
+
+            if temp_weights.shape[1] <= max_dimension:
+                padding[:,:temp_weights.shape[1]] = temp_weights
+                new_lora[key] = padding
+            else:
+                padding[:,:max_dimension] = temp_weights[:,:max_dimension]
+                new_lora[key] = padding
+    lora = None
+
+    return new_lora
 
 class WarpedHunyuanLoraMerge:
     def __init__(self):
@@ -1114,29 +1255,29 @@ class WarpedHunyuanMultiLoraMixer:
 
         return mixtures, block_metadata
 
-    def convert_lora_dimensions(self, max_dimension, lora):
-        new_lora = {}
-
-        for key in lora.keys():
-            temp_weights = lora[key]
-
-            if temp_weights.shape[0] < temp_weights.shape[1]:
-                if temp_weights.shape[0] < max_dimension:
-                    padding = torch.zeros([max_dimension, temp_weights.shape[1]])
-                    padding[:temp_weights.shape[0],:] = temp_weights
-                    new_lora[key] = padding
-                else:
-                    new_lora[key] = temp_weights
-            else:
-                if temp_weights.shape[1] < max_dimension:
-                    padding = torch.zeros([temp_weights.shape[0], max_dimension])
-                    padding[:,:temp_weights.shape[1]] = temp_weights
-                    new_lora[key] = padding
-                else:
-                    new_lora[key] = temp_weights
-        lora = None
-
-        return new_lora
+    # def convert_lora_dimensions(self, max_dimension, lora):
+    #     new_lora = {}
+    #
+    #     for key in lora.keys():
+    #         temp_weights = lora[key]
+    #
+    #         if temp_weights.shape[0] < temp_weights.shape[1]:
+    #             if temp_weights.shape[0] < max_dimension:
+    #                 padding = torch.zeros([max_dimension, temp_weights.shape[1]])
+    #                 padding[:temp_weights.shape[0],:] = temp_weights
+    #                 new_lora[key] = padding
+    #             else:
+    #                 new_lora[key] = temp_weights
+    #         else:
+    #             if temp_weights.shape[1] < max_dimension:
+    #                 padding = torch.zeros([temp_weights.shape[0], max_dimension])
+    #                 padding[:,:temp_weights.shape[1]] = temp_weights
+    #                 new_lora[key] = padding
+    #             else:
+    #                 new_lora[key] = temp_weights
+    #     lora = None
+    #
+    #     return new_lora
 
     def merge_multiple_loras(self, save_folder, model_prefix, seed, num_output, lora_1, lora_2, lora_3, lora_4, lora_5, lora_6, lora_7, lora_8, save_metadata=True):
         print("Save_folder: {}".format(save_folder))
@@ -1224,6 +1365,10 @@ class WarpedHunyuanMultiLoraMixer:
 
         print("Max Dimension: {}".format(max_dimension))
 
+        # convert the rank/dims for each lora to be mixed
+        for lora_key in temp_loras.keys():
+            temp_loras[lora_key]["lora_weights"] = convert_lora_dimensions(max_dimension, temp_loras[lora_key]["lora_weights"])
+
         save_message = ""
 
         for mixture_key in merge_mixtures:
@@ -1250,8 +1395,6 @@ class WarpedHunyuanMultiLoraMixer:
                         if temp_block_num in mixture_double_blocks:
                             new_lora[key] = loras[lora_key]["lora_weights"][key]
 
-            new_lora = self.convert_lora_dimensions(max_dimension, new_lora)
-
             if not save_metadata:
                 metadata = None
 
@@ -1267,302 +1410,6 @@ class WarpedHunyuanMultiLoraMixer:
             time.sleep(1)
 
         return {"ui": {"tags": ["save_message"]}}
-
-# class WarpedHunyuanMultiLoraMixerExt:
-#     @classmethod
-#     def INPUT_TYPES(s):
-#         return {
-#             "required": {
-#                 "save_folder": ("STRING", {"default": get_default_output_folder()}),
-#                 "model_prefix": ("STRING", {"default": "new_model_hy"}),
-#                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-#                 "num_output": ("INT", {"default": 1, "min": 1, "max": 100}),
-#                 "lora_1": (['None'] + get_lora_list(),),
-#                 "strength_1": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
-#                 "lora_2": (['None'] + get_lora_list(),),
-#                 "strength_2": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
-#                 "lora_3": (['None'] + get_lora_list(),),
-#                 "strength_3": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
-#                 "lora_4": (['None'] + get_lora_list(),),
-#                 "strength_4": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
-#                 "lora_5": (['None'] + get_lora_list(),),
-#                 "strength_5": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
-#                 "lora_6": (['None'] + get_lora_list(),),
-#                 "strength_6": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
-#                 "lora_7": (['None'] + get_lora_list(),),
-#                 "strength_7": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
-#                 "lora_8": (['None'] + get_lora_list(),),
-#                 "strength_8": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
-#                 "save_metadata": ("BOOLEAN", {"default": True}),
-#             },
-#         }
-#
-#     RETURN_TYPES = ()
-#     OUTPUT_NODE = True
-#     OUTPUT_IS_LIST = (True,)
-#     FUNCTION = "merge_multiple_loras"
-#     CATEGORY = "Warped/Hunyuan/Merge"
-#     DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
-#
-#     def convert_key_format(self, key: str) -> str:
-#         """Standardize LoRA key format by removing prefixes."""
-#         prefixes = ["diffusion_model.", "transformer."]
-#         for prefix in prefixes:
-#             if key.startswith(prefix):
-#                 key = key[len(prefix):]
-#                 break
-#         return key
-#
-#     def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
-#         """Load and filter a single LoRA model."""
-#         if not lora_name or strength == 0:
-#             return {}, {}
-#
-#         # Get the full path to the LoRA file
-#         lora_path = folder_paths.get_full_path("loras", lora_name)
-#         if not os.path.exists(lora_path):
-#             raise ValueError(f"LoRA file not found: {lora_path}")
-#
-#         # Load the LoRA weights
-#         lora_weights = utils.load_torch_file(lora_path)
-#
-#         return lora_weights
-#
-#     def get_random_key(self, keys):
-#         if len(keys) > 0:
-#             random_key = random.randint(0, len(keys) - 1)
-#             # print("Keys: {}  |  Random Key: {}".format(random_key))
-#             return keys[random_key]
-#
-#         return -1
-#
-#     def get_mixtures(self, seed, num_output, lora_keys, block_types):
-#         random.seed(seed)
-#         mixtures = {}
-#
-#         for i in range(num_output):
-#             mixtures["{}".format(i + 1)] = {}
-#
-#         single_block_loras = []
-#         double_block_loras = []
-#
-#         for key in lora_keys:
-#             for mixture_key in mixtures.keys():
-#                 mixtures[mixture_key][key] = {"single": [], "double": []}
-#
-#                 if block_types[key]["has_single_blocks"]:
-#                     single_block_loras.append(int(key))
-#
-#                 if block_types[key]["has_double_blocks"]:
-#                     double_block_loras.append(int(key))
-#
-#         for mixture_key in mixtures.keys():
-#             if len(single_block_loras) > 0:
-#                 for j in range(40):
-#                     random_key = self.get_random_key(single_block_loras)
-#                     temp_key = "{}".format(random_key)
-#                     mixtures[mixture_key][temp_key]["single"].append(j)
-#
-#             if len(double_block_loras) > 0:
-#                 for j in range(20):
-#                     random_key = self.get_random_key(double_block_loras)
-#                     temp_key = "{}".format(random_key)
-#                     mixtures[mixture_key][temp_key]["double"].append(j)
-#
-#             i += 1
-#
-#         print("\nMixtures\n")
-#
-#         block_metadata = ""
-#
-#         for mixture_key in mixtures.keys():
-#             for key in mixtures[mixture_key]:
-#                 print("{} | {}: {}".format(mixture_key, key, mixtures[mixture_key][key]))
-#
-#                 if len(block_metadata) > 0:
-#                     block_metadata = "{}  |  {}".format(block_metadata, "{}: {}: {}".format(mixture_key, key, mixtures[mixture_key][key]))
-#                 else:
-#                     block_metadata = "{}: {}: {}".format(mixture_key, key, mixtures[mixture_key][key])
-#
-#             print("\n")
-#
-#         return mixtures, block_metadata
-#
-#     def determine_lora_block_types(self, loras):
-#         block_types = {}
-#
-#         for lora_key in loras.keys():
-#             block_types[lora_key] = { "has_single_blocks": False, "has_double_blocks": False }
-#
-#             for key in loras[lora_key]["lora_weights"].keys():
-#                 if "single_blocks" in key:
-#                     block_types[lora_key]["has_single_blocks"] = True
-#                 elif "double_blocks" in key:
-#                     block_types[lora_key]["has_double_blocks"] = True
-#
-#                 if block_types[lora_key]["has_single_blocks"] and block_types[lora_key]["has_double_blocks"]:
-#                     break
-#
-#         return block_types
-#
-#     def convert_lora_dimensions(self, max_dimension, lora):
-#         new_lora = {}
-#
-#         for key in lora.keys():
-#             temp_weights = lora[key]
-#
-#             if temp_weights.shape[0] < temp_weights.shape[1]:
-#                 if temp_weights.shape[0] < max_dimension:
-#                     padding = torch.zeros([max_dimension, temp_weights.shape[1]])
-#                     padding[:temp_weights.shape[0],:] = temp_weights
-#                     new_lora[key] = padding
-#                 else:
-#                     new_lora[key] = temp_weights
-#             else:
-#                 if temp_weights.shape[1] < max_dimension:
-#                     padding = torch.zeros([temp_weights.shape[0], max_dimension])
-#                     padding[:,:temp_weights.shape[1]] = temp_weights
-#                     new_lora[key] = padding
-#                 else:
-#                     new_lora[key] = temp_weights
-#         lora = None
-#
-#         return new_lora
-#
-#     def merge_multiple_loras(self, save_folder, model_prefix, seed, num_output, lora_1, strength_1, lora_2, strength_2, lora_3, strength_3, lora_4, strength_4,
-#                             lora_5, strength_5, lora_6, strength_6, lora_7, strength_7, lora_8, strength_8, save_metadata=True):
-#         print("Save_folder: {}".format(save_folder))
-#         os.makedirs(save_folder, exist_ok = True)
-#
-#         temp_loras = {}
-#         metadata = {"loras": "{} and {} and {} and {} and {} and {} and {} and {}".format(lora_1, lora_2, lora_3, lora_4, lora_5, lora_6, lora_7, lora_8)}
-#         metadata["strengths"] = "{} and {} and {} and {} and {} and {} and {} and {}".format(strength_1, strength_2, strength_3, strength_4, strength_5, strength_6, strength_7, strength_8)
-#         metadata["seed"] = "{}".format(seed)
-#         metadata["num_output"] = "{}".format(num_output)
-#
-#         if (lora_1 != "None") and (strength_1 > 0.0):
-#             print(lora_1)
-#             # Load and filter the LoRA weights
-#             lora_weights = self.load_lora(lora_1, 1.0, "all")
-#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
-#             temp_loras["1"] = {"lora_weights": lora_weights, "strength": strength_1}
-#
-#         if (lora_2 != "None") and (strength_2 > 0.0):
-#             print(lora_2)
-#             # Load and filter the LoRA weights
-#             lora_weights = self.load_lora(lora_2, 1.0, "all")
-#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
-#             temp_loras["2"] = {"lora_weights": lora_weights, "strength": strength_2}
-#
-#         if (lora_3 != "None") and (strength_3 > 0.0):
-#             print(lora_3)
-#             # Load and filter the LoRA weights
-#             lora_weights = self.load_lora(lora_3, 1.0, "all")
-#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
-#             temp_loras["3"] = {"lora_weights": lora_weights, "strength": strength_3}
-#
-#         if (lora_4 != "None") and (strength_4 > 0.0):
-#             print(lora_4)
-#             # Load and filter the LoRA weights
-#             lora_weights = self.load_lora(lora_4, 1.0, "all")
-#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
-#             temp_loras["4"] = {"lora_weights": lora_weights, "strength": strength_4}
-#
-#         if (lora_5 != "None") and (strength_5 > 0.0):
-#             print(lora_5)
-#             # Load and filter the LoRA weights
-#             lora_weights = self.load_lora(lora_5, 1.0, "all")
-#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
-#             temp_loras["5"] = {"lora_weights": lora_weights, "strength": strength_5}
-#
-#         if (lora_6 != "None") and (strength_6 > 0.0):
-#             print(lora_6)
-#             # Load and filter the LoRA weights
-#             lora_weights = self.load_lora(lora_6, 1.0, "all")
-#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
-#             temp_loras["6"] = {"lora_weights": lora_weights, "strength": strength_6}
-#
-#         if (lora_7 != "None") and (strength_7 > 0.0):
-#             print(lora_7)
-#             # Load and filter the LoRA weights
-#             lora_weights = self.load_lora(lora_7, 1.0, "all")
-#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
-#             temp_loras["7"] = {"lora_weights": lora_weights, "strength": strength_7}
-#
-#         if (lora_8 != "None") and (strength_8 > 0.0):
-#             print(lora_8)
-#             # Load and filter the LoRA weights
-#             lora_weights = self.load_lora(lora_8, 1.0, "all")
-#             lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
-#             temp_loras["8"] = {"lora_weights": lora_weights, "strength": strength_8}
-#
-#         loras = {}
-#         max_dimension = 0
-#
-#         for lora_key in temp_loras.keys():
-#             # print(lora_key)
-#             loras[lora_key] = {"lora_weights": {}, "strength": temp_loras[lora_key]["strength"]}
-#
-#             for key in temp_loras[lora_key]["lora_weights"].keys():
-#                 new_key = key.replace("transformer.", "diffusion_model.")
-#                 loras[lora_key]["lora_weights"][new_key] = temp_loras[lora_key]["lora_weights"][key]
-#
-#                 temp_dimension = min(loras[lora_key]["lora_weights"][new_key].shape[0], loras[lora_key]["lora_weights"][new_key].shape[1])
-#
-#                 if temp_dimension > max_dimension:
-#                     max_dimension = temp_dimension
-#
-#         block_types = self.determine_lora_block_types(loras)
-#         merge_mixtures, block_metadata = self.get_mixtures(seed, num_output, loras.keys(), block_types)
-#
-#         metadata["max_dimension"] = "{}".format(max_dimension)
-#         metadata["block_types"] = "{}".format(block_types)
-#
-#         print("Max Dimension: {}".format(max_dimension))
-#
-#         save_message = ""
-#
-#         for mixture_key in merge_mixtures:
-#             new_lora = {}
-#             output_filename = os.path.join(save_folder, "{}_{:05}.safetensors".format(model_prefix, int(mixture_key)))
-#
-#             metadata["merge_mixture"] = "{}".format(merge_mixtures[mixture_key])
-#             # metadata["block_metadata"] = "{}".format(block_metadata[int(mixture_key)])
-#
-#             for lora_key in loras.keys():
-#                 mixture_single_blocks = merge_mixtures[mixture_key][lora_key]["single"]
-#                 mixture_double_blocks = merge_mixtures[mixture_key][lora_key]["double"]
-#
-#                 for key in loras[lora_key]["lora_weights"].keys():
-#                     temp_strings = str(key).split('.')
-#                     temp_block_num = int(temp_strings[2])
-#
-#                     if temp_strings[1] == "single_blocks":
-#                         if temp_block_num in mixture_single_blocks:
-#                             new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
-#                         continue
-#
-#                     if temp_strings[1] == "double_blocks":
-#                         if temp_block_num in mixture_double_blocks:
-#                             new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
-#
-#             new_lora = self.convert_lora_dimensions(max_dimension, new_lora)
-#
-#             if not save_metadata:
-#                 metadata = None
-#
-#             print("Saving Model To: {}...".format(output_filename))
-#             utils.save_torch_file(new_lora, output_filename, metadata=metadata)
-#             print("Saving Model To: {}...Done.".format(output_filename))
-#
-#             save_message = "{}\n{}".format(save_message, "Weights Saved To: {}".format(output_filename))
-#
-#             new_lora = None
-#             mm.soft_empty_cache()
-#             gc.collect()
-#             time.sleep(1)
-#
-#         return {"ui": {"tags": ["save_message"]}}
 
 class WarpedHunyuanMultiLoraMixerExt:
     @classmethod
@@ -1591,7 +1438,7 @@ class WarpedHunyuanMultiLoraMixerExt:
                 "strength_8": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
                 "save_metadata": ("BOOLEAN", {"default": True}),
                 "convert_to": (["diffusion_model", "transformer"], {"default": "diffusion_model"}),
-                "max_dimension": ([32, 64, 128], {"default": 32}),
+                "max_dimension": ([32, 64, 128], {"default": 64}),
             },
         }
 
@@ -1696,36 +1543,8 @@ class WarpedHunyuanMultiLoraMixerExt:
 
         return block_types
 
-    def convert_lora_dimensions(self, max_dimension, lora):
-        new_lora = {}
-
-        for key in lora.keys():
-            temp_weights = lora[key]
-
-            if temp_weights.shape[0] < temp_weights.shape[1]:
-                padding = torch.zeros([max_dimension, temp_weights.shape[1]])
-
-                if temp_weights.shape[0] <= max_dimension:
-                    padding[:temp_weights.shape[0],:] = temp_weights
-                    new_lora[key] = padding
-                else:
-                    padding[:max_dimension,:] = temp_weights[:max_dimension,:]
-                    new_lora[key] = padding
-            else:
-                padding = torch.zeros([temp_weights.shape[0], max_dimension])
-
-                if temp_weights.shape[1] <= max_dimension:
-                    padding[:,:temp_weights.shape[1]] = temp_weights
-                    new_lora[key] = padding
-                else:
-                    padding[:,:max_dimension] = temp_weights[:,:max_dimension]
-                    new_lora[key] = padding
-        lora = None
-
-        return new_lora
-
     def merge_multiple_loras(self, save_folder, model_prefix, seed, num_output, lora_1, strength_1, lora_2, strength_2, lora_3, strength_3, lora_4, strength_4,
-                            lora_5, strength_5, lora_6, strength_6, lora_7, strength_7, lora_8, strength_8, save_metadata=True, convert_to="diffusion_model", max_dimension=32):
+                            lora_5, strength_5, lora_6, strength_6, lora_7, strength_7, lora_8, strength_8, save_metadata=True, convert_to="diffusion_model", max_dimension=64):
         print("Save_folder: {}".format(save_folder))
         os.makedirs(save_folder, exist_ok = True)
 
@@ -1739,6 +1558,8 @@ class WarpedHunyuanMultiLoraMixerExt:
             print(lora_1)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_1, 1.0, "all")
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
             temp_loras["1"] = {"lora_weights": lora_weights, "strength": strength_1}
 
             for key in lora_weights.keys():
@@ -1751,6 +1572,8 @@ class WarpedHunyuanMultiLoraMixerExt:
             print(lora_2)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_2, 1.0, "all")
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
             temp_loras["2"] = {"lora_weights": lora_weights, "strength": strength_2}
 
             for key in lora_weights.keys():
@@ -1763,6 +1586,8 @@ class WarpedHunyuanMultiLoraMixerExt:
             print(lora_3)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_3, 1.0, "all")
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
             temp_loras["3"] = {"lora_weights": lora_weights, "strength": strength_3}
 
             for key in lora_weights.keys():
@@ -1775,6 +1600,8 @@ class WarpedHunyuanMultiLoraMixerExt:
             print(lora_4)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_4, 1.0, "all")
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
             temp_loras["4"] = {"lora_weights": lora_weights, "strength": strength_4}
 
             for key in lora_weights.keys():
@@ -1787,6 +1614,8 @@ class WarpedHunyuanMultiLoraMixerExt:
             print(lora_5)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_5, 1.0, "all")
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
             temp_loras["5"] = {"lora_weights": lora_weights, "strength": strength_5}
 
             for key in lora_weights.keys():
@@ -1799,6 +1628,8 @@ class WarpedHunyuanMultiLoraMixerExt:
             print(lora_6)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_6, 1.0, "all")
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
             temp_loras["6"] = {"lora_weights": lora_weights, "strength": strength_6}
 
             for key in lora_weights.keys():
@@ -1811,6 +1642,8 @@ class WarpedHunyuanMultiLoraMixerExt:
             print(lora_7)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_7, 1.0, "all")
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
             temp_loras["7"] = {"lora_weights": lora_weights, "strength": strength_7}
 
             for key in lora_weights.keys():
@@ -1823,6 +1656,8 @@ class WarpedHunyuanMultiLoraMixerExt:
             print(lora_8)
             # Load and filter the LoRA weights
             lora_weights = self.load_lora(lora_8, 1.0, "all")
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
             temp_loras["8"] = {"lora_weights": lora_weights, "strength": strength_8}
 
             for key in lora_weights.keys():
@@ -1874,7 +1709,359 @@ class WarpedHunyuanMultiLoraMixerExt:
                         if temp_block_num in mixture_double_blocks:
                             new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
 
-            new_lora = self.convert_lora_dimensions(max_dimension, new_lora)
+            if not save_metadata:
+                metadata = None
+
+            print("Saving Model To: {}...".format(output_filename))
+            utils.save_torch_file(new_lora, output_filename, metadata=metadata)
+            print("Saving Model To: {}...Done.".format(output_filename))
+
+            save_message = "{}\n{}".format(save_message, "Weights Saved To: {}".format(output_filename))
+
+            new_lora = None
+            mm.soft_empty_cache()
+            gc.collect()
+            time.sleep(1)
+
+        return {"ui": {"tags": ["save_message"]}}
+
+class WarpedHunyuanMultiLoraMixerUlt:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "save_folder": ("STRING", {"default": get_default_output_folder()}),
+                "model_prefix": ("STRING", {"default": "new_model_hy"}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "num_output": ("INT", {"default": 1, "min": 1, "max": 100}),
+                "lora_1": (['None'] + get_lora_list(),),
+                "strength_1": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "blocks_1": (["all", "double_blocks", "single_blocks"], {"default": "all", "tooltip": "all, single only, or double only block."}),
+                "lora_2": (['None'] + get_lora_list(),),
+                "strength_2": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "blocks_2": (["all", "double_blocks", "single_blocks"], {"default": "all", "tooltip": "all, single only, or double only block."}),
+                "lora_3": (['None'] + get_lora_list(),),
+                "strength_3": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "blocks_3": (["all", "double_blocks", "single_blocks"], {"default": "all", "tooltip": "all, single only, or double only block."}),
+                "lora_4": (['None'] + get_lora_list(),),
+                "strength_4": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "blocks_4": (["all", "double_blocks", "single_blocks"], {"default": "all", "tooltip": "all, single only, or double only block."}),
+                "lora_5": (['None'] + get_lora_list(),),
+                "strength_5": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "blocks_5": (["all", "double_blocks", "single_blocks"], {"default": "all", "tooltip": "all, single only, or double only block."}),
+                "lora_6": (['None'] + get_lora_list(),),
+                "strength_6": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "blocks_6": (["all", "double_blocks", "single_blocks"], {"default": "all", "tooltip": "all, single only, or double only block."}),
+                "lora_7": (['None'] + get_lora_list(),),
+                "strength_7": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "blocks_7": (["all", "double_blocks", "single_blocks"], {"default": "all", "tooltip": "all, single only, or double only block."}),
+                "lora_8": (['None'] + get_lora_list(),),
+                "strength_8": ("FLOAT", {"default": 1.00, "min": 0.00, "max": 2.00, "step": 0.01}),
+                "blocks_8": (["all", "double_blocks", "single_blocks"], {"default": "all", "tooltip": "all, single only, or double only block."}),
+                "save_metadata": ("BOOLEAN", {"default": True}),
+                "convert_to": (["diffusion_model", "transformer"], {"default": "diffusion_model"}),
+                "max_dimension": ([32, 64, 128], {"default": 64}),
+            },
+        }
+
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
+    OUTPUT_IS_LIST = (True,)
+    FUNCTION = "merge_multiple_loras"
+    CATEGORY = "Warped/Hunyuan/Merge"
+    DESCRIPTION = "Load and apply multiple LoRA models with different strengths and block types. Model input is required."
+
+    def load_lora(self, lora_name: str, strength: float, blocks_type: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        """Load and filter a single LoRA model."""
+        if not lora_name or strength == 0:
+            return {}, {}
+
+        # Get the full path to the LoRA file
+        lora_path = folder_paths.get_full_path("loras", lora_name)
+        if not os.path.exists(lora_path):
+            raise ValueError(f"LoRA file not found: {lora_path}")
+
+        # Load the LoRA weights
+        lora_weights = utils.load_torch_file(lora_path)
+
+        lora_weights = convert_lora(lora_weights, convert_to="diffusion_model")
+
+        return lora_weights
+
+    def get_random_key(self, keys):
+        if len(keys) > 0:
+            random_key = random.randint(0, len(keys) - 1)
+            # print("Keys: {}  |  Random Key: {}".format(random_key))
+            return keys[random_key]
+
+        return -1
+
+    def get_mixtures(self, seed, num_output, lora_keys, block_types):
+        random.seed(seed)
+        mixtures = {}
+
+        for i in range(num_output):
+            mixtures["{}".format(i + 1)] = {}
+
+        single_block_loras = []
+        double_block_loras = []
+
+        for key in lora_keys:
+            for mixture_key in mixtures.keys():
+                mixtures[mixture_key][key] = {"single": [], "double": []}
+
+                if block_types[key]["has_single_blocks"]:
+                    single_block_loras.append(int(key))
+
+                if block_types[key]["has_double_blocks"]:
+                    double_block_loras.append(int(key))
+
+        for mixture_key in mixtures.keys():
+            if len(single_block_loras) > 0:
+                for j in range(40):
+                    random_key = self.get_random_key(single_block_loras)
+                    temp_key = "{}".format(random_key)
+                    mixtures[mixture_key][temp_key]["single"].append(j)
+
+            if len(double_block_loras) > 0:
+                for j in range(20):
+                    random_key = self.get_random_key(double_block_loras)
+                    temp_key = "{}".format(random_key)
+                    mixtures[mixture_key][temp_key]["double"].append(j)
+
+            i += 1
+
+        print("\nMixtures\n")
+
+        block_metadata = ""
+
+        for mixture_key in mixtures.keys():
+            for key in mixtures[mixture_key]:
+                print("{} | {}: {}".format(mixture_key, key, mixtures[mixture_key][key]))
+
+                if len(block_metadata) > 0:
+                    block_metadata = "{}  |  {}".format(block_metadata, "{}: {}: {}".format(mixture_key, key, mixtures[mixture_key][key]))
+                else:
+                    block_metadata = "{}: {}: {}".format(mixture_key, key, mixtures[mixture_key][key])
+
+            print("\n")
+
+        return mixtures, block_metadata
+
+    def determine_lora_block_types(self, loras):
+        block_types = {}
+
+        for lora_key in loras.keys():
+            block_types[lora_key] = { "has_single_blocks": False, "has_double_blocks": False }
+
+            for key in loras[lora_key]["lora_weights"].keys():
+                if "single_blocks" in key:
+                    block_types[lora_key]["has_single_blocks"] = True
+                elif "double_blocks" in key:
+                    block_types[lora_key]["has_double_blocks"] = True
+
+                if block_types[lora_key]["has_single_blocks"] and block_types[lora_key]["has_double_blocks"]:
+                    break
+
+        return block_types
+
+    def merge_multiple_loras(self, save_folder, model_prefix, seed, num_output, lora_1, strength_1, blocks_1, lora_2, strength_2, blocks_2, lora_3, strength_3, blocks_3, lora_4, strength_4, blocks_4,
+                            lora_5, strength_5, blocks_5, lora_6, strength_6, blocks_6, lora_7, strength_7, blocks_7, lora_8, strength_8, blocks_8, save_metadata=True, convert_to="diffusion_model", max_dimension=64):
+        print("Save_folder: {}".format(save_folder))
+        os.makedirs(save_folder, exist_ok = True)
+
+        temp_loras = {}
+        metadata = {"loras": "{} and {} and {} and {} and {} and {} and {} and {}".format(lora_1, lora_2, lora_3, lora_4, lora_5, lora_6, lora_7, lora_8)}
+        metadata["strengths"] = "{} and {} and {} and {} and {} and {} and {} and {}".format(strength_1, strength_2, strength_3, strength_4, strength_5, strength_6, strength_7, strength_8)
+        metadata["seed"] = "{}".format(seed)
+        metadata["num_output"] = "{}".format(num_output)
+
+        if (lora_1 != "None") and (strength_1 > 0.0):
+            print(lora_1)
+            # Load and filter the LoRA weights
+            lora_weights = self.load_lora(lora_1, 1.0, "all")
+
+            if (blocks_1 == "single_blocks") or (blocks_1 == "double_blocks"):
+                lora_weights = filter_lora_keys(lora_weights, blocks_1)
+
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
+            temp_loras["1"] = {"lora_weights": lora_weights, "strength": strength_1}
+
+            for key in lora_weights.keys():
+                print("LORA 1: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
+
+        if (lora_2 != "None") and (strength_2 > 0.0):
+            print(lora_2)
+            # Load and filter the LoRA weights
+            lora_weights = self.load_lora(lora_2, 1.0, "all")
+
+            if (blocks_2 == "single_blocks") or (blocks_2 == "double_blocks"):
+                lora_weights = filter_lora_keys(lora_weights, blocks_2)
+
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
+            temp_loras["2"] = {"lora_weights": lora_weights, "strength": strength_2}
+
+            for key in lora_weights.keys():
+                print("LORA 2: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
+
+        if (lora_3 != "None") and (strength_3 > 0.0):
+            print(lora_3)
+            # Load and filter the LoRA weights
+            lora_weights = self.load_lora(lora_3, 1.0, "all")
+
+            if (blocks_3 == "single_blocks") or (blocks_3 == "double_blocks"):
+                lora_weights = filter_lora_keys(lora_weights, blocks_3)
+
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
+            temp_loras["3"] = {"lora_weights": lora_weights, "strength": strength_3}
+
+            for key in lora_weights.keys():
+                print("LORA 3: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
+
+        if (lora_4 != "None") and (strength_4 > 0.0):
+            print(lora_4)
+            # Load and filter the LoRA weights
+            lora_weights = self.load_lora(lora_4, 1.0, "all")
+
+            if (blocks_4 == "single_blocks") or (blocks_4 == "double_blocks"):
+                lora_weights = filter_lora_keys(lora_weights, blocks_4)
+
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
+            temp_loras["4"] = {"lora_weights": lora_weights, "strength": strength_4}
+
+            for key in lora_weights.keys():
+                print("LORA 4: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
+
+        if (lora_5 != "None") and (strength_5 > 0.0):
+            print(lora_5)
+            # Load and filter the LoRA weights
+            lora_weights = self.load_lora(lora_5, 1.0, "all")
+
+            if (blocks_5 == "single_blocks") or (blocks_5 == "double_blocks"):
+                lora_weights = filter_lora_keys(lora_weights, blocks_5)
+
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
+            temp_loras["5"] = {"lora_weights": lora_weights, "strength": strength_5}
+
+            for key in lora_weights.keys():
+                print("LORA 5: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
+
+        if (lora_6 != "None") and (strength_6 > 0.0):
+            print(lora_6)
+            # Load and filter the LoRA weights
+            lora_weights = self.load_lora(lora_6, 1.0, "all")
+
+            if (blocks_6 == "single_blocks") or (blocks_6 == "double_blocks"):
+                lora_weights = filter_lora_keys(lora_weights, blocks_6)
+
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
+            temp_loras["6"] = {"lora_weights": lora_weights, "strength": strength_6}
+
+            for key in lora_weights.keys():
+                print("LORA 6: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
+
+        if (lora_7 != "None") and (strength_7 > 0.0):
+            print(lora_7)
+            # Load and filter the LoRA weights
+            lora_weights = self.load_lora(lora_7, 1.0, "all")
+
+            if (blocks_7 == "single_blocks") or (blocks_7 == "double_blocks"):
+                lora_weights = filter_lora_keys(lora_weights, blocks_7)
+
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
+            temp_loras["7"] = {"lora_weights": lora_weights, "strength": strength_7}
+
+            for key in lora_weights.keys():
+                print("LORA 7: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
+
+        if (lora_8 != "None") and (strength_8 > 0.0):
+            print(lora_8)
+            # Load and filter the LoRA weights
+            lora_weights = self.load_lora(lora_8, 1.0, "all")
+
+            if (blocks_8 == "single_blocks") or (blocks_8 == "double_blocks"):
+                lora_weights = filter_lora_keys(lora_weights, blocks_8)
+
+            lora_weights = convert_lora_dimensions(max_dimension, lora_weights)
+
+            temp_loras["8"] = {"lora_weights": lora_weights, "strength": strength_8}
+
+            for key in lora_weights.keys():
+                print("LORA 8: {}  |  Sample Shape: {}".format(key, lora_weights[key].shape))
+                break
+
+            lora_weights = None
+
+        loras = {}
+
+        for lora_key in temp_loras.keys():
+            loras[lora_key] = {"lora_weights": {}, "strength": temp_loras[lora_key]["strength"]}
+
+            for key in temp_loras[lora_key]["lora_weights"].keys():
+                new_key = key.replace("transformer.", "diffusion_model.")
+                loras[lora_key]["lora_weights"][new_key] = temp_loras[lora_key]["lora_weights"][key]
+
+        block_types = self.determine_lora_block_types(loras)
+        merge_mixtures, block_metadata = self.get_mixtures(seed, num_output, loras.keys(), block_types)
+
+        metadata["max_dimension"] = "{}".format(max_dimension)
+        metadata["block_types"] = "{}".format(block_types)
+
+        print("Max Dimension: {}".format(max_dimension))
+
+        save_message = ""
+
+        for mixture_key in merge_mixtures:
+            new_lora = {}
+            output_filename = os.path.join(save_folder, "{}_{:05}.safetensors".format(model_prefix, int(mixture_key)))
+
+            metadata["merge_mixture"] = "{}".format(merge_mixtures[mixture_key])
+            # metadata["block_metadata"] = "{}".format(block_metadata[int(mixture_key)])
+
+            for lora_key in loras.keys():
+                mixture_single_blocks = merge_mixtures[mixture_key][lora_key]["single"]
+                mixture_double_blocks = merge_mixtures[mixture_key][lora_key]["double"]
+
+                for key in loras[lora_key]["lora_weights"].keys():
+                    temp_strings = str(key).split('.')
+                    temp_block_num = int(temp_strings[2])
+
+                    if temp_strings[1] == "single_blocks":
+                        if temp_block_num in mixture_single_blocks:
+                            new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
+                        continue
+
+                    if temp_strings[1] == "double_blocks":
+                        if temp_block_num in mixture_double_blocks:
+                            new_lora[key] = torch.mul(loras[lora_key]["lora_weights"][key], loras[lora_key]["strength"])
 
             if not save_metadata:
                 metadata = None
@@ -3035,7 +3222,7 @@ class WarpedSamplerCustomScripted:
                     "start_image": ("IMAGE", ),
                     "flux_guidance": ("FLOAT", {"default": 7, "min": 0.0, "max": 100.0, "step": 0.1}),
                     "use_flux_guidance": ("BOOLEAN", {"default": False}),
-                    "dummy_frames": ("INT", {"default":17, "min":17, "max": 121, "step": 4, "tooltip": "Number of frames to generate in dummy batch."}),
+                    "dummy_frames": ("INT", {"default":17, "min":17, "max": 161, "step": 4, "tooltip": "Number of frames to generate in dummy batch."}),
                     "gen_dummy": ("BOOLEAN", {"default": False, "tooltip": "For t2v or i2v only. Will generate a dummy batch to obtain a starting image for main generation."}),
                     "gen_dummy_only": ("BOOLEAN", {"default": False, "tooltip": "Will generate dummy batch only."}),
                     "use_dummy_image": (["first", "middle", "last", "random", "all"], {"default": "last", "tooltip": "Which dummy batch image to start main generation."}),
@@ -6432,6 +6619,62 @@ class WarpedHunyuanLoraBatchMerge:
 
         return {"ui": {"tags": [save_message]}}
 
+# class WarpedHunyuanLoraConvertToMusubi:
+#     def __init__(self):
+#         self.base_output_dir = get_default_output_folder()
+#         os.makedirs(self.base_output_dir, exist_ok = True)
+#
+#     @classmethod
+#     def INPUT_TYPES(s):
+#         return {
+#             "required": {
+#                 "save_path": ("STRING", {"default": get_default_output_path()}),
+#                 "lora": (get_lora_list(),),
+#                 "save_metadata": ("BOOLEAN", {"default": True}),
+#             },
+#         }
+#
+#     RETURN_TYPES = ()
+#     OUTPUT_NODE = True
+#     OUTPUT_IS_LIST = (True,)
+#     FUNCTION = "convert_lora"
+#     CATEGORY = "Warped/Hunyuan/Lora/experimental"
+#     DESCRIPTION = "Convert Keys For Hunyuan LORA and Save Modified LORA."
+#
+#     def load_lora(self, lora_name: str) -> Tuple[Dict[str, torch.Tensor],]:
+#         """Load and filter a single LoRA model."""
+#         if not lora_name:
+#             return {}
+#
+#         # Get the full path to the LoRA file
+#         lora_path = folder_paths.get_full_path("loras", lora_name)
+#         if not os.path.exists(lora_path):
+#             raise ValueError(f"LoRA file not found: {lora_path}")
+#
+#         # Load the LoRA weights
+#         lora_weights = utils.load_torch_file(lora_path)
+#
+#         return lora_weights
+#
+#     def convert_lora(self, save_path, lora, save_metadata=True):
+#         metadata = {"original_lora": "{}".format(lora)}
+#
+#         # Load the LoRA weights
+#         temp_lora = self.load_lora(lora)
+#         new_lora = convert_to_musubi(temp_lora)
+#
+#         if not save_metadata:
+#             metadata = None
+#
+#         if len(new_lora) < 1:
+#             utils.save_torch_file(temp_lora, save_path, metadata=metadata)
+#         else:
+#             utils.save_torch_file(new_lora, save_path, metadata=metadata)
+#
+#         save_message = "Weights Saved To: {}".format(save_path)
+#
+#         return {"ui": {"tags": [save_message]}}
+
 class WarpedHunyuanLoraConvertKeys:
     def __init__(self):
         self.base_output_dir = get_default_output_folder()
@@ -8482,6 +8725,48 @@ class WarpedDualEncoder(ComfyNodeABC):
         time.sleep(1)
 
         return (positive_conditioning, negative_conditioning, )
+
+    def encode(self, clip, text):
+
+        if clip is None:
+            raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
+
+        tokens = clip.tokenize(text)
+        return_encoding = clip.encode_from_tokens_scheduled(tokens)
+
+        return return_encoding
+
+class WarpedSingleEncoder(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required": { "clip": ("CLIP", ),
+                              "input_text": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The prompt to be encoded."}),
+                            },
+               }
+    RETURN_TYPES = (IO.CONDITIONING, )
+    RETURN_NAMES = ("conditioning", )
+    FUNCTION = "process"
+    CATEGORY = "Warped/General/Conditioning"
+    DESCRIPTION = "Encodes a single prompt."
+
+    def process(self, clip, input_text=""):
+        print("WarpedSingleEncoder: Loading clip model to device: {}".format(clip.patcher.load_device))
+        clip.patcher.model.to(device=clip.patcher.load_device)
+
+        print("WarpedSingleEncoder: Encoding Prompt...")
+        output_conditioning = self.encode(clip, input_text)
+        print("WarpedSingleEncoder: Encoding Prompt...Done.")
+
+        print("WarpedSingleEncoder: Unloading clip model to device: {}".format(get_offload_device()))
+        clip.patcher.model.to(device=get_offload_device())
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        gc.collect()
+        time.sleep(1)
+
+        return (output_conditioning, )
 
     def encode(self, clip, text):
 
