@@ -31,6 +31,13 @@
 
 <div align="left">
 
+# V1.7.3 Updates
+
+1) Added Hunyuan Video LORA Mixer that allows for choosing which block types to mix.
+2) Fix a couple of bugs with the Merge and Mixer nodes.
+   
+<div align="left">
+
 # V1.7.2 Updates
 
 #### [V1.7.2 Overview Video](https://mega.nz/file/Wug3wapL#TkrEIQrwoMbMCJ5-IgtPjlJF8J_yr8NtNudGqCEO_lM)
