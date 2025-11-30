@@ -360,9 +360,9 @@ def convert_to_musubi(lora: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         musubi_prefix = "lora_unet"
 
         if "lora_A" in key:
-            new_key = f"{musubi_prefix}_{module_name.replace("_lora_A_weight", ".lora_down.weight")}"
+            new_key = f"{musubi_prefix}_{module_name.replace('_lora_A_weight', '.lora_down.weight')}"
         elif "lora_B" in key:
-            new_key = f"{musubi_prefix}_{module_name.replace("_lora_B_weight", ".lora_up.weight")}"
+            new_key = f"{musubi_prefix}_{module_name.replace('_lora_B_weight', '.lora_up.weight')}"
         else:
             print(f"unexpected key: {key} in diffusion_model LoRA format")
             continue
@@ -10174,3 +10174,4 @@ class WarpedModifyCaptionFile:
     @classmethod
     def IS_CHANGED(cls, **kwargs):
         return float("NaN")
+
