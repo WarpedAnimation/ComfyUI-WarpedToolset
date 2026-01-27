@@ -31,6 +31,13 @@
 
 <div align="left">
 
+# V1.7.4 Updates
+1) Added a series of advanced Hunyuan LORA mixing tools.
+2) Modified Multi Lora Loader to use fast loding.
+3) Fix some bugs
+   
+<div align="left">
+
 # V1.7.3 Updates
 
 1) Added Hunyuan Video LORA Mixer that allows for choosing which block types to mix.
