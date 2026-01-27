@@ -11514,7 +11514,7 @@ class WarpedHunyuanLoraDoubleBlocksModifySegment:
                 "metadata_dict": ("WARPEDMETADICT", {"default": None}),
                 "block_number": ([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19], {"default": 0}),
                 "percentage": ("FLOAT", {"default": 1.000, "min": 0.000, "max": 5.000, "step": 0.001}),
-                "block_type": (["all", "img", "txt"], {"default": "all"}),
+                "layer_type": (["all", "img", "txt"], {"default": "all"}),
                 "discard_single_blocks": ("BOOLEAN", {"default": True}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                 "verbose_messaging": ("BOOLEAN", {"default": False}),
@@ -11529,7 +11529,7 @@ class WarpedHunyuanLoraDoubleBlocksModifySegment:
     DESCRIPTION = "LoRA, single blocks double blocks"
 
     def load_lora(self, lora_model, source_lora, mainstrength, save_path, save_new_lora=False, return_state_only=False, segment_number=0, test_mode="perc_all", max_dimension=128, model=None, state_dictionary=None, metadata_dict=None,
-                block_number=0, percentage=1.000, block_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
+                block_number=0, percentage=1.000, layer_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
 
         if lora_model is None and state_dictionary is None:
             raise ValueError("Either lora_model or state_dictionary input must be valid selections")
@@ -11603,6 +11603,7 @@ class WarpedHunyuanLoraDoubleBlocksModifySegment:
         metadata[metadata_key]["segment_number"] = "{}".format(segment_number)
         metadata[metadata_key]["max_dimension"] = "{}".format(max_dimension)
         metadata[metadata_key]["block_number"] = "{}".format(block_number)
+        metadata[metadata_key]["layer_type"] = "{}".format(layer_type)
         metadata[metadata_key]["percentage"] = "{}".format(percentage)
         metadata[metadata_key]["discard_single_blocks"] = "{}".format(discard_single_blocks)
 
@@ -11617,10 +11618,10 @@ class WarpedHunyuanLoraDoubleBlocksModifySegment:
             if "single_blocks" in key:
                 continue
 
-            if ("block_type" == "img") and ("txt_" in key):
+            if ("layer_type" == "img") and ("txt_" in key):
                 continue
 
-            if ("block_type" == "txt") and ("img_" in key):
+            if ("layer_type" == "txt") and ("img_" in key):
                 continue
 
             if filtered_lora[key].shape[0] < filtered_lora[key].shape[1]:
@@ -11772,7 +11773,7 @@ class WarpedHunyuanLoraDoubleBlocksModifySegment:
 
 
     @classmethod
-    def IS_CHANGED(s, lora_model, source_lora, mainstrength, save_path, save_new_lora=False, return_state_only=False, segment_number=0, test_mode="perc_all", max_dimension=128, model=None, state_dictionary=None, metadata_dict=None, block_number=0, percentage=1.000, block_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
+    def IS_CHANGED(s, lora_model, source_lora, mainstrength, save_path, save_new_lora=False, return_state_only=False, segment_number=0, test_mode="perc_all", max_dimension=128, model=None, state_dictionary=None, metadata_dict=None, block_number=0, percentage=1.000, layer_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
         return f"{lora_model}_{mainstrength}"
 
 class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
@@ -11796,7 +11797,7 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
                 "metadata_dict": ("WARPEDMETADICT", {"default": None}),
                 "block_number": ([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19], {"default": 0}),
                 "percentage": ("FLOAT", {"default": 1.000, "min": 0.000, "max": 5.000, "step": 0.001}),
-                "block_type": (["all", "img", "txt"], {"default": "all"}),
+                "layer_type": (["all", "img", "txt"], {"default": "all"}),
                 "discard_single_blocks": ("BOOLEAN", {"default": True}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                 "verbose_messaging": ("BOOLEAN", {"default": False}),
@@ -11811,7 +11812,7 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
     DESCRIPTION = "LoRA, single blocks double blocks"
 
     def load_lora(self, lora_model, source_lora, mainstrength, save_path, save_new_lora=False, return_state_only=False, segment_numbers="2,23", test_mode="perc_all", max_dimension=128, model=None, state_dictionary=None, metadata_dict=None,
-                block_number=0, percentage=1.000, block_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
+                block_number=0, percentage=1.000, layer_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
 
         if lora_model is None and state_dictionary is None:
             raise ValueError("Either lora_model or state_dictionary input must be valid selections")
@@ -11909,6 +11910,7 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
         metadata[metadata_key]["segment_numbers"] = "{}".format(segment_numbers)
         metadata[metadata_key]["max_dimension"] = "{}".format(max_dimension)
         metadata[metadata_key]["block_number"] = "{}".format(block_number)
+        metadata[metadata_key]["layer_type"] = "{}".format(layer_type)
         metadata[metadata_key]["percentage"] = "{}".format(percentage)
         metadata[metadata_key]["discard_single_blocks"] = "{}".format(discard_single_blocks)
 
@@ -11923,10 +11925,10 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
             if "single_blocks" in key:
                 continue
 
-            if ("block_type" == "img") and ("txt_" in key):
+            if ("layer_type" == "img") and ("txt_" in key):
                 continue
 
-            if ("block_type" == "txt") and ("img_" in key):
+            if ("layer_type" == "txt") and ("img_" in key):
                 continue
 
             if filtered_lora[key].shape[0] < filtered_lora[key].shape[1]:
@@ -12138,7 +12140,7 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
 
 
     @classmethod
-    def IS_CHANGED(s, lora_model, source_lora, mainstrength, save_path, save_new_lora=False, return_state_only=False, segment_numbers="2,23", test_mode="perc_all", max_dimension=128, model=None, state_dictionary=None, metadata_dict=None, block_number=0, percentage=1.000, block_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
+    def IS_CHANGED(s, lora_model, source_lora, mainstrength, save_path, save_new_lora=False, return_state_only=False, segment_numbers="2,23", test_mode="perc_all", max_dimension=128, model=None, state_dictionary=None, metadata_dict=None, block_number=0, percentage=1.000, layer_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
         return f"{lora_model}_{mainstrength}"
 
 class WarpedLoadHunyuanLoraWeightsByPrefix:
