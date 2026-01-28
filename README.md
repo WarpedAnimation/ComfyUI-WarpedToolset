@@ -35,6 +35,8 @@
 1) Added a series of advanced Hunyuan LORA mixing tools.
 2) Modified Multi Lora Loader to use fast loding.
 3) Fix some bugs
+
+#### [V1.7.4 Overview Video](https://mega.nz/file/qnIxHCgQ#l6GPuZYPzYk9_cdYWcpc5O0d50A0d0SUJTR2Kd6dhMI)
    
 <div align="left">
 
