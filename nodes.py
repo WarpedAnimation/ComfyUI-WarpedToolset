@@ -10811,8 +10811,9 @@ class WarpedHunyuanLoraDoubleBlocksSwap:
             },
             "optional": {
                 "model": ("MODEL", {"default": None}),
-                "state_dictionary": ("WARPEDSTATEDICT", {"default": None}),
+                "state_dictionary": ("WARPEDSTATEDICT1", {"default": None}),
                 "metadata_dict": ("WARPEDMETADICT", {"default": None}),
+                "lora_2_state_dictionary": ("WARPEDSTATEDICT2", {"default": None}),
                 "metadata_flush": ("BOOLEAN", {"default": False}),
                 "verbose_messaging": ("BOOLEAN", {"default": False}),
             }
@@ -10823,14 +10824,15 @@ class WarpedHunyuanLoraDoubleBlocksSwap:
 
         return arg_dict
 
-    RETURN_TYPES = ("MODEL", "STRING", "WARPEDSTATEDICT", "WARPEDMETADICT",)
+    RETURN_TYPES = ("MODEL", "STRING", "WARPEDSTATEDICT1", "WARPEDMETADICT",)
     RETURN_NAMES = ("model", "metadata", "state_dict", "metadata_dict",)
     FUNCTION = "load_lora"
     CATEGORY = "Warped/Hunyuan/Mixers"
     OUTPUT_NODE = False
     DESCRIPTION = "LoRA, single blocks double blocks"
 
-    def load_lora(self, lora_model_1, lora_model_2, mainstrength, save_path, save_new_lora=False, return_state_only=False, model=None, state_dictionary=None, metadata_dict=None, metadata_flush=False, verbose_messaging=False, **kwargs):
+    def load_lora(self, lora_model_1, lora_model_2, mainstrength, save_path, save_new_lora=False, return_state_only=False, model=None, state_dictionary=None, metadata_dict=None,
+                lora_2_state_dictionary=None, metadata_flush=False, verbose_messaging=False, **kwargs):
         if ((lora_model_1 is None) and (state_dictionary)) or (lora_model_2 is None):
             ValueError("Both LORA models must be a valid selection, or LORA 1 has to be replaced by optional state dictionary input.")
 
@@ -10859,7 +10861,10 @@ class WarpedHunyuanLoraDoubleBlocksSwap:
 
         new_metadata = metadata.copy()
 
-        lora_2 = warped_load_lora_weights(lora_model_2)
+        if not lora_2_state_dictionary is None:
+            lora_2 = lora_2_state_dictionary
+        elif not lora_model_2 == "None":
+            lora_2 = warped_load_lora_weights(lora_model_2)
 
         diffusers_lora_1 = convert_lora(lora_1, convert_to="diffusion_model")
         filtered_lora_1 = filter_lora_keys(diffusers_lora_1, "all")
@@ -10959,7 +10964,7 @@ class WarpedHunyuanLoraDoubleBlocksSwap:
         return (model, new_metadata, filtered_lora_1, new_metadata, )
 
     @classmethod
-    def IS_CHANGED(s, lora_model_1, lora_model_2, mainstrength, save_path, save_new_lora, return_state_only=False, model=None, state_dictionary=None, metadata_dict=None, metadata_flush=False, verbose_messaging=False, **kwargs):
+    def IS_CHANGED(s, lora_model_1, lora_model_2, mainstrength, save_path, save_new_lora, return_state_only=False, model=None, state_dictionary=None, metadata_dict=None, lora_2_state_dictionary=None, metadata_flush=False, verbose_messaging=False, **kwargs):
         return f"{lora_model_1}_{lora_model_2}_{mainstrength}_{state_dictionary}_{metadata_dict}"
 
 def get_base_layer_type(layer_key):
@@ -11015,22 +11020,24 @@ class WarpedHunyuanLoraDoubleBlocksLayersBlend:
             },
             "optional": {
                 "model": ("MODEL", {"default": None}),
-                "state_dictionary": ("WARPEDSTATEDICT", {"default": None}),
+                "state_dictionary": ("WARPEDSTATEDICT1", {"default": None}),
                 "metadata_dict": ("WARPEDMETADICT", {"default": None}),
+                "lora_2_state_dictionary": ("WARPEDSTATEDICT2", {"default": None}),
                 "metadata_flush": (["tuner_only", "full", "none"], {"default": "tuner_only"}),
                 "discard_single_blocks": ("BOOLEAN", {"default": True}),
                 "verbose_messaging": ("BOOLEAN", {"default": False}),
             }
         }
 
-    RETURN_TYPES = ("MODEL", "STRING", "WARPEDSTATEDICT", "WARPEDMETADICT",)
+    RETURN_TYPES = ("MODEL", "STRING", "WARPEDSTATEDICT1", "WARPEDMETADICT",)
     RETURN_NAMES = ("model", "metadata", "state_dict", "metadata_dict",)
     FUNCTION = "load_lora"
     CATEGORY = "Warped/Hunyuan/Mixers"
     OUTPUT_NODE = False
     DESCRIPTION = "LoRA, single blocks double blocks"
 
-    def load_lora(self, lora_model_1, lora_model_2, mainstrength, save_path, save_new_lora=False, return_state_only=False, model=None, state_dictionary=None, metadata_dict=None, metadata_flush="tuner_only", discard_single_blocks=True, verbose_messaging=False,
+    def load_lora(self, lora_model_1, lora_model_2, mainstrength, save_path, save_new_lora=False, return_state_only=False, model=None, state_dictionary=None, metadata_dict=None,
+                lora_2_state_dictionary=None, metadata_flush="tuner_only", discard_single_blocks=True, verbose_messaging=False,
                 img_attn_proj_lora_A=0.00, img_attn_proj_lora_B=0.00, img_attn_qkv_lora_A=0.00, img_attn_qkv_lora_B=0.00, img_mlp_fc1_lora_A=0.00,
                 img_mlp_fc1_lora_B=0.00, img_mlp_fc2_lora_A=0.00, img_mlp_fc2_lora_B=0.00, img_mod_linear_lora_A=0.00, img_mod_linear_lora_B=0.00, txt_attn_proj_lora_A=0.00,
                 txt_attn_proj_lora_B=0.00, txt_attn_qkv_lora_A=0.00, txt_attn_qkv_lora_B=0.00, txt_mlp_fc1_lora_A=0.00, txt_mlp_fc1_lora_B=0.00, txt_mlp_fc2_lora_A=0.00,
@@ -11074,9 +11081,10 @@ class WarpedHunyuanLoraDoubleBlocksLayersBlend:
             else:
                 metadata = {}
 
-            # print("---- Metadata: ----\n{}".format(metadata))
-
-        lora_2 = warped_load_lora_weights(lora_model_2)
+        if not lora_2_state_dictionary is None:
+            lora_2 = lora_2_state_dictionary
+        elif not lora_model_2 == "None":
+            lora_2 = warped_load_lora_weights(lora_model_2)
 
         diffusers_lora_1 = convert_lora(lora_1, convert_to="diffusion_model")
         filtered_lora_1 = filter_lora_keys(diffusers_lora_1, "all")
@@ -11361,7 +11369,8 @@ class WarpedHunyuanLoraDoubleBlocksLayersBlend:
         return (model, metadata, filtered_lora_1, metadata, )
 
     @classmethod
-    def IS_CHANGED(s, lora_model_1, lora_model_2, mainstrength, save_path, save_new_lora=False, return_state_only=False, model=None, state_dictionary=None, metadata_dict=None, metadata_flush="tuner_only", discard_single_blocks=True, verbose_messaging=False,
+    def IS_CHANGED(s, lora_model_1, lora_model_2, mainstrength, save_path, save_new_lora=False, return_state_only=False, model=None, state_dictionary=None, metadata_dict=None,
+                lora_2_state_dictionary=None, metadata_flush="tuner_only", discard_single_blocks=True, verbose_messaging=False,
                 img_attn_proj_lora_A=0.00, img_attn_proj_lora_B=0.00, img_attn_qkv_lora_A=0.00, img_attn_qkv_lora_B=0.00, img_mlp_fc1_lora_A=0.00, img_mlp_fc1_lora_B=0.00, img_mlp_fc2_lora_A=0.00,
                 img_mlp_fc2_lora_B=0.00, img_mod_linear_lora_A=0.00, img_mod_linear_lora_B=0.00, txt_attn_proj_lora_A=0.00, txt_attn_proj_lora_B=0.00, txt_attn_qkv_lora_A=0.00, txt_attn_qkv_lora_B=0.00, txt_mlp_fc1_lora_A=0.00, txt_mlp_fc1_lora_B=0.00,
                 txt_mlp_fc2_lora_A=0.00, txt_mlp_fc2_lora_B=0.00, txt_mod_linear_lora_A=0.00, txt_mod_linear_lora_B=0.00, for_all_img_layers=0.00, for_all_txt_layers=0.00):
@@ -11381,7 +11390,7 @@ class WarpedHunyuanLoraDoubleBlocksRemoveLinear:
             },
             "optional": {
                 "model": ("MODEL", {"default": None}),
-                "state_dictionary": ("WARPEDSTATEDICT", {"default": None}),
+                "state_dictionary": ("WARPEDSTATEDICT1", {"default": None}),
                 "metadata_dict": ("WARPEDMETADICT", {"default": None}),
                 "metadata_flush": (["deletes_only", "full", "none"], {"default": "deletes_only"}),
                 "discard_single_blocks": ("BOOLEAN", {"default": True}),
@@ -11389,7 +11398,7 @@ class WarpedHunyuanLoraDoubleBlocksRemoveLinear:
             }
         }
 
-    RETURN_TYPES = ("MODEL", "STRING", "WARPEDSTATEDICT", "WARPEDMETADICT",)
+    RETURN_TYPES = ("MODEL", "STRING", "WARPEDSTATEDICT1", "WARPEDMETADICT",)
     RETURN_NAMES = ("model", "metadata", "state_dict", "metadata_dict",)
     FUNCTION = "load_lora"
     CATEGORY = "Warped/Hunyuan/Mixers"
@@ -11493,289 +11502,6 @@ class WarpedHunyuanLoraDoubleBlocksRemoveLinear:
     def IS_CHANGED(s, lora_model, mainstrength, save_path, save_new_lora=False, return_state_only=False, max_dimension=128, model=None, state_dictionary=None, metadata_dict=None, metadata_flush="tuner_only", discard_single_blocks=True, verbose_messaging=False):
         return f"{lora_model}_{mainstrength}"
 
-# class WarpedHunyuanLoraDoubleBlocksModifySegment:
-#     @classmethod
-#     def INPUT_TYPES(s):
-#         return {
-#             "required": {
-#                 "lora_model": (['None'] + folder_paths.get_filename_list("loras"),),
-#                 "source_lora": (['None'] + folder_paths.get_filename_list("loras"),),
-#                 "mainstrength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01, "display": "number"}),
-#                 "save_path": ("STRING", {"default": get_default_output_path()}),
-#                 "save_new_lora": ("BOOLEAN", {"default": False}),
-#                 "return_state_only": ("BOOLEAN", {"default": False}),
-#                 "segment_number": ("INT", {"default": 2, "min": 1, "max": 127, "step": 1}),
-#                 "test_mode": (["zero_all", "perc_all", "by_block_num", "random_noise", "use_source"], {"default": "perc_all"}),
-#                 "max_dimension": ([32, 64, 128], {"default": 128}),
-#             },
-#             "optional": {
-#                 "model": ("MODEL", {"default": None}),
-#                 "state_dictionary": ("WARPEDSTATEDICT", {"default": None}),
-#                 "metadata_dict": ("WARPEDMETADICT", {"default": None}),
-#                 "block_number": ([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19], {"default": 0}),
-#                 "percentage": ("FLOAT", {"default": 1.000, "min": 0.000, "max": 5.000, "step": 0.001}),
-#                 "layer_type": (["all", "img", "txt"], {"default": "all"}),
-#                 "discard_single_blocks": ("BOOLEAN", {"default": True}),
-#                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-#                 "verbose_messaging": ("BOOLEAN", {"default": False}),
-#             }
-#         }
-#
-#     RETURN_TYPES = ("MODEL", "STRING", "WARPEDSTATEDICT", "WARPEDMETADICT",)
-#     RETURN_NAMES = ("model", "metadata", "state_dict", "metadata_dict",)
-#     FUNCTION = "load_lora"
-#     CATEGORY = "Warped/Hunyuan/Mixers/Experimental"
-#     OUTPUT_NODE = False
-#     DESCRIPTION = "LoRA, single blocks double blocks"
-#
-#     def load_lora(self, lora_model, source_lora, mainstrength, save_path, save_new_lora=False, return_state_only=False, segment_number=0, test_mode="perc_all", max_dimension=128, model=None, state_dictionary=None, metadata_dict=None,
-#                 block_number=0, percentage=1.000, layer_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
-#
-#         if lora_model is None and state_dictionary is None:
-#             raise ValueError("Either lora_model or state_dictionary input must be valid selections")
-#
-#         if segment_number > (max_dimension - 1):
-#             raise ValueError("segment_number cannot be greater than max_dimension - 1.")
-#
-#         from comfy.utils import save_torch_file
-#         from comfy.sd import load_lora_for_models
-#         from comfy.lora import load_lora
-#
-#         if state_dictionary is None:
-#
-#             lora, metadata = warped_load_lora_weights(lora_model, return_metadata=True)
-#         else:
-#             lora = state_dictionary
-#
-#             if not metadata_dict is None:
-#                 metadata = metadata_dict
-#             else:
-#                 metadata = {}
-#
-#         if not "modified_loras" in metadata:
-#             metadata["modified_loras"] = "{} and {}".format(lora_model, source_lora)
-#         else:
-#             metadata["modified_loras"] = "{}  |  {} and {}".format(metadata["modified_loras"], lora_model, source_lora)
-#
-#         diffusers_lora = convert_lora(lora, convert_to="diffusion_model")
-#
-#         if discard_single_blocks:
-#             filtered_lora = filter_lora_keys(diffusers_lora, "double_blocks")
-#         else:
-#             filtered_lora = filter_lora_keys(diffusers_lora, "all")
-#
-#         filtered_lora = convert_lora_dimensions(max_dimension, filtered_lora)
-#
-#         source_filtered_lora = None
-#
-#         if (test_mode == "use_source") and (not source_lora == "None"):
-#             source_lora_path = folder_paths.get_full_path("loras", source_lora)
-#
-#             if not os.path.exists(source_lora_path):
-#                 raise Exception(f"Lora {source_lora} not found at {source_lora_path}")
-#
-#             temp_source_lora = warped_load_lora_weights(source_lora)
-#
-#             source_diffusers_lora = convert_lora(temp_source_lora, convert_to="diffusion_model")
-#             source_filtered_lora = filter_lora_keys(source_diffusers_lora, "double_blocks")
-#             source_filtered_lora = convert_lora_dimensions(max_dimension, source_filtered_lora)
-#
-#         if segment_number > max_dimension:
-#             segment_number = max_dimension
-#         elif segment_number < 0:
-#             segment_number = 0
-#
-#         block_filter = ""
-#
-#         if test_mode == "by_block_num":
-#             block_filter = ".{}.".format(block_number)
-#
-#         if not "slice_manipulation_counter" in metadata:
-#             metadata["slice_manipulation_counter"] = "1"
-#             metadata_key = "slice_manipulation_1"
-#         else:
-#             metadata["slice_manipulation_counter"] = "{}".format(int(metadata["slice_manipulation_counter"]) + 1)
-#             metadata_key = f'slice_manipulation_{"{}".format(metadata["slice_manipulation_counter"])}'
-#
-#         metadata[metadata_key] = {"seed": "{}".format(seed)}
-#         metadata[metadata_key]["lora_model"] = lora_model
-#         metadata[metadata_key]["test_mode"] = test_mode
-#         metadata[metadata_key]["segment_number"] = "{}".format(segment_number)
-#         metadata[metadata_key]["max_dimension"] = "{}".format(max_dimension)
-#         metadata[metadata_key]["block_number"] = "{}".format(block_number)
-#         metadata[metadata_key]["layer_type"] = "{}".format(layer_type)
-#         metadata[metadata_key]["percentage"] = "{}".format(percentage)
-#         metadata[metadata_key]["discard_single_blocks"] = "{}".format(discard_single_blocks)
-#
-#         if test_mode == "use_source":
-#             metadata[metadata_key]["source_model"] = source_lora
-#         else:
-#             metadata[metadata_key]["source_model"] = None
-#
-#         metadata[metadata_key] = "{}".format(metadata[metadata_key])
-#
-#         for key in filtered_lora:
-#             if "single_blocks" in key:
-#                 continue
-#
-#             if ("layer_type" == "img") and ("txt_" in key):
-#                 continue
-#
-#             if ("layer_type" == "txt") and ("img_" in key):
-#                 continue
-#
-#             if filtered_lora[key].shape[0] < filtered_lora[key].shape[1]:
-#                 use_length = filtered_lora[key].shape[0]
-#                 test_length = 1
-#             else:
-#                 use_length = int(int(filtered_lora[key].shape[0]) // int(filtered_lora[key].shape[1]))
-#                 test_length = int(filtered_lora[key].shape[0])
-#
-#             temp_tensor = torch.zeros_like(filtered_lora[key])
-#
-#             if (test_mode == "zero_all") or ((len(block_filter) > 0) and (block_filter in key)):
-#                 if use_length == test_length:
-#                     if (not segment_number == 0) and (not segment_number == max_dimension):
-#                         temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
-#                         temp_tensor[segment_number + 1:,:] = filtered_lora[key][segment_number + 1:,:]
-#                     elif segment_number == 0:
-#                         temp_tensor[segment_number + 1:,:] = filtered_lora[key][segment_number + 1:,:]
-#                     else:
-#                         temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
-#                 else:
-#                     if (not segment_number == 0) and (not segment_number == max_dimension):
-#                         temp_tensor[:segment_number * test_length,:] = filtered_lora[key][:segment_number * test_length,:]
-#                         temp_tensor[segment_number + test_length:,:] = filtered_lora[key][segment_number + test_length:,:]
-#                     elif segment_number == 0:
-#                         temp_tensor[segment_number + test_length:,:] = filtered_lora[key][segment_number + test_length:,:]
-#                     else:
-#                         temp_tensor[:segment_number * test_length,:] = filtered_lora[key][:segment_number * test_length,:]
-#             elif test_mode == "perc_all":
-#                 temp_perc_tensor = torch.zeros_like(filtered_lora[key])
-#
-#                 if use_length == test_length:
-#                     if (not segment_number == 0) and (not segment_number == max_dimension):
-#                         temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
-#                         temp_tensor[segment_number + 1:,:] = filtered_lora[key][segment_number + 1:,:]
-#
-#                         temp_perc_tensor[segment_number - 1:segment_number,:] = filtered_lora[key][segment_number - 1:segment_number,:] * percentage
-#                     elif segment_number == 0:
-#                         temp_tensor[segment_number + 1:,:] = filtered_lora[key][segment_number + 1:,:]
-#
-#                         temp_perc_tensor[:1,:] = filtered_lora[key][:1,:] * percentage
-#                     else:
-#                         temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
-#
-#                         temp_perc_tensor[segment_number:segment_number + 1,:] = filtered_lora[key][segment_number:segment_number + 1,:] * percentage
-#                 else:
-#                     if (not segment_number == 0) and (not segment_number == max_dimension):
-#                         temp_tensor[:segment_number * test_length,:] = filtered_lora[key][:segment_number * test_length,:]
-#                         temp_tensor[segment_number + test_length:,:] = filtered_lora[key][segment_number + test_length:,:]
-#
-#                         temp_perc_tensor[segment_number - test_length:segment_number,:] = filtered_lora[key][segment_number - test_length:segment_number,:] * percentage
-#                     elif segment_number == 0:
-#                         temp_tensor[segment_number + test_length:,:] = filtered_lora[key][segment_number + test_length:,:]
-#
-#                         temp_perc_tensor[:test_length,:] = filtered_lora[key][:test_length,:] * percentage
-#                     else:
-#                         temp_tensor[:segment_number * test_length,:] = filtered_lora[key][:segment_number * test_length,:]
-#
-#                         temp_perc_tensor[(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] = filtered_lora[key][(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] * percentage
-#             elif test_mode == "random_noise":
-#                 random_noise_latent = warped_prepare_noise(torch.zeros_like(filtered_lora[key]), seed)
-#                 temp_perc_tensor = torch.zeros_like(filtered_lora[key])
-#
-#                 if use_length == test_length:
-#                     if (not segment_number == 0) and (not segment_number == max_dimension):
-#                         temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
-#                         temp_tensor[segment_number + 1:,:] = filtered_lora[key][segment_number + 1:,:]
-#
-#                         temp_perc_tensor[segment_number - 1:segment_number,:] = random_noise_latent[segment_number - 1:segment_number,:] * percentage
-#                     elif segment_number == 0:
-#                         temp_tensor[segment_number + 1:,:] = filtered_lora[key][segment_number + 1:,:]
-#
-#                         temp_perc_tensor[:1,:] = random_noise_latent[:1,:] * percentage
-#                     else:
-#                         temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
-#
-#                         temp_perc_tensor[segment_number:segment_number + 1,:] = random_noise_latent[segment_number:segment_number + 1,:] * percentage
-#                 else:
-#                     if (not segment_number == 0) and (not segment_number == max_dimension):
-#                         temp_tensor[:segment_number * test_length,:] = filtered_lora[key][:segment_number * test_length,:]
-#                         temp_tensor[segment_number + test_length:,:] = filtered_lora[key][segment_number + test_length:,:]
-#
-#                         temp_perc_tensor[segment_number - test_length:segment_number,:] = random_noise_latent[segment_number - test_length:segment_number,:] * percentage
-#                     elif segment_number == 0:
-#                         temp_tensor[segment_number + test_length:,:] = filtered_lora[key][segment_number + test_length:,:]
-#
-#                         temp_perc_tensor[:test_length,:] = random_noise_latent[:test_length,:] * percentage
-#                     else:
-#                         temp_tensor[:segment_number * test_length,:] = filtered_lora[key][:segment_number * test_length,:]
-#
-#                         temp_perc_tensor[(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] = random_noise_latent[(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] * percentage
-#
-#                 temp_tensor = torch.add(temp_tensor, temp_perc_tensor)
-#             elif test_mode == "use_source":
-#                 if not source_filtered_lora is None:
-#                     if not key in source_filtered_lora:
-#                         continue
-#
-#                     temp_perc_tensor = torch.zeros_like(filtered_lora[key])
-#
-#                     if use_length == test_length:
-#                         if (not segment_number == 0) and (not segment_number == max_dimension):
-#                             temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
-#                             temp_tensor[segment_number + 1:,:] = filtered_lora[key][segment_number + 1:,:]
-#                             temp_perc_tensor[segment_number - 1:segment_number,:] = source_filtered_lora[key][segment_number - 1:segment_number,:] * percentage
-#                         elif segment_number == 0:
-#                             temp_tensor[segment_number + 1:,:] = filtered_lora[key][segment_number + 1:,:]
-#                             temp_perc_tensor[:1,:] = source_filtered_lora[key][:1,:] * percentage
-#                         else:
-#                             temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
-#                             temp_perc_tensor[segment_number:segment_number + 1,:] = source_filtered_lora[key][segment_number:segment_number + 1,:] * percentage
-#                     else:
-#                         if (not segment_number == 0) and (not segment_number == max_dimension):
-#                             temp_tensor[:segment_number * test_length,:] = filtered_lora[key][:segment_number * test_length,:]
-#                             temp_tensor[segment_number + test_length:,:] = filtered_lora[key][segment_number + test_length:,:]
-#                             temp_perc_tensor[segment_number - test_length:segment_number,:] = source_filtered_lora[key][segment_number - test_length:segment_number,:] * percentage
-#                         elif segment_number == 0:
-#                             temp_tensor[segment_number + test_length:,:] = filtered_lora[key][segment_number + test_length:,:]
-#                             temp_perc_tensor[:test_length,:] = source_filtered_lora[key][:test_length,:] * percentage
-#                         else:
-#                             temp_tensor[:segment_number * test_length,:] = filtered_lora[key][:segment_number * test_length,:]
-#                             temp_perc_tensor[(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] = source_filtered_lora[key][(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] * percentage
-#
-#                     temp_tensor = torch.add(temp_tensor, temp_perc_tensor)
-#                 else:
-#                     print("**** No Source LORA Provided. Unable to make mosification. ****")
-#
-#             filtered_lora[key] = temp_tensor.to(torch.bfloat16)
-#
-#         if verbose_messaging:
-#             print("Tester Metadata: {}".format(metadata))
-#
-#         if save_new_lora: # and (len(swap_blocks) > 0):
-#             os.makedirs(os.path.dirname(save_path), exist_ok=True)
-#
-#             for key in filtered_lora:
-#                 filtered_lora[key] = filtered_lora[key].to(dtype=torch.bfloat16)
-#
-#             print("Saving Model To: {}...".format(save_path))
-#             save_torch_file(filtered_lora, save_path, metadata=metadata)
-#             print("Saving Model To: {}...Done.".format(save_path))
-#
-#         if (not return_state_only) and (not model is None):
-#             new_model, _ = load_lora_for_models(model, None, filtered_lora, mainstrength, 0)
-#             if new_model is not None:
-#                 return (new_model, metadata, None, None, )
-#
-#         return (model, metadata, filtered_lora, metadata, )
-#
-#
-#     @classmethod
-#     def IS_CHANGED(s, lora_model, source_lora, mainstrength, save_path, save_new_lora=False, return_state_only=False, segment_number=0, test_mode="perc_all", max_dimension=128, model=None, state_dictionary=None, metadata_dict=None, block_number=0, percentage=1.000, layer_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
-#         return f"{lora_model}_{mainstrength}"
-
 class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
     @classmethod
     def INPUT_TYPES(s):
@@ -11788,13 +11514,14 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
                 "save_new_lora": ("BOOLEAN", {"default": False}),
                 "return_state_only": ("BOOLEAN", {"default": False}),
                 "segment_numbers": ("STRING", {"default": "2,23"}),
-                "test_mode": (["zero_all", "perc_all", "by_block_num", "random_noise", "use_source", "add_source", "subtract_source"], {"default": "perc_all"}),
+                "test_mode": (["zero_all", "perc_all", "by_block_num", "random_noise", "use_source", "add_source", "subtract_source", "add_noise", "subtract_noise"], {"default": "perc_all"}),
                 "max_dimension": ([32, 64, 128], {"default": 128}),
             },
             "optional": {
                 "model": ("MODEL", {"default": None}),
-                "state_dictionary": ("WARPEDSTATEDICT", {"default": None}),
+                "state_dictionary": ("WARPEDSTATEDICT1", {"default": None}),
                 "metadata_dict": ("WARPEDMETADICT", {"default": None}),
+                "source_state_dictionary": ("WARPEDSTATEDICT2", {"default": None}),
                 "block_number": ([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19], {"default": 0}),
                 "percentage": ("FLOAT", {"default": 1.000, "min": 0.000, "max": 5.000, "step": 0.001}),
                 "layer_type": (["all", "img", "txt"], {"default": "all"}),
@@ -11804,7 +11531,7 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
             }
         }
 
-    RETURN_TYPES = ("MODEL", "STRING", "WARPEDSTATEDICT", "WARPEDMETADICT",)
+    RETURN_TYPES = ("MODEL", "STRING", "WARPEDSTATEDICT1", "WARPEDMETADICT",)
     RETURN_NAMES = ("model", "metadata", "state_dict", "metadata_dict",)
     FUNCTION = "load_lora"
     CATEGORY = "Warped/Hunyuan/Mixers/Experimental"
@@ -11812,7 +11539,7 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
     DESCRIPTION = "LoRA, single blocks double blocks"
 
     def load_lora(self, lora_model, source_lora, mainstrength, save_path, save_new_lora=False, return_state_only=False, segment_numbers="2,23", test_mode="perc_all", max_dimension=128, model=None, state_dictionary=None, metadata_dict=None,
-                block_number=0, percentage=1.000, layer_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
+                source_state_dictionary=None, block_number=0, percentage=1.000, layer_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
 
         if lora_model is None and state_dictionary is None:
             raise ValueError("Either lora_model or state_dictionary input must be valid selections")
@@ -11827,6 +11554,9 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
         for entry in temp_seg_split:
             # if range of segments
             if "-" in entry.strip():
+                if (test_mode == "add_noise") or (test_mode == "subtract_noise"):
+                    raise ValueError("Segment Ranges Not Supported For test_mode add_noise  or subtract_noise")
+
                 temp_seg_split_2 = entry.split("-")
 
                 start = int(temp_seg_split_2[0].strip())
@@ -11835,26 +11565,28 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
                 if start > end:
                     raise ValueError("Beginning of segment range cannot be greater than the end of the segment range.")
 
-                for i in range(start, end):
+                for i in range(start, end + 1):
                     use_segment_numbers.append(i)
 
                 continue
 
             use_segment_numbers.append(int(entry.strip()))
 
+        if verbose_messaging:
+            print("\n**** Using Segment Numbers:\n{}".format(use_segment_numbers))
+
         for segment_number in use_segment_numbers:
             if segment_number > (max_dimension - 1):
                 raise ValueError("segment_number cannot be greater than max_dimension - 1.")
 
-            if segment_number < 1:
-                raise ValueError("segment_number cannot be less than 1.")
+            if (segment_number < 1) and (test_mode == "random_noise"):
+                raise ValueError("segment_number cannot be less than 1 when using test_mode == random_noise.")
 
         from comfy.utils import save_torch_file
         from comfy.sd import load_lora_for_models
         from comfy.lora import load_lora
 
         if state_dictionary is None:
-
             lora, metadata = warped_load_lora_weights(lora_model, return_metadata=True)
         else:
             lora = state_dictionary
@@ -11880,13 +11612,16 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
 
         source_filtered_lora = None
 
-        if ((test_mode == "use_source") or (test_mode == "add_source") or (test_mode == "subtract_source")) and (not source_lora == "None"):
-            source_lora_path = folder_paths.get_full_path("loras", source_lora)
+        if (test_mode == "use_source") or (test_mode == "add_source") or (test_mode == "subtract_source"):
+            if not source_state_dictionary is None:
+                temp_source_lora = source_state_dictionary
+            elif not source_lora == "None":
+                source_lora_path = folder_paths.get_full_path("loras", source_lora)
 
-            if not os.path.exists(source_lora_path):
-                raise Exception(f"Lora {source_lora} not found at {source_lora_path}")
+                if not os.path.exists(source_lora_path):
+                    raise Exception(f"Lora {source_lora} not found at {source_lora_path}")
 
-            temp_source_lora = warped_load_lora_weights(source_lora)
+                temp_source_lora = warped_load_lora_weights(source_lora)
 
             source_diffusers_lora = convert_lora(temp_source_lora, convert_to="diffusion_model")
             source_filtered_lora = filter_lora_keys(source_diffusers_lora, "double_blocks")
@@ -11943,7 +11678,7 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
             if (test_mode == "zero_all") or ((len(block_filter) > 0) and (block_filter in key)):
                 for segment_number in use_segment_numbers:
                     if use_length == test_length:
-                        if (not segment_number == 0) and (not segment_number == max_dimension):
+                        if (not segment_number == 0) and (not segment_number == (max_dimension - 1)):
                             temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
                             temp_tensor[segment_number + 1:,:] = filtered_lora[key][segment_number + 1:,:]
                         elif segment_number == 0:
@@ -11951,7 +11686,7 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
                         else:
                             temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
                     else:
-                        if (not segment_number == 0) and (not segment_number == max_dimension):
+                        if (not segment_number == 0) and (not segment_number == (max_dimension - 1)):
                             temp_tensor[:segment_number * test_length,:] = filtered_lora[key][:segment_number * test_length,:]
                             temp_tensor[segment_number + test_length:,:] = filtered_lora[key][segment_number + test_length:,:]
                         elif segment_number == 0:
@@ -11965,34 +11700,30 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
 
                 for segment_number in use_segment_numbers:
                     if use_length == test_length:
-                        if (not segment_number == 0) and (not segment_number == max_dimension):
+                        if (not segment_number == 0) and (not segment_number == (max_dimension - 1)):
                             temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
                             temp_tensor[segment_number + 1:,:] = filtered_lora[key][segment_number + 1:,:]
 
                             temp_perc_tensor[segment_number - 1:segment_number,:] = filtered_lora[key][segment_number - 1:segment_number,:] * percentage
                         elif segment_number == 0:
                             temp_tensor[segment_number + 1:,:] = filtered_lora[key][segment_number + 1:,:]
-
                             temp_perc_tensor[:1,:] = filtered_lora[key][:1,:] * percentage
                         else:
                             temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
-
                             temp_perc_tensor[segment_number:segment_number + 1,:] = filtered_lora[key][segment_number:segment_number + 1,:] * percentage
                     else:
-                        if (not segment_number == 0) and (not segment_number == max_dimension):
+                        if (not segment_number == 0) and (not segment_number == (max_dimension - 1)):
                             temp_tensor[:segment_number * test_length,:] = filtered_lora[key][:segment_number * test_length,:]
                             temp_tensor[segment_number + test_length:,:] = filtered_lora[key][segment_number + test_length:,:]
-
                             temp_perc_tensor[segment_number - test_length:segment_number,:] = filtered_lora[key][segment_number - test_length:segment_number,:] * percentage
                         elif segment_number == 0:
                             temp_tensor[segment_number + test_length:,:] = filtered_lora[key][segment_number + test_length:,:]
-
                             temp_perc_tensor[:test_length,:] = filtered_lora[key][:test_length,:] * percentage
                         else:
                             temp_tensor[:segment_number * test_length,:] = filtered_lora[key][:segment_number * test_length,:]
-
                             temp_perc_tensor[(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] = filtered_lora[key][(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] * percentage
 
+                    temp_tensor = torch.add(temp_tensor, temp_perc_tensor)
                     filtered_lora[key] = temp_tensor.to(torch.bfloat16)
             elif test_mode == "random_noise":
                 rnd = torch.manual_seed(seed)
@@ -12002,7 +11733,7 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
 
                 for segment_number in use_segment_numbers:
                     if use_length == test_length:
-                        if (not segment_number == 0) and (not segment_number == max_dimension):
+                        if (not segment_number == 0) and (not segment_number == (max_dimension - 1)):
                             temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
                             temp_tensor[segment_number + 1:,:] = filtered_lora[key][segment_number + 1:,:]
 
@@ -12016,7 +11747,7 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
 
                             temp_perc_tensor[segment_number:segment_number + 1,:] = random_noise_latent[segment_number:segment_number + 1,:] * percentage
                     else:
-                        if (not segment_number == 0) and (not segment_number == max_dimension):
+                        if (not segment_number == 0) and (not segment_number == (max_dimension - 1)):
                             temp_tensor[:segment_number * test_length,:] = filtered_lora[key][:segment_number * test_length,:]
                             temp_tensor[segment_number + test_length:,:] = filtered_lora[key][segment_number + test_length:,:]
 
@@ -12032,6 +11763,35 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
 
                     temp_tensor = torch.add(temp_tensor, temp_perc_tensor)
                     filtered_lora[key] = temp_tensor.to(torch.bfloat16)
+            elif (test_mode == "add_noise") or (test_mode == "subtract_noise"):
+                rnd = torch.manual_seed(seed)
+
+                for segment_number in use_segment_numbers:
+                    filtered_lora[key] = filtered_lora[key].to(device=torch.device("cuda"))
+                    random_noise_latent = warped_prepare_noise(torch.zeros_like(filtered_lora[key]), seed, generator=rnd)
+                    temp_perc_tensor = torch.zeros_like(filtered_lora[key])
+
+                    if use_length == test_length:
+                        if (not segment_number == 0) and (not segment_number == (max_dimension - 1)):
+                            temp_perc_tensor[segment_number - 1:segment_number,:] = random_noise_latent[segment_number - 1:segment_number,:] * percentage
+                        elif segment_number == 0:
+                            temp_perc_tensor[:1,:] = random_noise_latent[:1,:] * percentage
+                        else:
+                            temp_perc_tensor[segment_number:segment_number + 1,:] = random_noise_latent[segment_number:segment_number + 1,:] * percentage
+                    else:
+                        if (not segment_number == 0) and (not segment_number == (max_dimension - 1)):
+                            temp_perc_tensor[segment_number - test_length:segment_number,:] = random_noise_latent[segment_number - test_length:segment_number,:] * percentage
+                        elif segment_number == 0:
+                            temp_perc_tensor[:test_length,:] = random_noise_latent[:test_length,:] * percentage
+                        else:
+                            temp_perc_tensor[(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] = random_noise_latent[(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] * percentage
+
+                    if test_mode == "add_noise":
+                        temp_tensor = torch.add(filtered_lora[key], temp_perc_tensor)
+                    else:
+                        temp_tensor = torch.sub(filtered_lora[key], temp_perc_tensor)
+
+                    filtered_lora[key] = temp_tensor.to(torch.bfloat16)
             elif test_mode == "use_source":
                 if not source_filtered_lora is None:
                     if not key in source_filtered_lora:
@@ -12041,7 +11801,7 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
                         temp_perc_tensor = torch.zeros_like(filtered_lora[key])
 
                         if use_length == test_length:
-                            if (not segment_number == 0) and (not segment_number == max_dimension):
+                            if (not segment_number == 0) and (not segment_number == (max_dimension - 1)):
                                 temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
                                 temp_tensor[segment_number + 1:,:] = filtered_lora[key][segment_number + 1:,:]
                                 temp_perc_tensor[segment_number - 1:segment_number,:] = source_filtered_lora[key][segment_number - 1:segment_number,:] * percentage
@@ -12052,7 +11812,7 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
                                 temp_tensor[:segment_number,:] = filtered_lora[key][:segment_number,:]
                                 temp_perc_tensor[segment_number:segment_number + 1,:] = source_filtered_lora[key][segment_number:segment_number + 1,:] * percentage
                         else:
-                            if (not segment_number == 0) and (not segment_number == max_dimension):
+                            if (not segment_number == 0) and (not segment_number == (max_dimension - 1)):
                                 temp_tensor[:segment_number * test_length,:] = filtered_lora[key][:segment_number * test_length,:]
                                 temp_tensor[segment_number + test_length:,:] = filtered_lora[key][segment_number + test_length:,:]
                                 temp_perc_tensor[segment_number - test_length:segment_number,:] = source_filtered_lora[key][segment_number - test_length:segment_number,:] * percentage
@@ -12065,7 +11825,7 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
 
                         temp_tensor = torch.add(temp_tensor, temp_perc_tensor)
                         filtered_lora[key] = temp_tensor.to(torch.bfloat16)
-            elif test_mode == "add_source":
+            elif (test_mode == "add_source") or (test_mode == "subtract_source"):
                 if not source_filtered_lora is None:
                     if not key in source_filtered_lora:
                         continue
@@ -12074,49 +11834,28 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
                         temp_perc_tensor = torch.zeros_like(filtered_lora[key])
 
                         if use_length == test_length:
-                            if (not segment_number == 0) and (not segment_number == max_dimension):
+                            if (not segment_number == 0) and (not segment_number == (max_dimension - 1)):
                                 temp_perc_tensor[segment_number - 1:segment_number,:] = source_filtered_lora[key][segment_number - 1:segment_number,:] * percentage
                             elif segment_number == 0:
                                 temp_perc_tensor[:1,:] = source_filtered_lora[key][:1,:] * percentage
                             else:
                                 temp_perc_tensor[segment_number:segment_number + 1,:] = source_filtered_lora[key][segment_number:segment_number + 1,:] * percentage
                         else:
-                            if (not segment_number == 0) and (not segment_number == max_dimension):
+                            if (not segment_number == 0) and (not segment_number == (max_dimension - 1)):
                                 temp_perc_tensor[segment_number - test_length:segment_number,:] = source_filtered_lora[key][segment_number - test_length:segment_number,:] * percentage
                             elif segment_number == 0:
                                 temp_perc_tensor[:test_length,:] = source_filtered_lora[key][:test_length,:] * percentage
                             else:
                                 temp_perc_tensor[(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] = source_filtered_lora[key][(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] * percentage
 
-                        temp_tensor = torch.add(filtered_lora[key], temp_perc_tensor)
-                        filtered_lora[key] = temp_tensor.to(torch.bfloat16)
-            elif test_mode == "subtract_source":
-                if not source_filtered_lora is None:
-                    if not key in source_filtered_lora:
-                        continue
-
-                    for segment_number in use_segment_numbers:
-                        temp_perc_tensor = torch.zeros_like(filtered_lora[key])
-
-                        if use_length == test_length:
-                            if (not segment_number == 0) and (not segment_number == max_dimension):
-                                temp_perc_tensor[segment_number - 1:segment_number,:] = source_filtered_lora[key][segment_number - 1:segment_number,:] * percentage
-                            elif segment_number == 0:
-                                temp_perc_tensor[:1,:] = source_filtered_lora[key][:1,:] * percentage
-                            else:
-                                temp_perc_tensor[segment_number:segment_number + 1,:] = source_filtered_lora[key][segment_number:segment_number + 1,:] * percentage
+                        if test_mode == "add_source":
+                            temp_tensor = torch.add(filtered_lora[key], temp_perc_tensor)
                         else:
-                            if (not segment_number == 0) and (not segment_number == max_dimension):
-                                temp_perc_tensor[segment_number - test_length:segment_number,:] = source_filtered_lora[key][segment_number - test_length:segment_number,:] * percentage
-                            elif segment_number == 0:
-                                temp_perc_tensor[:test_length,:] = source_filtered_lora[key][:test_length,:] * percentage
-                            else:
-                                temp_perc_tensor[(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] = source_filtered_lora[key][(segment_number * test_length) - test_length:(segment_number * test_length) + test_length,:] * percentage
+                            temp_tensor = torch.sub(filtered_lora[key], temp_perc_tensor)
 
-                        temp_tensor = torch.sub(filtered_lora[key], temp_perc_tensor)
                         filtered_lora[key] = temp_tensor.to(torch.bfloat16)
                 else:
-                    print("**** No Source LORA Provided. Unable to make mosification. ****")
+                    print("**** No Source LORA Provided. Unable to make modification. ****")
 
         if verbose_messaging:
             print("Tester Metadata: {}".format(metadata))
@@ -12140,7 +11879,8 @@ class WarpedHunyuanLoraDoubleBlocksModifyMultipleSegments:
 
 
     @classmethod
-    def IS_CHANGED(s, lora_model, source_lora, mainstrength, save_path, save_new_lora=False, return_state_only=False, segment_numbers="2,23", test_mode="perc_all", max_dimension=128, model=None, state_dictionary=None, metadata_dict=None, block_number=0, percentage=1.000, layer_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
+    def IS_CHANGED(s, lora_model, source_lora, mainstrength, save_path, save_new_lora=False, return_state_only=False, segment_numbers="2,23", test_mode="perc_all", max_dimension=128, model=None, state_dictionary=None, metadata_dict=None,
+                source_state_dictionary=None, block_number=0, percentage=1.000, layer_type="all", discard_single_blocks=True, seed=0, verbose_messaging=False):
         return f"{lora_model}_{mainstrength}"
 
 class WarpedLoadHunyuanLoraWeightsByPrefix:
@@ -12158,8 +11898,8 @@ class WarpedLoadHunyuanLoraWeightsByPrefix:
             },
         }
 
-    RETURN_TYPES = ("WARPEDSTATEDICT", "WARPEDMETADICT", )
-    RETURN_NAMES = ("state_dict", "metadata_dict", )
+    RETURN_TYPES = ("WARPEDSTATEDICT1", "WARPEDSTATEDICT2", "WARPEDMETADICT", )
+    RETURN_NAMES = ("state_dict_1", "state_dict_2", "metadata_dict", )
     FUNCTION = "load_batch_loras"
 
     CATEGORY = "Warped/Hunyuan/Lora"
@@ -12185,7 +11925,7 @@ class WarpedLoadHunyuanLoraWeightsByPrefix:
 
             lora, metadata = warped_load_lora_weights(filename, return_metadata=True)
 
-            return (lora, metadata,)
+            return (lora, lora, metadata,)
         except:
             self.index = 0
             retry = True
@@ -12197,9 +11937,9 @@ class WarpedLoadHunyuanLoraWeightsByPrefix:
 
             lora, metadata = warped_load_lora_weights(filename, return_metadata=True)
 
-            return (lora, metadata,)
+            return (lora, lora, metadata,)
 
-        return (None, None, )
+        return (None, None, None)
 
     def do_the_load(self, path, prefix, index):
         prefix = prefix.strip(' ')
